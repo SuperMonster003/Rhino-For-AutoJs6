@@ -62,8 +62,35 @@ public final class MemberBox implements Serializable {
             this.argNullability = NullabilityDetector.NullabilityAccessor.FALSE;
         }
         this.vararg = method.isVarArgs();
-        this.argTypeInfos = factory.createList(method.getGenericParameterTypes());
-        this.returnTypeInfo = factory.create(method.getGenericReturnType());
+
+        // @Hint by SuperMonster003 on Jan 8, 2026.
+        //  ! Prefer generic reflection, but fall back to raw types on older/buggy Android runtimes.
+        //  ! zh-CN: 优先使用泛型反射, 但在旧版/有缺陷的 Android 运行时上失败时降级为原始类型.
+        //  !
+        //  ! On some old devices, parsing a method's generic signature may try to load
+        //  ! framework classes that don't exist on that OS version (e.g. AccessibilityNodeInfo$ExtraRenderingInfo),
+        //  ! causing NoClassDefFoundError during getGenericParameterTypes()/getGenericReturnType().
+        //  ! zh-CN:
+        //  ! 在一些旧设备上, 解析方法的泛型签名可能会尝试加载该系统版本不存在的框架类 (例如 AccessibilityNodeInfo$ExtraRenderingInfo),
+        //  ! 从而在 getGenericParameterTypes()/getGenericReturnType() 期间抛出 NoClassDefFoundError.
+        try {
+            this.argTypeInfos = factory.createList(method.getGenericParameterTypes());
+        } catch (NoClassDefFoundError | TypeNotPresentException ex) {
+            this.argTypeInfos = factory.createList(method.getParameterTypes());
+        }
+
+        try {
+            this.returnTypeInfo = factory.create(method.getGenericReturnType());
+        } catch (NoClassDefFoundError | TypeNotPresentException ex) {
+            // @Hint by SuperMonster003 on Jan 8, 2026.
+            //  ! Some Android 7.x runtimes may also throw NoClassDefFoundError even for getReturnType().
+            //  ! zh-CN: 一些 Android 7.x 运行时在调用 getReturnType() 时也可能抛出 NoClassDefFoundError.
+            try {
+                this.returnTypeInfo = factory.create(method.getReturnType());
+            } catch (NoClassDefFoundError | TypeNotPresentException ex2) {
+                this.returnTypeInfo = factory.create(Object.class);
+            }
+        }
 
         var mapping = factory.getConsolidationMapping(parent);
         this.argTypeInfos = TypeInfoFactory.consolidateAll(this.argTypeInfos, mapping);
@@ -76,7 +103,16 @@ public final class MemberBox implements Serializable {
             this.argNullability = NullabilityDetector.NullabilityAccessor.FALSE;
         }
         this.vararg = constructor.isVarArgs();
-        this.argTypeInfos = factory.createList(constructor.getGenericParameterTypes());
+
+        // @Hint by SuperMonster003 on Jan 8, 2026.
+        //  ! Prefer generic reflection, but fall back to raw types on older/buggy Android runtimes.
+        //  ! zh-CN: 优先使用泛型反射, 但在旧版/有缺陷的 Android 运行时上失败时降级为原始类型.
+        try {
+            this.argTypeInfos = factory.createList(constructor.getGenericParameterTypes());
+        } catch (NoClassDefFoundError | TypeNotPresentException ex) {
+            this.argTypeInfos = factory.createList(constructor.getParameterTypes());
+        }
+
         this.returnTypeInfo = TypeInfo.NONE;
 
         // Type consolidation not required for constructor.
