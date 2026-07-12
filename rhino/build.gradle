@@ -1,9 +1,52 @@
 plugins {
     id 'rhino.library-conventions'
+    id 'biz.aQute.bnd.builder'
 }
 
 dependencies {
     testImplementation project(':testutils')
+}
+
+jar {
+    bundle {
+        bnd(
+            'Bundle-SymbolicName': 'org.mozilla.rhino',
+            'Bundle-Vendor': 'Mozilla Foundation',
+            'Bundle-License': 'https://www.mozilla.org/MPL/2.0/',
+            'DynamicImport-Package': '*',
+            'Import-Package': [
+                'android.os;resolution:=optional',
+                'jdk.dynalink*;resolution:=optional',
+                '*',
+            ].join(','),
+            '-exportcontents': [
+                'org.mozilla.classfile',
+                'org.mozilla.javascript',
+                'org.mozilla.javascript.annotations',
+                'org.mozilla.javascript.ast',
+                'org.mozilla.javascript.commonjs.module',
+                'org.mozilla.javascript.commonjs.module.provider',
+                'org.mozilla.javascript.config',
+                'org.mozilla.javascript.debug',
+                'org.mozilla.javascript.lc.type',
+                'org.mozilla.javascript.optimizer',
+                'org.mozilla.javascript.serialize',
+                'org.mozilla.javascript.sourcemap',
+                'org.mozilla.javascript.typedarrays',
+                'org.mozilla.javascript.xml',
+            ].join(','),
+            'Provide-Capability': 'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.RegExpLoader;register:=org.mozilla.javascript.regexp.RegExpLoaderImpl',
+            'Require-Capability': [
+                'osgi.ee;filter:="(&(osgi.ee=JavaSE)(version>=11))"',
+                'osgi.extender;filter:="(osgi.extender=osgi.serviceloader.processor)"',
+                'osgi.extender;filter:="(osgi.extender=osgi.serviceloader.registrar)"',
+                'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.RegExpLoader',
+                'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.NullabilityDetector;resolution:=optional',
+                'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.config.RhinoPropertiesLoader;resolution:=optional',
+                'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.xml.XMLLoader;resolution:=optional',
+            ].join(',')
+        )
+    }
 }
 
 publishing {
@@ -71,12 +114,25 @@ decycle {
     ignoring from: "org.mozilla.javascript.debug.*", to: "org.mozilla.javascript.Kit"
     ignoring from: "org.mozilla.javascript.debug.*", to: "org.mozilla.javascript.Context"
     ignoring from: "org.mozilla.javascript.debug.*", to: "org.mozilla.javascript.Scriptable"
+    ignoring from: "org.mozilla.javascript.debug.*", to: "org.mozilla.javascript.VarScope"
 
     // accepted cycle: o.m.j.xml is strongly coupled to o.m.j (xmlimpl already in separate module)
     ignoring from: "org.mozilla.javascript.*", to: "org.mozilla.javascript.xml.*"
 
     // accepted cycle: o.m.j.ast is strongly coupled to o.m.j
     ignoring from: "org.mozilla.javascript.*", to: "org.mozilla.javascript.ast.*"
+
+    // accepted cycle: o.m.j.interpreterv2 is strongly coupled to o.m.j
+    ignoring from: "org.mozilla.javascript.*", to: "org.mozilla.javascript.interpreterv2.*"
+    ignoring from: "org.mozilla.javascript.interpreterv2.*", to: "org.mozilla.javascript.*"
+    ignoring from: "org.mozilla.javascript.interpreterv2.instruction.*", to: "org.mozilla.javascript.*"
+    ignoring from: "org.mozilla.javascript.interpreterv2.operand.*", to: "org.mozilla.javascript.*"
+    // accepted cycle: interpreterv2 sub-packages are tightly coupled
+    ignoring from: "org.mozilla.javascript.interpreterv2.*", to: "org.mozilla.javascript.interpreterv2.instruction.*"
+    ignoring from: "org.mozilla.javascript.interpreterv2.*", to: "org.mozilla.javascript.interpreterv2.operand.*"
+    ignoring from: "org.mozilla.javascript.interpreterv2.instruction.*", to: "org.mozilla.javascript.interpreterv2.*"
+    ignoring from: "org.mozilla.javascript.interpreterv2.instruction.*", to: "org.mozilla.javascript.interpreterv2.operand.*"
+    ignoring from: "org.mozilla.javascript.interpreterv2.operand.*", to: "org.mozilla.javascript.interpreterv2.*"
 
     // accepted cycle: typedarrays are strongly coupled. (See #1893 of an idea, how to remove)
     ignoring from: "org.mozilla.javascript.ScriptRuntime", to: "org.mozilla.javascript.typedarrays.*"
@@ -85,22 +141,30 @@ decycle {
     // TODO: easy to remove: See #1890
     ignoring from: "org.mozilla.classfile.ClassFileWriter\$StackMapTable", to: "org.mozilla.javascript.Kit"
 
-    // TODO: Long-term-plan: LiveConnect should be moved to a separate module
-    // TODO: Move all "Native*" classes to o.m.j.lc
-    ignoring from: "org.mozilla.javascript.Native*", to: "org.mozilla.javascript.lc.type.TypeInfo*"
-    // CHECKME: Can we move JavaMembers + MemberBox also to o.m.j.lc
-    ignoring from: "org.mozilla.javascript.JavaMembers", to: "org.mozilla.javascript.lc.type.TypeInfo*"
-    ignoring from: "org.mozilla.javascript.MemberBox", to: "org.mozilla.javascript.lc.type.*"
-    ignoring from: "org.mozilla.javascript.AccessorSlot\$MemberBoxSetter", to: "org.mozilla.javascript.lc.type.TypeInfo"
-    // CHECKME: Can we remove dependency to typeinfo from these objects?
-    ignoring from: "org.mozilla.javascript.ScriptableObject", to: "org.mozilla.javascript.lc.type.TypeInfoFactory"
-    ignoring from: "org.mozilla.javascript.FunctionObject", to: "org.mozilla.javascript.lc.type.TypeInfo*"
+    /// --- LiveConnect start ---
+
+    // references from LiveConnect to LiveConnect
+    ignoring(from: "org.mozilla.javascript.lc.**", to: "org.mozilla.javascript.lc.**")
+
+    // LiveConnect classes in root package
+    // TODO: Move them to LiveConnect module
+    ignoring(
+        from: "org.mozilla.javascript.(Native*|JavaMembers|FieldAndMethods|InterfaceAdapter|WrapFactory)",
+        to: "org.mozilla.javascript.lc.**"
+    )
+
+    // In theory, this is also LiveConnect classes in root package, but Rhino is using one of
+    // its methods to create instance from compiled script
+    ignoring from: "org.mozilla.javascript.JavaAdapter", to: "org.mozilla.javascript.lc.**"
+
+    // `Context#jsToJava(...)` used TypeInfo and TypeInfoFactory
+    // removing this is absolutely a breaking change, wait until 2.0.0
     ignoring from: "org.mozilla.javascript.Context", to: "org.mozilla.javascript.lc.type.TypeInfo*"
-    ignoring from: "org.mozilla.javascript.ScriptRuntime", to: "org.mozilla.javascript.lc.type.TypeInfoFactory"
+
+    // `ScriptRuntime.initSafeStandardObjects(...)` called `new ConcurrentFactory().associate(scope)`
+    // can be resolved by moving this to future `LiveConnectBridge`
+    ignoring from: "org.mozilla.javascript.ScriptRuntime", to: "org.mozilla.javascript.lc.type.*"
     ignoring from: "org.mozilla.javascript.ScriptRuntime", to: "org.mozilla.javascript.lc.type.impl.factory.ConcurrentFactory"
 
-    // currently accepted cycles (may be resolved, when it is clear, how to separate the liveconnect stuff)
-    ignoring from: "org.mozilla.javascript.lc.type.*", to: "org.mozilla.javascript.(Scriptable|ScriptableObject)"
-    ignoring from: "org.mozilla.javascript.lc.type.TypeInfoFactory", to: "org.mozilla.javascript.lc.type.impl.factory.*"
-    ignoring from: "org.mozilla.javascript.lc.type.*", to: "org.mozilla.javascript.lc.type.impl.*"
+    /// --- LiveConnect end ---
 }

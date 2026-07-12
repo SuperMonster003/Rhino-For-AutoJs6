@@ -1,29 +1,32 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ScriptRuntime;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 
 public class UndefinedTest {
     private Context cx;
-    private Scriptable global;
+    private Global global;
 
-    @Before
+    @BeforeEach
     public void init() {
         cx = Context.enter();
         cx.setLanguageVersion(Context.VERSION_ES6);
         global = new Global(cx);
+        global.setFileLoadPrefix(TestSource.getPrefix());
     }
 
-    @After
+    @AfterEach
     public void close() {
         cx.close();
     }
@@ -44,12 +47,14 @@ public class UndefinedTest {
         final String testFuncSource =
                 "load('testsrc/assert.js');\n"
                         + "function testFunc() {\n"
+                        + "\"use strict\";\n"
                         + "assertSame(this, undefined);\n"
                         + "}\n"
                         + "testFunc;";
         Callable testFunc =
                 (Callable) cx.evaluateString(global, testFuncSource, "test.js", 1, null);
         // Ensure that using SCRIPTABLE_UNDEFINED means that "this" is really undefined
+        // for strict mode functions.
         testFunc.call(cx, global, Undefined.SCRIPTABLE_UNDEFINED, ScriptRuntime.emptyArgs);
     }
 

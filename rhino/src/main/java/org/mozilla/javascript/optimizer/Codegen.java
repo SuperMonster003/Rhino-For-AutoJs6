@@ -17,9 +17,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.mozilla.classfile.ByteCode;
 import org.mozilla.classfile.ClassFileWriter;
 import org.mozilla.javascript.CodeGenUtils;
+import org.mozilla.javascript.CompilationResult;
 import org.mozilla.javascript.CompilerEnvirons;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Evaluator;
@@ -31,13 +33,14 @@ import org.mozilla.javascript.JSScript;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.ScriptOrFn;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.SecurityController;
 import org.mozilla.javascript.Token;
+import org.mozilla.javascript.VarScope;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.Name;
 import org.mozilla.javascript.ast.ScriptNode;
 import org.mozilla.javascript.ast.TemplateCharacters;
+import org.mozilla.javascript.debug.DebuggableScript;
 
 /**
  * This class generates code for a given IR tree.
@@ -66,18 +69,14 @@ public class Codegen implements Evaluator {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public void setEvalScriptFlag(Script script) {
-        throw new UnsupportedOperationException();
-    }
-
-    private static class CompilationResult<T extends ScriptOrFn<T>> {
+    private static class CodegenCompilationResult<T extends ScriptOrFn<T>>
+            implements CompilationResult<T> {
         final JSDescriptor.Builder<T> builder;
         final String className;
         final byte[] bytecode;
         final OptJSCode.BuilderEnv builderEnv;
 
-        CompilationResult(
+        CodegenCompilationResult(
                 JSDescriptor.Builder<T> builder,
                 String className,
                 byte[] bytecode,
@@ -87,11 +86,27 @@ public class Codegen implements Evaluator {
             this.bytecode = bytecode;
             this.builderEnv = builderEnv;
         }
+
+        @Override
+        public DebuggableScript getDebuggableScript() {
+            // Can't debug compiled classes
+            return null;
+        }
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Object compile(
+    public CompilationResult<JSScript> compileScript(
+            CompilerEnvirons compilerEnv, ScriptNode tree, String rawSource) {
+        return doCompile(compilerEnv, tree, rawSource, false);
+    }
+
+    @Override
+    public CompilationResult<JSFunction> compileFunction(
+            CompilerEnvirons compilerEnv, ScriptNode tree, String rawSource) {
+        return doCompile(compilerEnv, tree, rawSource, true);
+    }
+
+    private <T extends ScriptOrFn<T>> CodegenCompilationResult<T> doCompile(
             CompilerEnvirons compilerEnv,
             ScriptNode tree,
             String rawSource,
@@ -111,7 +126,7 @@ public class Codegen implements Evaluator {
 
         String mainClassName = "org.mozilla.javascript.gen." + baseName + "_" + serial;
 
-        JSDescriptor.Builder<?> builder = new JSDescriptor.Builder();
+        JSDescriptor.Builder<T> builder = new JSDescriptor.Builder<>();
         OptJSCode.BuilderEnv builderEnv = new OptJSCode.BuilderEnv(mainClassName);
         byte[] mainClassBytes =
                 compileToClassFile(
@@ -123,28 +138,30 @@ public class Codegen implements Evaluator {
                         rawSource,
                         returnFunction);
 
-        return new CompilationResult(builder, mainClassName, mainClassBytes, builderEnv);
+        return new CodegenCompilationResult<>(builder, mainClassName, mainClassBytes, builderEnv);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Script createScriptObject(Object bytecode, Object staticSecurityDomain) {
+    public Script createScriptObject(
+            CompilationResult<JSScript> compiled, Object staticSecurityDomain) {
         JSDescriptor<JSScript> desc =
-                defineClass((CompilationResult<JSScript>) bytecode, staticSecurityDomain);
+                defineClass((CodegenCompilationResult<JSScript>) compiled, staticSecurityDomain);
         return JSFunction.createScript(desc, null, staticSecurityDomain);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Function createFunctionObject(
-            Context cx, Scriptable scope, Object bytecode, Object staticSecurityDomain) {
+            Context cx,
+            VarScope scope,
+            CompilationResult<JSFunction> compiled,
+            Object staticSecurityDomain) {
         JSDescriptor<JSFunction> desc =
-                defineClass((CompilationResult<JSFunction>) bytecode, staticSecurityDomain);
+                defineClass((CodegenCompilationResult<JSFunction>) compiled, staticSecurityDomain);
         return JSFunction.createFunction(cx, scope, desc, null, staticSecurityDomain);
     }
 
     private <T extends ScriptOrFn<T>> JSDescriptor<T> defineClass(
-            CompilationResult<T> compiled, Object staticSecurityDomain) {
+            CodegenCompilationResult<T> compiled, Object staticSecurityDomain) {
         // The generated classes in this case refer only to Rhino classes
         // which must be accessible through this class loader
         ClassLoader rhinoLoader = getClass().getClassLoader();
@@ -522,7 +539,7 @@ public class Codegen implements Evaluator {
                 "org/mozilla/javascript/BaseFunction",
                 "createObject",
                 "(Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + ")Lorg/mozilla/javascript/Scriptable;");
         cfw.addAStore(firstLocal);
 
@@ -860,6 +877,12 @@ public class Codegen implements Evaluator {
         return "_c_" + cleanName(n) + "_" + index;
     }
 
+    /**
+     * List of illegal characters in unqualified names as specified in
+     * https://docs.oracle.com/javase/specs/jvms/se25/html/jvms-4.html#jvms-4.2.2
+     */
+    private static Pattern illegalChars = Pattern.compile("[.;\\[/<>]");
+
     /** Gets a Java-compatible "informative" name for the ScriptOrFnNode */
     String cleanName(final ScriptNode n) {
         String result = "";
@@ -873,7 +896,7 @@ public class Codegen implements Evaluator {
         } else {
             result = "script";
         }
-        return result;
+        return illegalChars.matcher(result).replaceAll("_");
     }
 
     String getNonDirectBodyMethodSIgnature(ScriptNode n) {
@@ -886,9 +909,7 @@ public class Codegen implements Evaluator {
             sb.append("Lorg/mozilla/javascript/JSScript;");
         }
         sb.append(
-                "Ljava/lang/Object;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
-                        + "Ljava/lang/Object;");
+                "Ljava/lang/Object;" + "Lorg/mozilla/javascript/VarScope;" + "Ljava/lang/Object;");
         sb.append("[Ljava/lang/Object;)Ljava/lang/Object;");
         return sb.toString();
     }
@@ -903,9 +924,7 @@ public class Codegen implements Evaluator {
             sb.append("Lorg/mozilla/javascript/JSScript;");
         }
         sb.append(
-                "Ljava/lang/Object;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
-                        + "Ljava/lang/Object;");
+                "Ljava/lang/Object;" + "Lorg/mozilla/javascript/VarScope;" + "Ljava/lang/Object;");
         if (n.getType() == Token.FUNCTION) {
             OptFunctionNode ofn = OptFunctionNode.get(n);
             if (ofn.isTargetOfDirectCall()) {
@@ -964,7 +983,7 @@ public class Codegen implements Evaluator {
     static final String JSFUNCTION_CONSTRUCTOR_SIGNATURE =
             "("
                     + "Lorg/mozilla/javascript/Context;"
-                    + "Lorg/mozilla/javascript/Scriptable;"
+                    + "Lorg/mozilla/javascript/VarScope;"
                     + "Lorg/mozilla/javascript/JSDescriptor;"
                     + "Lorg/mozilla/javascript/Scriptable;"
                     + "Lorg/mozilla/javascript/Scriptable;"
@@ -975,7 +994,7 @@ public class Codegen implements Evaluator {
                     + "Lorg/mozilla/javascript/Context;"
                     + "Lorg/mozilla/javascript/JSFunction;"
                     + "Ljava/lang/Object;"
-                    + "Lorg/mozilla/javascript/Scriptable;"
+                    + "Lorg/mozilla/javascript/VarScope;"
                     + "I"
                     + "Ljava/lang/Object;)Ljava/lang/Object;";
 

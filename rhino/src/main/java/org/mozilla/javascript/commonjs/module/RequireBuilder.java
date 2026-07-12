@@ -4,10 +4,11 @@
 
 package org.mozilla.javascript.commonjs.module;
 
+import java.io.Serial;
 import java.io.Serializable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Script;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 
 /**
  * A builder for {@link Require} instances. Useful when you're creating many instances of {@link
@@ -20,7 +21,7 @@ import org.mozilla.javascript.Scriptable;
  * @version $Id: RequireBuilder.java,v 1.4 2011/04/07 20:26:11 hannes%helma.at Exp $
  */
 public class RequireBuilder implements Serializable {
-    private static final long serialVersionUID = 1L;
+    @Serial private static final long serialVersionUID = 5244169608278369242L;
     private boolean sandboxed = true;
     private ModuleScriptProvider moduleScriptProvider;
     private Script preExec;
@@ -65,7 +66,7 @@ public class RequireBuilder implements Serializable {
 
     /**
      * Sets whether the created require() instances will be sandboxed. See {@link
-     * Require#Require(Context, Scriptable, ModuleScriptProvider, Script, Script, boolean)} for
+     * Require#Require(Context, TopLevel, ModuleScriptProvider, Script, Script, boolean)} for
      * explanation.
      *
      * @param sandboxed true if the created require() instances will be sandboxed.
@@ -78,14 +79,14 @@ public class RequireBuilder implements Serializable {
 
     /**
      * Creates a new require() function. You are still responsible for invoking either {@link
-     * Require#install(Scriptable)} or {@link Require#requireMain(Context, String)} to effectively
+     * Require#install(VarScope)} or {@link Require#requireMain(Context, String)} to effectively
      * make it available to its JavaScript program.
      *
      * @param cx the current context
      * @param globalScope the global scope containing the JS standard natives.
      * @return a new Require instance.
      */
-    public Require createRequire(Context cx, Scriptable globalScope) {
+    public Require createRequire(Context cx, TopLevel globalScope) {
         return new Require(cx, globalScope, moduleScriptProvider, preExec, postExec, sandboxed);
     }
 }

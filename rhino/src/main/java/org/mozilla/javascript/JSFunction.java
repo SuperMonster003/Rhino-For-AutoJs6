@@ -15,7 +15,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
 
     public JSFunction(
             Context cx,
-            Scriptable scope,
+            VarScope scope,
             JSDescriptor<JSFunction> descriptor,
             Scriptable lexicalThis,
             Scriptable homeObject) {
@@ -28,8 +28,25 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
         }
     }
 
+    JSFunction(
+            VarScope scope,
+            JSDescriptor<JSFunction> descriptor,
+            Scriptable lexicalThis,
+            Scriptable homeObject) {
+        this.descriptor = descriptor;
+        this.lexicalThis = lexicalThis;
+        this.homeObject = homeObject;
+        setParentScope(scope);
+        setPrototype(ScriptableObject.getFunctionPrototype(scope));
+    }
+
     @Override
-    public Scriptable getDeclarationScope() {
+    public void setPrototypeProperty(Object prototype) {
+        super.setPrototypeProperty(prototype);
+    }
+
+    @Override
+    public VarScope getDeclarationScope() {
         return this.getParentScope();
     }
 
@@ -76,16 +93,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
 
     @Override
     public int getLength() {
-        int arity = descriptor.getArity();
-        if (getLanguageVersion() != Context.VERSION_1_2) {
-            return arity;
-        }
-        Context cx = Context.getContext();
-        NativeCall activation = ScriptRuntime.findFunctionActivation(cx, this);
-        if (activation == null) {
-            return arity;
-        }
-        return activation.originalArgs.length;
+        return descriptor.getArity();
     }
 
     protected int getParamAndVarCount() {
@@ -128,16 +136,37 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         if (!ScriptRuntime.hasTopCall(cx)) {
             return ScriptRuntime.doTopCall(this, cx, scope, thisObj, args, isStrict());
         }
-        var realThis = descriptor.hasLexicalThis() ? lexicalThis : thisObj;
+        var realThis = getThisObj(thisObj);
         return descriptor.getCode().execute(cx, this, Undefined.instance, scope, realThis, args);
     }
 
+    public final Scriptable getThisObj(Scriptable thisObj) {
+        if (descriptor.hasLexicalThis()) {
+            return lexicalThis;
+        } else if (!descriptor.isStrict() && (thisObj == null || Undefined.isUndefined(thisObj))) {
+            var res = ScriptableObject.getTopLevelScope(getDeclarationScope()).getGlobalThis();
+            return res;
+        } else {
+            return thisObj;
+        }
+    }
+
     @Override
-    public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+    public Scriptable construct(Context cx, VarScope scope, Object[] args) {
+        if (!ScriptRuntime.hasTopCall(cx)) {
+            return (Scriptable)
+                    ScriptRuntime.doTopCall(
+                            (lcx, lscope, lthisObj, largs) -> construct(lcx, lscope, largs),
+                            cx,
+                            scope,
+                            null,
+                            args,
+                            isStrict());
+        }
         if (descriptor.getConstructor() == null) {
             throw ScriptRuntime.typeErrorById("msg.not.ctor", getFunctionName());
         }
@@ -170,7 +199,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
     }
 
     public Object resumeGenerator(
-            Context cx, Scriptable scope, int operation, Object state, Object value) {
+            Context cx, VarScope scope, int operation, Object state, Object value) {
         return descriptor.getCode().resume(cx, this, state, scope, operation, value);
     }
 
@@ -203,7 +232,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
     /** Create function compiled from Function(...) constructor. */
     public static JSFunction createFunction(
             Context cx,
-            Scriptable scope,
+            VarScope scope,
             JSDescriptor<JSFunction> desc,
             Scriptable homeObject,
             Object staticSecurityDomain) {
@@ -214,13 +243,14 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
 
     /** Create function embedded in script or another function. */
     static JSFunction createFunction(
-            Context cx,
-            Scriptable scope,
-            JSDescriptor<?> parent,
-            int index,
-            Scriptable homeObject) {
+            Context cx, VarScope scope, JSDescriptor<?> parent, int index, Scriptable homeObject) {
         JSDescriptor<JSFunction> desc = parent.getFunction(index);
         JSFunction f = new JSFunction(cx, scope, desc, null, homeObject);
         return f;
+    }
+
+    @Override
+    public boolean isConstructor() {
+        return descriptor.getConstructor() != null;
     }
 }

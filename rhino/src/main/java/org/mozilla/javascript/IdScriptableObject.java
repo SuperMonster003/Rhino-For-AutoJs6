@@ -9,6 +9,7 @@ package org.mozilla.javascript;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serial;
 import java.io.Serializable;
 
 /**
@@ -25,12 +26,12 @@ import java.io.Serializable;
  * scopeInit or fillConstructorProperties methods.
  */
 public abstract class IdScriptableObject extends ScriptableObject implements IdFunctionCall {
-    private static final long serialVersionUID = -3744239272168621609L;
+    @Serial private static final long serialVersionUID = -3744239272168621609L;
     private transient PrototypeValues prototypeValues;
     private IdFunctionObject mCtor;
 
     private static final class PrototypeValues implements Serializable {
-        private static final long serialVersionUID = 3038645279153854371L;
+        @Serial private static final long serialVersionUID = 3038645279153854371L;
 
         private static final int NAME_SLOT = 1;
         private static final int SLOT_SPAN = 2;
@@ -133,7 +134,8 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                                 + "initialize id="
                                 + constructorId);
             }
-            constructor.initFunction(obj.getClassName(), ScriptableObject.getTopLevelScope(obj));
+            constructor.initFunction(
+                    obj.getClassName(), ScriptableObject.getTopLevelScope(obj.getParentScope()));
             constructor.markAsConstructor(obj);
             return constructor;
         }
@@ -313,7 +315,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
 
     public IdScriptableObject() {}
 
-    public IdScriptableObject(Scriptable scope, Scriptable prototype) {
+    public IdScriptableObject(VarScope scope, Scriptable prototype) {
         super(scope, prototype);
     }
 
@@ -598,7 +600,8 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
     }
 
     @Override
-    public Object[] getIds(CompoundOperationMap map, boolean getNonEnumerable, boolean getSymbols) {
+    public Object[] getIds(
+            CompoundOperationMap<Scriptable> map, boolean getNonEnumerable, boolean getSymbols) {
         Object[] result = super.getIds(map, getNonEnumerable, getSymbols);
 
         if (prototypeValues != null) {
@@ -714,14 +717,14 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
      */
     @Override
     public Object execIdCall(
-            IdFunctionObject f, Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+            IdFunctionObject f, Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         throw f.unknown();
     }
 
     public final IdFunctionObject exportAsJSClass(
-            int maxPrototypeId, Scriptable scope, boolean sealed) {
+            int maxPrototypeId, VarScope scope, boolean sealed) {
         // Set scope and prototype unless this is top level scope itself
-        if (scope != this && scope != null) {
+        if (scope != null) {
             setParentScope(scope);
             setPrototype(getObjectPrototype(scope));
         }
@@ -761,7 +764,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
 
     public final IdFunctionObject initPrototypeMethod(
             Object tag, int id, String propertyName, String functionName, int arity) {
-        Scriptable scope = ScriptableObject.getTopLevelScope(this);
+        VarScope scope = ScriptableObject.getTopLevelScope(this.getParentScope());
         IdFunctionObject function =
                 newIdFunction(
                         tag, id, functionName != null ? functionName : propertyName, arity, scope);
@@ -771,7 +774,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
 
     public final IdFunctionObject initPrototypeMethod(
             Object tag, int id, Symbol key, String functionName, int arity) {
-        Scriptable scope = ScriptableObject.getTopLevelScope(this);
+        VarScope scope = ScriptableObject.getTopLevelScope(this.getParentScope());
         IdFunctionObject function = newIdFunction(tag, id, functionName, arity, scope);
         prototypeValues.initValue(id, key, function, DONTENUM);
         return function;
@@ -779,7 +782,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
 
     public final IdFunctionObject initPrototypeMethod(
             Object tag, int id, Symbol key, String functionName, int arity, int attributes) {
-        Scriptable scope = ScriptableObject.getTopLevelScope(this);
+        VarScope scope = ScriptableObject.getTopLevelScope(this.getParentScope());
         IdFunctionObject function = newIdFunction(tag, id, functionName, arity, scope);
         prototypeValues.initValue(id, key, function, attributes);
         return function;
@@ -819,7 +822,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
 
     protected void addIdFunctionProperty(
             Scriptable obj, Object tag, int id, String name, int arity) {
-        Scriptable scope = ScriptableObject.getTopLevelScope(obj);
+        VarScope scope = ScriptableObject.getTopLevelScope(obj.getParentScope());
         IdFunctionObject f = newIdFunction(tag, id, name, arity, scope);
         f.addAsProperty(obj);
     }
@@ -846,7 +849,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
     }
 
     private IdFunctionObject newIdFunction(
-            Object tag, int id, String name, int arity, Scriptable scope) {
+            Object tag, int id, String name, int arity, VarScope scope) {
         IdFunctionObject function = new IdFunctionObject(this, tag, id, name, arity, scope);
 
         if (isSealed()) {
@@ -1005,6 +1008,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         return null;
     }
 
+    @Serial
     private void readObject(ObjectInputStream stream) throws IOException, ClassNotFoundException {
         stream.defaultReadObject();
         int maxPrototypeId = stream.readInt();
@@ -1013,6 +1017,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         }
     }
 
+    @Serial
     private void writeObject(ObjectOutputStream stream) throws IOException {
         stream.defaultWriteObject();
         int maxPrototypeId = 0;

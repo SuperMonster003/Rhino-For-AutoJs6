@@ -1,12 +1,12 @@
 package org.mozilla.javascript.tests.es5;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.VarScope;
 
 /**
  * @see <a
@@ -14,16 +14,16 @@ import org.mozilla.javascript.Scriptable;
  */
 public class StringSearchTest {
     private Context cx;
-    private Scriptable scope;
+    private VarScope scope;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         cx = Context.enter();
         cx.setLanguageVersion(Context.VERSION_1_8);
         scope = cx.initStandardObjects();
     }
 
-    @After
+    @AfterEach
     public void tearDown() {
         Context.exit();
     }

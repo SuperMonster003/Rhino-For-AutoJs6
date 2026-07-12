@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
 import org.mozilla.javascript.lc.type.TypeInfo;
@@ -43,13 +44,13 @@ import org.mozilla.javascript.lc.type.VariableTypeInfo;
  */
 public class NativeJavaList extends NativeJavaObject {
 
-    private static final long serialVersionUID = 660285467829047519L;
+    @Serial private static final long serialVersionUID = 660285467829047519L;
 
     private final List<Object> list;
     private final TypeInfo elementType;
 
     @SuppressWarnings("unchecked")
-    public NativeJavaList(Scriptable scope, Object list, TypeInfo staticType) {
+    public NativeJavaList(VarScope scope, Object list, TypeInfo staticType) {
         super(scope, list, staticType);
         assert list instanceof List;
         this.list = (List<Object>) list;
@@ -108,7 +109,7 @@ public class NativeJavaList extends NativeJavaObject {
             Context cx = Context.getCurrentContext();
             Object obj = list.get(index);
             if (cx != null) {
-                return cx.getWrapFactory().wrap(cx, this, obj, elementType);
+                return cx.getWrapFactory().wrap(cx, parent, obj, elementType);
             }
             return obj;
         }

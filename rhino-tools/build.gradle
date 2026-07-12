@@ -1,10 +1,90 @@
 plugins {
     id 'rhino.library-conventions'
+    id 'biz.aQute.bnd.builder'
+    id 'application'
+}
+
+application {
+    mainClass = 'org.mozilla.javascript.tools.shell.Main'
+}
+
+configurations {
+    shellOnly
 }
 
 dependencies {
     implementation project(':rhino')
+    // Dependencies that ensure that we can compile with the JLine library
+    compileOnly libs.jline.terminal
+    compileOnly libs.jline.reader
+    // Dependencies that add JLine only for the "run" task
+    shellOnly libs.jline.terminal
+    shellOnly libs.jline.reader
+    shellOnly libs.bundles.jline.runtime
     testImplementation project(':testutils')
+}
+
+jar {
+    bundle {
+        bnd(
+            'Bundle-SymbolicName': 'org.mozilla.rhino.tools',
+            'Bundle-Vendor': 'Mozilla Foundation',
+            'Bundle-License': 'https://www.mozilla.org/MPL/2.0/',
+            '-exportcontents': [
+                'org.mozilla.javascript.tools',
+                'org.mozilla.javascript.tools.debugger',
+                'org.mozilla.javascript.tools.jsc',
+                'org.mozilla.javascript.tools.shell',
+            ].join(','),
+            'Import-Package': [
+                'javax.swing*;resolution:=optional',
+                'java.awt*;resolution:=optional',
+                'org.jline.reader;resolution:=optional',
+                'org.jline.terminal;resolution:=optional',
+                '*',
+            ].join(','),
+            'Provide-Capability': [
+                'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.tools.ConsoleProvider;register:=org.mozilla.javascript.tools.shell.BasicConsoleProvider',
+                'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.tools.ConsoleProvider;register:=org.mozilla.javascript.tools.shell.JLineConsoleProvider',
+            ].join(','),
+            'Require-Capability': [
+                'osgi.ee;filter:="(&(osgi.ee=JavaSE)(version>=11))"',
+                'osgi.extender;filter:="(osgi.extender=osgi.serviceloader.processor)"',
+                'osgi.extender;filter:="(osgi.extender=osgi.serviceloader.registrar)"',
+                'osgi.serviceloader;osgi.serviceloader=org.mozilla.javascript.tools.ConsoleProvider;cardinality:=multiple',
+            ].join(',')
+        )
+    }
+}
+
+run {
+    standardInput = System.in
+    classpath = sourceSets.main.runtimeClasspath +
+            configurations.shellOnly
+}
+
+// This task makes it easier to write other command-line apps
+tasks.register('printClassPath') {
+    def cp = sourceSets.main.runtimeClasspath + configurations.shellOnly
+    inputs.files(cp)
+    doLast {
+        println cp.asPath
+    }
+}
+
+// Easy way to launch the debugger
+tasks.register('runDebugger', JavaExec) {
+    mainClass = 'org.mozilla.javascript.tools.debugger.Main'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+// This does the same thing as "gradle run" but adds a bit of usability
+// since we also have a "runDebugger" task
+tasks.register('runCli', JavaExec) {
+    mainClass = 'org.mozilla.javascript.tools.shell.Main'
+    classpath = sourceSets.main.runtimeClasspath +
+            configurations.shellOnly
+    standardInput = System.in
 }
 
 publishing {

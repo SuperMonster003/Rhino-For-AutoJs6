@@ -1,19 +1,20 @@
 package org.mozilla.javascript.tests.scriptengine;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.FileReader;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.engine.RhinoScriptEngineFactory;
+import org.mozilla.javascript.testutils.TestSource;
 
 public class InvocableTest {
 
@@ -22,13 +23,13 @@ public class InvocableTest {
     private ScriptEngine engine;
     private Invocable iEngine;
 
-    @BeforeClass
+    @BeforeAll
     public static void init() {
         manager = new ScriptEngineManager();
         manager.registerEngineName("rhino", new RhinoScriptEngineFactory());
     }
 
-    @Before
+    @BeforeEach
     public void setup() {
         engine = manager.getEngineByName("rhino");
         iEngine = (Invocable) engine;
@@ -64,7 +65,7 @@ public class InvocableTest {
 
     @Test
     public void invokeMethodTest() throws Exception {
-        try (FileReader reader = new FileReader("../tests/testsrc/assert.js")) {
+        try (FileReader reader = new FileReader(TestSource.resolve("testsrc/assert.js"))) {
             engine.eval(reader);
             engine.eval(
                     "function FooObj() { this.x = 0; }\n"
@@ -85,7 +86,7 @@ public class InvocableTest {
 
     @Test
     public void interfaceFunctionTest() throws Exception {
-        try (FileReader reader = new FileReader("../tests/testsrc/assert.js")) {
+        try (FileReader reader = new FileReader(TestSource.resolve("testsrc/assert.js"))) {
             engine.eval(reader);
 
             engine.eval(
@@ -103,7 +104,7 @@ public class InvocableTest {
 
     @Test
     public void interfaceMethodTest() throws Exception {
-        try (FileReader reader = new FileReader("../tests/testsrc/assert.js")) {
+        try (FileReader reader = new FileReader(TestSource.resolve("testsrc/assert.js"))) {
             engine.eval(reader);
 
             Object foo =
@@ -144,11 +145,7 @@ public class InvocableTest {
 
     @Test
     public void invokeNotFoundTest() {
-        assertThrows(
-                NoSuchMethodException.class,
-                () -> {
-                    iEngine.invokeFunction("foo", 2, 2);
-                });
+        assertThrows(NoSuchMethodException.class, () -> iEngine.invokeFunction("foo", 2, 2));
     }
 
     @Test

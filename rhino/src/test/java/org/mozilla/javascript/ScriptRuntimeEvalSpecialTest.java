@@ -1,8 +1,8 @@
 package org.mozilla.javascript;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.testutils.Utils;
 
 public class ScriptRuntimeEvalSpecialTest {
@@ -24,7 +24,7 @@ public class ScriptRuntimeEvalSpecialTest {
     private static void canUseEvalSpecialWithThisSetTo(Object thisArg) {
         Utils.runWithAllModes(
                 cx -> {
-                    ScriptableObject scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     Object o =
                             ScriptRuntime.evalSpecial(
                                     cx, scope, thisArg, new Object[] {"true"}, "", 0);

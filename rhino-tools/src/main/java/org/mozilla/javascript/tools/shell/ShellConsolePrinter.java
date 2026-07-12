@@ -4,21 +4,21 @@
 
 package org.mozilla.javascript.tools.shell;
 
-import java.io.IOException;
+import java.io.Serial;
 import java.nio.charset.Charset;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeConsole;
 import org.mozilla.javascript.ScriptStackElement;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.VarScope;
 
 /** Provide a printer use in console API */
 class ShellConsolePrinter implements NativeConsole.ConsolePrinter {
-    private static final long serialVersionUID = 5869832740127501857L;
+    @Serial private static final long serialVersionUID = 5869832740127501857L;
 
     @Override
     public void print(
             Context cx,
-            Scriptable scope,
+            VarScope scope,
             NativeConsole.Level level,
             Object[] args,
             ScriptStackElement[] stack) {
@@ -27,19 +27,15 @@ class ShellConsolePrinter implements NativeConsole.ConsolePrinter {
         }
 
         String msg = NativeConsole.format(cx, scope, args);
-        ShellConsole console = Main.getGlobal().getConsole(Charset.defaultCharset());
-        try {
-            console.println(level + " " + msg);
+        var console = Main.getGlobal().getConsole(Charset.defaultCharset());
+        console.println(level + " " + msg);
 
-            if (stack != null) {
-                for (ScriptStackElement element : stack) {
-                    console.println(element.toString());
-                }
+        if (stack != null) {
+            for (ScriptStackElement element : stack) {
+                console.println(element.toString());
             }
-
-            console.flush();
-        } catch (IOException e) {
-            throw Context.reportRuntimeError(e.getMessage());
         }
+
+        console.flush();
     }
 }

@@ -1,6 +1,10 @@
 package org.mozilla.javascript.tests.scriptengine;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.File;
 import java.io.FileReader;
@@ -15,11 +19,12 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.script.SimpleBindings;
 import javax.script.SimpleScriptContext;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.engine.RhinoScriptEngine;
 import org.mozilla.javascript.engine.RhinoScriptEngineFactory;
+import org.mozilla.javascript.testutils.TestSource;
 
 public class ScriptEngineTest {
 
@@ -27,13 +32,13 @@ public class ScriptEngineTest {
     private ScriptEngine engine;
     private Compilable cEngine;
 
-    @BeforeClass
+    @BeforeAll
     public static void initManager() {
         manager = new ScriptEngineManager();
         manager.registerEngineName("rhino", new RhinoScriptEngineFactory());
     }
 
-    @Before
+    @BeforeEach
     public void init() {
         engine = manager.getEngineByName("rhino");
         cEngine = (Compilable) engine;
@@ -69,11 +74,7 @@ public class ScriptEngineTest {
 
     @Test
     public void testThrows() {
-        assertThrows(
-                ScriptException.class,
-                () -> {
-                    engine.eval("throw 'This is an error'");
-                });
+        assertThrows(ScriptException.class, () -> engine.eval("throw 'This is an error'"));
     }
 
     @Test
@@ -86,7 +87,7 @@ public class ScriptEngineTest {
         engine.put("actuallyNull", null);
 
         // Ensure that stuff we just stuck in bindings made it to a global
-        engine.eval(new FileReader("../tests/testsrc/assert.js"));
+        engine.eval(new FileReader(TestSource.resolve("testsrc/assert.js")));
         engine.eval(
                 "assertEquals(string, 'Hello');\n"
                         + "assertEquals(integer, 123);\n"
@@ -106,18 +107,14 @@ public class ScriptEngineTest {
         // Make sure we can delete
         engineBindings.remove("string");
         // This will throw because string is undefined
-        assertThrows(
-                ScriptException.class,
-                () -> {
-                    engine.eval("let failing = string + '123';");
-                });
+        assertThrows(ScriptException.class, () -> engine.eval("let failing = string + '123';"));
     }
 
     @Test
     public void engineScope() throws IOException, ScriptException {
         engine.put("string", "Hello");
         engine.put("integer", 123);
-        engine.eval(new FileReader("../tests/testsrc/assert.js"));
+        engine.eval(new FileReader(TestSource.resolve("testsrc/assert.js")));
         engine.eval("assertEquals(string, 'Hello');" + "assertEquals(integer, 123);");
 
         // Additional things added to the context but old stuff still there
@@ -145,7 +142,7 @@ public class ScriptEngineTest {
         gb.put("global", Boolean.TRUE);
         gb.put("level", 0);
 
-        engine.eval(new FileReader("../tests/testsrc/assert.js"), sc);
+        engine.eval(new FileReader(TestSource.resolve("testsrc/assert.js")), sc);
         engine.eval("assertTrue(engine);" + "assertTrue(global);" + "assertEquals(level, 2);", sc);
     }
 
@@ -163,7 +160,8 @@ public class ScriptEngineTest {
 
     @Test
     public void compiled() throws ScriptException, IOException {
-        CompiledScript asserts = cEngine.compile(new FileReader("../tests/testsrc/assert.js"));
+        CompiledScript asserts =
+                cEngine.compile(new FileReader(TestSource.resolve("testsrc/assert.js")));
         CompiledScript tests = cEngine.compile("assertEquals(compiled, true);");
 
         // Fails because asserts have not been loaded
@@ -179,7 +177,8 @@ public class ScriptEngineTest {
 
     @Test
     public void compiled2() throws ScriptException, IOException {
-        CompiledScript asserts = cEngine.compile(new FileReader("../tests/testsrc/assert.js"));
+        CompiledScript asserts =
+                cEngine.compile(new FileReader(TestSource.resolve("testsrc/assert.js")));
         CompiledScript init = cEngine.compile("value = 0;");
         CompiledScript tests =
                 cEngine.compile("assertEquals(value, expectedValue);" + "value += 1;");
@@ -221,10 +220,7 @@ public class ScriptEngineTest {
     @Test
     public void cantCompile() {
         assertThrows(
-                ScriptException.class,
-                () -> {
-                    cEngine.compile("This is not JavaScript at all!");
-                });
+                ScriptException.class, () -> cEngine.compile("This is not JavaScript at all!"));
     }
 
     @Test
@@ -235,21 +231,13 @@ public class ScriptEngineTest {
 
         // Older language versions
         ScriptEngine oldEngine = manager.getEngineByName("rhino");
-        oldEngine.put(ScriptEngine.LANGUAGE_VERSION, 120);
-        assertThrows(
-                ScriptException.class,
-                () -> {
-                    oldEngine.eval("Symbol() == Symbol()");
-                });
+        oldEngine.put(ScriptEngine.LANGUAGE_VERSION, 150);
+        assertThrows(ScriptException.class, () -> oldEngine.eval("Symbol() == Symbol()"));
 
         // The same with a string
         ScriptEngine olderEngine = manager.getEngineByName("rhino");
-        olderEngine.put(ScriptEngine.LANGUAGE_VERSION, "100");
-        assertThrows(
-                ScriptException.class,
-                () -> {
-                    olderEngine.eval("Symbol() == Symbol()");
-                });
+        olderEngine.put(ScriptEngine.LANGUAGE_VERSION, "150");
+        assertThrows(ScriptException.class, () -> olderEngine.eval("Symbol() == Symbol()"));
     }
 
     @Test
@@ -280,7 +268,7 @@ public class ScriptEngineTest {
 
     @Test
     public void javaObject() throws ScriptException {
-        File f = new File("testsrc/assert.js");
+        File f = new File(TestSource.resolve("testsrc/assert.js"));
         String absVal = f.getAbsolutePath();
         engine.put("file", f);
         Object result = engine.eval("file.getAbsolutePath();");

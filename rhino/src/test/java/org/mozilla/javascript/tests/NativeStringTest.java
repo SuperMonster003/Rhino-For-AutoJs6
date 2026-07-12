@@ -5,12 +5,12 @@
 /** */
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Locale;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 /**
@@ -38,7 +38,7 @@ public class NativeStringTest {
 
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setLocale(new Locale("en"));
 
@@ -49,7 +49,7 @@ public class NativeStringTest {
 
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setLocale(new Locale("tr"));
 
@@ -65,7 +65,7 @@ public class NativeStringTest {
 
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setLocale(new Locale("en"));
 
@@ -76,7 +76,7 @@ public class NativeStringTest {
 
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setLocale(new Locale("tr"));
 

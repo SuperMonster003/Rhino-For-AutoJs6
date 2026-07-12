@@ -5,17 +5,23 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.VarScope;
 import org.openjdk.jmh.annotations.*;
 
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 public class V8Benchmark {
     static Object[] emptyArgs = new Object[] {};
 
-    abstract static class AbstractState {
+    @State(Scope.Thread)
+    public abstract static class AbstractState {
         Context cx;
-        Scriptable scope;
+        TopLevel scope;
+
+        @Param({"Interpreter", "Compiler"})
+        public EvaluationMethod evalMethod;
 
         Callable getFunc(String name) {
             Object f = ScriptableObject.getProperty(scope, name);
@@ -27,10 +33,10 @@ public class V8Benchmark {
 
         Callable getRunFunc(String name) {
             Callable grf = getFunc("getRunFunc");
-            return (Callable) grf.call(cx, scope, scope, new Object[] {name});
+            return (Callable) grf.call(cx, scope, scope.getGlobalThis(), new Object[] {name});
         }
 
-        void evaluateSource(Context cx, Scriptable scope, String fileName) {
+        void evaluateSource(Context cx, VarScope scope, String fileName) {
             try (FileReader rdr = new FileReader(fileName)) {
                 cx.evaluateReader(scope, rdr, fileName, 1, null);
             } catch (IOException ioe) {
@@ -38,9 +44,10 @@ public class V8Benchmark {
             }
         }
 
-        void initialize(boolean interpreted) {
+        void initialize(EvaluationMethod evalMethod) {
             cx = Context.enter();
-            cx.setInterpretedMode(interpreted);
+            cx.setEvaluationMethod(evalMethod);
+            ;
             cx.setLanguageVersion(Context.VERSION_ES6);
             scope = cx.initStandardObjects();
             evaluateSource(cx, scope, "testsrc/benchmarks/framework.js");
@@ -52,12 +59,12 @@ public class V8Benchmark {
 
         void runSetup() {
             Callable setup = getFunc("setup");
-            setup.call(cx, scope, scope, new Object[] {});
+            setup.call(cx, scope, scope.getGlobalThis(), new Object[] {});
         }
 
         void runCleanup() {
             Callable cleanup = getFunc("cleanup");
-            cleanup.call(cx, scope, scope, emptyArgs);
+            cleanup.call(cx, scope, scope.getGlobalThis(), emptyArgs);
         }
     }
 
@@ -65,12 +72,9 @@ public class V8Benchmark {
     public static class SplayState extends AbstractState {
         Callable splay;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
-
         @Setup(Level.Trial)
         public void setUp() {
-            initialize(interpreted);
+            initialize(evalMethod);
             evaluateSource(cx, scope, "testsrc/benchmarks/v8-benchmarks-v6/splay.js");
             runSetup();
             splay = getRunFunc("Splay");
@@ -85,7 +89,7 @@ public class V8Benchmark {
 
     @Benchmark
     public Object splay(SplayState state) {
-        return state.splay.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.splay.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @State(Scope.Thread)
@@ -93,18 +97,15 @@ public class V8Benchmark {
         Callable encrypt;
         Callable decrypt;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
-
         @Setup(Level.Trial)
         public void setUp() {
-            initialize(interpreted);
+            initialize(evalMethod);
             evaluateSource(cx, scope, "testsrc/benchmarks/v8-benchmarks-v6/crypto.js");
             runSetup();
             encrypt = getRunFunc("Encrypt");
             decrypt = getRunFunc("Decrypt");
             // We need to run encrypt once to set the encrypted value or decrypt will fail
-            encrypt.call(cx, scope, scope, emptyArgs);
+            encrypt.call(cx, scope, scope.getGlobalThis(), emptyArgs);
         }
 
         @TearDown(Level.Trial)
@@ -116,24 +117,21 @@ public class V8Benchmark {
 
     @Benchmark
     public Object cryptoEncrpyt(CryptoState state) {
-        return state.encrypt.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.encrypt.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @Benchmark
     public Object cryptoDecrypt(CryptoState state) {
-        return state.decrypt.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.decrypt.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @State(Scope.Thread)
     public static class DeltaBlueState extends AbstractState {
         Callable db;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
-
         @Setup(Level.Trial)
         public void setUp() {
-            initialize(interpreted);
+            initialize(evalMethod);
             evaluateSource(cx, scope, "testsrc/benchmarks/v8-benchmarks-v6/deltablue.js");
             runSetup();
             db = getRunFunc("DeltaBlue");
@@ -148,19 +146,16 @@ public class V8Benchmark {
 
     @Benchmark
     public Object deltaBlue(DeltaBlueState state) {
-        return state.db.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.db.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @State(Scope.Thread)
     public static class RayTraceState extends AbstractState {
         Callable rt;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
-
         @Setup(Level.Trial)
         public void setUp() {
-            initialize(interpreted);
+            initialize(evalMethod);
             evaluateSource(cx, scope, "testsrc/benchmarks/v8-benchmarks-v6/raytrace.js");
             runSetup();
             rt = getRunFunc("RayTrace");
@@ -175,19 +170,16 @@ public class V8Benchmark {
 
     @Benchmark
     public Object rayTrace(RayTraceState state) {
-        return state.rt.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.rt.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @State(Scope.Thread)
     public static class RegExpState extends AbstractState {
         Callable re;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
-
         @Setup(Level.Trial)
         public void setUp() {
-            initialize(interpreted);
+            initialize(evalMethod);
             evaluateSource(cx, scope, "testsrc/benchmarks/v8-benchmarks-v6/regexp.js");
             runSetup();
             re = getRunFunc("RegExpBench");
@@ -202,19 +194,16 @@ public class V8Benchmark {
 
     @Benchmark
     public Object regExp(RegExpState state) {
-        return state.re.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.re.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @State(Scope.Thread)
     public static class RichardsState extends AbstractState {
         Callable r;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
-
         @Setup(Level.Trial)
         public void setUp() {
-            initialize(interpreted);
+            initialize(evalMethod);
             evaluateSource(cx, scope, "testsrc/benchmarks/v8-benchmarks-v6/richards.js");
             runSetup();
             r = getRunFunc("Richards");
@@ -229,7 +218,7 @@ public class V8Benchmark {
 
     @Benchmark
     public Object richards(RichardsState state) {
-        return state.r.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.r.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @State(Scope.Thread)
@@ -237,12 +226,9 @@ public class V8Benchmark {
         Callable earley;
         Callable boyer;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
-
         @Setup(Level.Trial)
         public void setUp() {
-            initialize(interpreted);
+            initialize(evalMethod);
             evaluateSource(cx, scope, "testsrc/benchmarks/v8-benchmarks-v6/earley-boyer.js");
             runSetup();
             earley = getRunFunc("Earley");
@@ -258,11 +244,11 @@ public class V8Benchmark {
 
     @Benchmark
     public Object earley(EarleyBoyerState state) {
-        return state.earley.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.earley.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 
     @Benchmark
     public Object boyer(EarleyBoyerState state) {
-        return state.boyer.call(state.cx, state.scope, state.scope, emptyArgs);
+        return state.boyer.call(state.cx, state.scope, state.scope.getGlobalThis(), emptyArgs);
     }
 }

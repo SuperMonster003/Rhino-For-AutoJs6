@@ -10,6 +10,7 @@ module org.mozilla.rhino {
     exports org.mozilla.javascript.debug;
     exports org.mozilla.javascript.optimizer;
     exports org.mozilla.javascript.serialize;
+    exports org.mozilla.javascript.sourcemap;
     exports org.mozilla.javascript.typedarrays;
     exports org.mozilla.javascript.xml;
     exports org.mozilla.javascript.config;
@@ -25,4 +26,9 @@ module org.mozilla.rhino {
     requires java.compiler;
     requires jdk.dynalink;
     requires transitive java.desktop;
+    requires java.logging;
+
+    exports org.mozilla.javascript.interpreterv2;
+    exports org.mozilla.javascript.interpreterv2.instruction;
+    exports org.mozilla.javascript.interpreterv2.operand;
 }

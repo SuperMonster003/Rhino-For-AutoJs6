@@ -1,12 +1,12 @@
 package org.mozilla.javascript.tests.es6;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.NativeObject;
-import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 public class DeadlockReproTest {
@@ -17,7 +17,7 @@ public class DeadlockReproTest {
 
         try (Context cx = factory.enterContext()) {
             cx.setLanguageVersion(Context.VERSION_ES6);
-            ScriptableObject scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
 
             scope.put("o", scope, new NativeObject());
             final String script =

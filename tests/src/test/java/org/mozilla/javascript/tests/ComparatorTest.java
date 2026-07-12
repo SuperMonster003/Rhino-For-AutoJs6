@@ -1,16 +1,18 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.mozilla.javascript.ArrayLikeAbstractOperations.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.FileReader;
 import java.io.IOException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.mozilla.javascript.ArrayLikeAbstractOperations.ElementComparator;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.VarScope;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 
 public class ComparatorTest {
@@ -75,8 +77,11 @@ public class ComparatorTest {
     public void customComparator() throws IOException {
         try (Context cx = Context.enter()) {
             Global global = new Global(cx);
-            Scriptable root = cx.newObject(global);
-            FileReader fr = new FileReader("testsrc/jstests/extensions/custom-comparators.js");
+            global.setFileLoadPrefix(TestSource.getPrefix());
+            VarScope root = cx.newVarEnv(global);
+            FileReader fr =
+                    new FileReader(
+                            TestSource.resolve("testsrc/jstests/extensions/custom-comparators.js"));
 
             cx.evaluateReader(root, fr, "custom-comparators.js", 1, null);
         } catch (RhinoException re) {

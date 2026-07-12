@@ -6,6 +6,7 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.util.EnumSet;
 import org.mozilla.javascript.debug.DebuggableScript;
 
@@ -16,12 +17,12 @@ import org.mozilla.javascript.debug.DebuggableScript;
  */
 public abstract class NativeFunction extends BaseFunction {
 
-    private static final long serialVersionUID = 8713897114082216401L;
+    @Serial private static final long serialVersionUID = 8713897114082216401L;
 
     private boolean isShorthand;
 
     public final void initScriptFunction(
-            Context cx, Scriptable scope, boolean es6GeneratorFunction, boolean isShorthand) {
+            Context cx, VarScope scope, boolean es6GeneratorFunction, boolean isShorthand) {
         ScriptRuntime.setFunctionProtoAndParent(this, cx, scope, es6GeneratorFunction);
         if (!isShorthand) { // Methods don't have the prototype property!
             setupDefaultPrototype(scope);
@@ -44,16 +45,7 @@ public abstract class NativeFunction extends BaseFunction {
 
     @Override
     public int getLength() {
-        int paramCount = getParamCount();
-        if (getLanguageVersion() != Context.VERSION_1_2) {
-            return paramCount;
-        }
-        Context cx = Context.getContext();
-        NativeCall activation = ScriptRuntime.findFunctionActivation(cx, this);
-        if (activation == null) {
-            return paramCount;
-        }
-        return activation.originalArgs.length;
+        return getParamCount();
     }
 
     @Override

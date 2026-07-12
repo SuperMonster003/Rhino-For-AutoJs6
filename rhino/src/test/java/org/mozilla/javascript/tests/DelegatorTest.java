@@ -5,16 +5,17 @@
 /** */
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Delegator;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.annotations.JSConstructor;
 import org.mozilla.javascript.annotations.JSFunction;
 import org.mozilla.javascript.annotations.JSGetter;
@@ -24,9 +25,9 @@ import org.mozilla.javascript.annotations.JSSetter;
 public class DelegatorTest {
 
     private Context cx;
-    private Scriptable root;
+    private TopLevel root;
 
-    @Before
+    @BeforeEach
     public void init() throws Exception {
         cx = Context.enter();
         cx.setLanguageVersion(Context.VERSION_ES6);
@@ -47,7 +48,7 @@ public class DelegatorTest {
         ScriptableObject.defineProperty(root, "TestDelegator3", delegator, 0);
     }
 
-    @After
+    @AfterEach
     public void cleanup() {
         Context.exit();
     }

@@ -4,8 +4,8 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mozilla.javascript.drivers.TestUtils.JS_FILE_FILTER;
 import static org.mozilla.javascript.drivers.TestUtils.recursiveListFilesHelper;
 
@@ -15,9 +15,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.io.Writer;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,9 +31,10 @@ import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.parallel.Execution;
@@ -41,9 +42,11 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.Kit;
 import org.mozilla.javascript.RhinoException;
+import org.mozilla.javascript.ScopeObject;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
@@ -51,7 +54,13 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SymbolKey;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.VarScope;
+import org.mozilla.javascript.debug.DebugFrame;
+import org.mozilla.javascript.debug.DebuggableScript;
+import org.mozilla.javascript.debug.Debugger;
 import org.mozilla.javascript.drivers.TestUtils;
+import org.mozilla.javascript.testutils.Sharding;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.SourceReader;
 import org.mozilla.javascript.tools.shell.ShellContextFactory;
 import org.mozilla.javascript.typedarrays.NativeArrayBuffer;
@@ -73,9 +82,12 @@ public class Test262SuiteTest {
     /** The test must be executed just once--in non-strict mode, only. */
     private static final String FLAG_NO_STRICT = "noStrict";
 
-    private static final File testDir = new File("test262/test");
-    private static final String testHarnessDir = "test262/harness/";
+    private static final File testDir;
+    private static final String testHarnessDir;
     private static final String testProperties;
+
+    private static final boolean normalEnabled;
+    private static final boolean debugEnabled;
 
     private static final boolean updateTest262Properties;
     private static final boolean rollUpEnabled;
@@ -85,7 +97,16 @@ public class Test262SuiteTest {
     static final Map<String, Script> HARNESS_SCRIPT_CACHE = new ConcurrentHashMap<>();
     static final Map<Test262Case, TestResultTracker> RESULT_TRACKERS = new LinkedHashMap<>();
 
-    static ShellContextFactory CTX_FACTORY = new ShellContextFactory();
+    static ShellContextFactory CTX_FACTORY =
+            new ShellContextFactory() {
+                protected boolean hasFeature(Context cx, int featureIndex) {
+                    if (Context.FEATURE_INTL_402 == featureIndex) {
+                        return true;
+                    }
+
+                    return super.hasFeature(cx, featureIndex);
+                }
+            };
 
     static final Set<String> UNSUPPORTED_FEATURES =
             new HashSet<>(
@@ -97,12 +118,7 @@ public class Test262SuiteTest {
                             "class",
                             "class-fields-private",
                             "class-fields-public",
-                            "default-arg",
                             "new.target",
-                            "object-rest",
-                            "regexp-dotall",
-                            "regexp-unicode-property-escapes",
-                            "resizable-arraybuffer",
                             "SharedArrayBuffer",
                             "tail-call-optimization",
                             "Temporal",
@@ -110,14 +126,26 @@ public class Test262SuiteTest {
                             "u180e"));
 
     static {
+        // For portability on all platforms, find the location of the test262 tree
+        // by starting with a well-known file and walking from there.
+        testHarnessDir = TestSource.resolveDirectory("test262/harness/assert.js");
+        var testBase = Path.of(testHarnessDir).getParent();
+        testDir = Path.of(testBase.toString(), "test").toFile();
+
         String propFile = System.getProperty("test262properties");
         testProperties =
-                propFile != null && !propFile.equals("") ? propFile : "testsrc/test262.properties";
+                propFile != null && !propFile.equals("")
+                        ? propFile
+                        : TestSource.resolve("testsrc/test262.properties");
 
         String updateProps = System.getProperty("updateTest262properties");
+        boolean debug = System.getProperty("runTest262Debug") != null;
+        boolean normal = System.getProperty("runTest262NonDebug") != null ? true : !debug;
 
         if (updateProps != null) {
             updateTest262Properties = true;
+            debugEnabled = true;
+            normalEnabled = true;
 
             switch (updateProps) {
                 case "all":
@@ -134,6 +162,8 @@ public class Test262SuiteTest {
             }
         } else {
             updateTest262Properties = rollUpEnabled = statsEnabled = includeUnsupported = false;
+            normalEnabled = normal;
+            debugEnabled = debug;
         }
     }
 
@@ -162,217 +192,13 @@ public class Test262SuiteTest {
 
         if (updateTest262Properties) {
             // Regenerate .properties file
-            try {
-                Path previousReportingDir = null;
-                Path currentReportingDir;
-                List<String> failures = new ArrayList<>();
-                int testCount = 0;
-                Path previousTestFileParentPath =
-                        testDir.toPath(); // tracks the current directory for which files are
-                // processed
-                int rollUpCount = 0;
-                int rolledUpFailureCount = 0;
-
-                // Converting to an array, so a regular loop over an array can be used,
-                // as there's the need to peek the next entry
-                Test262Case[] testCases = new Test262Case[RESULT_TRACKERS.size()];
-                RESULT_TRACKERS.keySet().toArray(testCases);
-
-                try (BufferedWriter writer = new BufferedWriter(new FileWriter(testProperties))) {
-                    writer.write(
-                            "# This is a configuration file for Test262SuiteTest.java. See ./README.md for more info about this file\n");
-
-                    for (int j = 0; j < testCases.length; j++) {
-                        File testFile = testCases[j].file;
-                        TestResultTracker tt = RESULT_TRACKERS.get(testCases[j]);
-
-                        boolean ontoNextReportingDir = false;
-                        String testResult = null;
-
-                        Path testFilePath = testFile.toPath();
-                        // hardcoded for just language/expression and language/statements
-                        // to be split out on a deeper level
-                        int reportDepth =
-                                testFilePath.getNameCount() > 3
-                                                && testFilePath
-                                                        .getName(2)
-                                                        .toString()
-                                                        .equals("language")
-                                                && (testFilePath
-                                                                .getName(3)
-                                                                .toString()
-                                                                .equals("expressions")
-                                                        || testFilePath
-                                                                .getName(3)
-                                                                .toString()
-                                                                .equals("statements"))
-                                        ? 5
-                                        : Math.min(
-                                                4,
-                                                testFilePath.getNameCount()
-                                                        - (testFile.isDirectory() ? 0 : 1));
-                        currentReportingDir = testFilePath.subpath(0, reportDepth);
-
-                        if (previousReportingDir == null) {
-                            previousReportingDir = currentReportingDir;
-                        } else if (!currentReportingDir.startsWith(previousReportingDir)
-                                || testFile.isDirectory()) {
-                            ontoNextReportingDir = true;
-                        }
-
-                        // Determine if switching to another directory and if so whether all files
-                        // in the previous directory failed
-                        // If so, don't list all failing files, but list only the folder path
-                        if (rollUpEnabled
-                                && (!testFilePath.startsWith(previousTestFileParentPath)
-                                        || !testFilePath
-                                                .getParent()
-                                                .equals(previousTestFileParentPath))) {
-                            if (!previousReportingDir.equals(previousTestFileParentPath)
-                                    && rollUpCount > 1) {
-                                failures.add(
-                                        "    "
-                                                + currentReportingDir
-                                                        .relativize(previousTestFileParentPath)
-                                                        .toString()
-                                                        .replace("\\", "/")
-                                                + (statsEnabled
-                                                        ? " "
-                                                                + rollUpCount
-                                                                + "/"
-                                                                + rollUpCount
-                                                                + " (100.0%)"
-                                                        : ""));
-                                rolledUpFailureCount += rollUpCount - 1;
-
-                                for (; rollUpCount > 0; rollUpCount--) {
-                                    failures.remove(failures.size() - 2);
-                                }
-                            }
-
-                            previousTestFileParentPath = testFilePath.getParent();
-                            rollUpCount = 0;
-                        }
-
-                        if (!testFile.isDirectory()) {
-                            testResult = tt.getResult(testCases[j]);
-
-                            if (testResult == null) {
-                                // At least one passing test in currentParent directory, so prevent
-                                // rollUp
-                                rollUpCount = -1;
-                            } else {
-                                if (rollUpCount != -1) rollUpCount++;
-
-                                testResult =
-                                        "    "
-                                                + currentReportingDir
-                                                        .relativize(testFilePath)
-                                                        .toString()
-                                                        .replace("\\", "/")
-                                                + (statsEnabled && !testResult.isEmpty()
-                                                        ? " " + testResult
-                                                        : "");
-                                if (tt.comment != null && !tt.comment.isEmpty()) {
-                                    testResult += " " + tt.comment;
-                                }
-                            }
-
-                            // Making sure the last folder gets properly logged
-                            if (j == testCases.length - 1) {
-                                if (testResult != null) {
-                                    failures.add(testResult);
-                                }
-                                testCount++;
-                                ontoNextReportingDir = true;
-                            }
-                        }
-
-                        if (ontoNextReportingDir) {
-                            int failureCount = rolledUpFailureCount + failures.size();
-                            Double failurePercentage =
-                                    testCount == 0 ? 0 : ((double) failureCount * 100 / testCount);
-
-                            writer.write('\n');
-                            writer.write(
-                                    previousReportingDir
-                                                    .subpath(2, previousReportingDir.getNameCount())
-                                                    .toString()
-                                                    .replace("\\", "/")
-                                            + (statsEnabled
-                                                    ? " "
-                                                            + failureCount
-                                                            + "/"
-                                                            + testCount
-                                                            + " ("
-                                                            + new BigDecimal(
-                                                                            failurePercentage
-                                                                                    .toString())
-                                                                    .setScale(
-                                                                            2, RoundingMode.HALF_UP)
-                                                                    .doubleValue()
-                                                            + "%)"
-                                                    : ""));
-                            writer.write('\n');
-
-                            if (failurePercentage != 0 && failurePercentage != 100) {
-                                writer.write(
-                                        failures.stream()
-                                                .map(Object::toString)
-                                                .collect(Collectors.joining("\n")));
-                                writer.write('\n');
-                            }
-
-                            previousReportingDir = currentReportingDir;
-                            failures.clear();
-                            testCount = rolledUpFailureCount = 0;
-                        }
-
-                        if (testFile.isDirectory()) {
-                            String message =
-                                    "~"
-                                            + currentReportingDir
-                                                    .subpath(2, currentReportingDir.getNameCount())
-                                                    .toString()
-                                                    .replace("\\", "/");
-
-                            if (tt.comment != null && !tt.comment.isEmpty()) {
-                                message += " " + tt.comment;
-                            }
-                            writer.write('\n');
-                            writer.write(message);
-                            writer.write('\n');
-
-                            // Consume testcases belonging to a skipped directory
-                            while (testCases.length > j + 1
-                                    && testCases[j + 1].file.isFile()
-                                    && testCases[j + 1].file.getParentFile().equals(testFile)) {
-                                TestResultTracker tt2 = RESULT_TRACKERS.get(testCases[j + 1]);
-
-                                testResult =
-                                        "    "
-                                                + currentReportingDir
-                                                        .relativize(testCases[j + 1].file.toPath())
-                                                        .toString()
-                                                        .replace("\\", "/");
-                                if (tt2.comment != null && !tt2.comment.isEmpty()) {
-                                    testResult += " " + tt2.comment;
-                                }
-                                writer.write(testResult);
-                                writer.write('\n');
-                                j++;
-                            }
-
-                            previousReportingDir = null;
-                            continue;
-                        }
-
-                        if (testResult != null) {
-                            failures.add(testResult);
-                        }
-                        testCount++;
-                    }
-                }
+            Test262SuitePropertiesBuilder builder =
+                    new Test262SuitePropertiesBuilder(testDir.toPath());
+            for (Entry<Test262Case, TestResultTracker> entry : RESULT_TRACKERS.entrySet()) {
+                builder.addTest(entry.getKey(), entry.getValue());
+            }
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(testProperties))) {
+                builder.write(writer, statsEnabled, rollUpEnabled);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -397,8 +223,24 @@ public class Test262SuiteTest {
     private static final Pattern LINE_SPLITTER =
             Pattern.compile(
                     "(~|(?:\\s*)(?:!|#)(?:\\s*)|\\s+)?(\\S+)(?:[^\\S\\r\\n]+"
-                            + "(?:strict|non-strict|compiled-strict|compiled-non-strict|interpreted-strict|interpreted-non-strict|compiled|interpreted|"
-                            + "\\d+/\\d+ \\(\\d+(?:\\.\\d+)?%%\\)|\\{(?:non-strict|strict|unsupported): \\[.*\\],?\\}))?[^\\S\\r\\n]*(.*)");
+                            + "(?:"
+                            + buildTestModeNames()
+                            + "\\d+/\\d+ \\(\\d+(?:\\.\\d+)?%%\\)|\\{(?:(?:"
+                            + buildTestModeNames()
+                            + "|unsupported: \\[.*\\]),?)+\\}))?[^\\S\\r\\n]*(.*)");
+
+    private static String buildTestModeNames() {
+        var sb = new StringBuilder();
+        sb.append("strict|non-strict");
+        for (var mode : TestMode.values()) {
+            if (mode.shouldRun()) {
+                sb.append('|').append(mode.keyPart()).append('|');
+                sb.append(mode.keyPart()).append("-strict").append('|');
+                sb.append(mode.keyPart()).append("-non-strict");
+            }
+        }
+        return sb.toString();
+    }
 
     /**
      * @see https://github.com/tc39/test262/blob/main/INTERPRETING.md#host-defined-functions
@@ -409,11 +251,11 @@ public class Test262SuiteTest {
             super();
         }
 
-        $262(Scriptable scope, Scriptable prototype) {
+        $262(VarScope scope, Scriptable prototype) {
             super(scope, prototype);
         }
 
-        static $262 init(Context cx, Scriptable scope) {
+        static $262 init(Context cx, VarScope scope) {
             $262 proto = new $262();
             proto.setPrototype(getObjectPrototype(scope));
             proto.setParentScope(scope);
@@ -423,8 +265,8 @@ public class Test262SuiteTest {
             proto.defineProperty(scope, "evalScript", 1, $262::evalScript);
             proto.defineProperty(scope, "detachArrayBuffer", 0, $262::detachArrayBuffer);
 
-            proto.defineProperty(cx, "global", $262::getGlobal, null, DONTENUM | READONLY);
-            proto.defineProperty(cx, "agent", $262::getAgent, null, DONTENUM | READONLY);
+            proto.defineProperty(cx, scope, "global", $262::getGlobal, null, DONTENUM | READONLY);
+            proto.defineProperty(cx, scope, "agent", $262::getAgent, null, DONTENUM | READONLY);
 
             proto.defineProperty(SymbolKey.TO_STRING_TAG, "__262__", DONTENUM | READONLY);
 
@@ -432,7 +274,7 @@ public class Test262SuiteTest {
             return proto;
         }
 
-        static $262 install(ScriptableObject scope, Scriptable parentScope) {
+        static $262 install(ScopeObject scope, Scriptable parentScope) {
             $262 instance = new $262(scope, parentScope);
 
             scope.put("$262", scope, instance);
@@ -441,13 +283,13 @@ public class Test262SuiteTest {
             return instance;
         }
 
-        private static Object gc(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        private static Object gc(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
             System.gc();
             return Undefined.instance;
         }
 
         public static Object evalScript(
-                Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
             if (args.length == 0) {
                 throw ScriptRuntime.throwError(cx, scope, "not enough args");
             }
@@ -456,17 +298,17 @@ public class Test262SuiteTest {
         }
 
         public static Object getGlobal(Scriptable scriptable) {
-            return scriptable.getParentScope();
+            return ((TopLevel) scriptable.getParentScope()).getGlobalThis();
         }
 
         public static $262 createRealm(
-                Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-            ScriptableObject realm = (ScriptableObject) cx.initSafeStandardObjects(new TopLevel());
+                Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
+            TopLevel realm = cx.initSafeStandardObjects(new TopLevel());
             return install(realm, thisObj.getPrototype());
         }
 
         public static Object detachArrayBuffer(
-                Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
             Scriptable buf = ScriptRuntime.toObject(scope, args[0]);
             if (buf instanceof NativeArrayBuffer) {
                 ((NativeArrayBuffer) buf).detach();
@@ -484,16 +326,16 @@ public class Test262SuiteTest {
         }
     }
 
-    private Scriptable buildScope(Context cx, Test262Case testCase, boolean interpretedMode) {
-        ScriptableObject scope = (ScriptableObject) cx.initSafeStandardObjects(new TopLevel());
+    private TopLevel buildScope(Context cx, Test262Case testCase, TestMode mode) {
+        TopLevel scope = cx.initSafeStandardObjects(new TopLevel());
 
         for (String harnessFile : testCase.harnessFiles) {
-            String harnessKey = harnessFile + '-' + interpretedMode;
+            String harnessKey = harnessFile + '-' + mode.keyPart();
             Script harnessScript =
                     HARNESS_SCRIPT_CACHE.computeIfAbsent(
                             harnessKey,
                             k -> {
-                                String harnessPath = testHarnessDir + harnessFile;
+                                String harnessPath = testHarnessDir + '/' + harnessFile;
                                 try (Reader reader = new FileReader(harnessPath)) {
                                     String script = Kit.readReader(reader);
 
@@ -503,7 +345,7 @@ public class Test262SuiteTest {
                                             "Error reading test file " + harnessPath, ioe);
                                 }
                             });
-            harnessScript.exec(cx, scope, scope);
+            harnessScript.exec(cx, scope, scope.getGlobalThis());
         }
 
         $262 proto = $262.init(cx, scope);
@@ -534,14 +376,15 @@ public class Test262SuiteTest {
             Test262Case testCase,
             boolean markedAsFailing) {
         try (Context cx = Context.enter()) {
-            cx.setInterpretedMode(testMode == TestMode.INTERPRETED);
             // Ensure maximum compatibility, including future strict mode and "const" checks
             cx.setLanguageVersion(Context.VERSION_ECMASCRIPT);
             cx.setGeneratingDebug(true);
 
+            testMode.setup(cx);
+
             boolean failedEarly = false;
             try {
-                Scriptable scope = buildScope(cx, testCase, testMode == TestMode.INTERPRETED);
+                TopLevel scope = buildScope(cx, testCase, testMode);
                 String str = testCase.source;
                 int line = 1;
                 if (useStrict) {
@@ -553,7 +396,7 @@ public class Test262SuiteTest {
                 Script caseScript = cx.compileString(str, testFilePath, line, null);
 
                 failedEarly = false; // not after this line
-                caseScript.exec(cx, scope, scope);
+                caseScript.exec(cx, scope, scope.getGlobalThis());
 
                 if (testCase.isNegative()) {
                     fail(
@@ -588,7 +431,7 @@ public class Test262SuiteTest {
                 }
 
                 try {
-                    assertEquals(ex.details(), testCase.expectedError, errorName);
+                    assertEquals(testCase.expectedError, errorName, ex.details());
                 } catch (AssertionError aex) {
                     if (markedAsFailing) return;
 
@@ -657,7 +500,12 @@ public class Test262SuiteTest {
 
                     if (!topLevelFolder.exists()) {
                         throw new RuntimeException(
-                                "Non-existing '" + path + "' at the line #" + lineNo);
+                                "Non-existing '"
+                                        + path
+                                        + "' at the line #"
+                                        + lineNo
+                                        + " topLevel = "
+                                        + topLevelFolder);
                     } else if (!topLevelFolder.isDirectory()) {
                         throw new RuntimeException(
                                 "Unexpected file '"
@@ -776,8 +624,18 @@ public class Test262SuiteTest {
         Map<File, String> failingFiles = new HashMap<File, String>();
         addTestFiles(testFiles, failingFiles);
 
+        var shards = Sharding.getSharding();
+        System.out.println("Sharding: " + shards);
+
+        int i = 0;
         fileLoop:
         for (File testFile : testFiles) {
+            if (shards != null) {
+                if (i++ % shards.total != shards.index) {
+                    continue;
+                }
+            }
+
             String caseShortPath = testDir.toPath().relativize(testFile.toPath()).toString();
             boolean markedAsFailing = failingFiles.containsKey(testFile);
             String comment = markedAsFailing ? failingFiles.get(testFile) : null;
@@ -843,7 +701,7 @@ public class Test262SuiteTest {
                 continue;
             }
 
-            for (TestMode testMode : new TestMode[] {TestMode.INTERPRETED, TestMode.COMPILED}) {
+            for (TestMode testMode : TestMode.valuesShouldRun()) {
                 if (!testCase.hasFlag(FLAG_ONLY_STRICT) || testCase.hasFlag(FLAG_RAW)) {
                     result.add(
                             new Object[] {
@@ -912,7 +770,7 @@ public class Test262SuiteTest {
         }
 
         boolean hasFlag(String flag) {
-            return flags.contains(flag);
+            return flags != null && flags.contains(flag);
         }
 
         boolean isNegative() {
@@ -978,9 +836,67 @@ public class Test262SuiteTest {
     }
 
     private enum TestMode {
-        INTERPRETED,
-        COMPILED,
-        SKIPPED,
+        INTERPRETED(
+                "interpreted",
+                true,
+                false,
+                cx -> {
+                    cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+                }),
+        COMPILED(
+                "compiled",
+                true,
+                false,
+                cx -> {
+                    cx.setEvaluationMethod(EvaluationMethod.Compiler);
+                }),
+        DEBUGGER_INTERPRETED(
+                "debugger",
+                true,
+                true,
+                cx -> {
+                    cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+                    cx.setDebugger(new NoOpDebugger(), null);
+                }),
+        SKIPPED("skipped", false, false, cx -> {});
+
+        private final String keyPart;
+        private final boolean shouldRun;
+        private final boolean isDebug;
+        private final Consumer<Context> setup;
+
+        TestMode(String name, boolean shouldRun, boolean isDebug, Consumer<Context> setup) {
+            this.shouldRun = shouldRun;
+            this.isDebug = isDebug;
+            this.keyPart = name;
+            this.setup = setup;
+        }
+
+        public String keyPart() {
+            return keyPart;
+        }
+
+        public void setup(Context cx) {
+            setup.accept(cx);
+        }
+
+        public boolean shouldRun() {
+            return shouldRun && ((isDebug && debugEnabled) || (!isDebug && normalEnabled));
+        }
+
+        public String trackerName(boolean strict) {
+            return keyPart() + "-" + (strict ? "strict" : "non-strict");
+        }
+
+        public static TestMode[] valuesShouldRun() {
+            var values = new ArrayList<TestMode>();
+            for (var e : TestMode.values()) {
+                if (e.shouldRun()) {
+                    values.add(e);
+                }
+            }
+            return values.toArray(new TestMode[0]);
+        }
     }
 
     private static class TestResultTracker {
@@ -995,7 +911,7 @@ public class Test262SuiteTest {
         }
 
         private static String makeKey(TestMode mode, boolean useStrict) {
-            return mode.name().toLowerCase() + '-' + (useStrict ? "strict" : "non-strict");
+            return mode.trackerName(useStrict);
         }
 
         public void setExpectations(
@@ -1029,9 +945,11 @@ public class Test262SuiteTest {
             if (modes.contains("skipped-strict")) {
                 List<String> feats = new ArrayList<>();
 
-                for (String feature : tc.features) {
-                    if (UNSUPPORTED_FEATURES.contains(feature)) {
-                        feats.add(feature);
+                if (tc.features != null) {
+                    for (String feature : tc.features) {
+                        if (UNSUPPORTED_FEATURES.contains(feature)) {
+                            feats.add(feature);
+                        }
                     }
                 }
 
@@ -1047,31 +965,28 @@ public class Test262SuiteTest {
             }
 
             // failure on all optLevels in both strict and non-strict mode
-            if (modes.size() == 4) {
+            if (modes.size() == TestMode.values().length * 2 - 2) {
                 return "";
             }
 
             // simplify the output for some cases
             ArrayList<String> res = new ArrayList<>(modes);
-            if (res.contains("compiled-non-strict") && res.contains("interpreted-non-strict")) {
-                res.remove("compiled-non-strict");
-                res.remove("interpreted-non-strict");
+            if (containsAllModes(res, false)) {
+                removeAllModes(res, false);
                 res.add("non-strict");
             }
-            if (res.contains("compiled-strict") && res.contains("interpreted-strict")) {
-                res.remove("compiled-strict");
-                res.remove("interpreted-strict");
+            if (containsAllModes(res, true)) {
+                removeAllModes(res, true);
                 res.add("strict");
             }
-            if (res.contains("compiled-strict") && res.contains("compiled-non-strict")) {
-                res.remove("compiled-strict");
-                res.remove("compiled-non-strict");
-                res.add("compiled");
-            }
-            if (res.contains("interpreted-strict") && res.contains("interpreted-non-strict")) {
-                res.remove("interpreted-strict");
-                res.remove("interpreted-non-strict");
-                res.add("interpreted");
+
+            for (var mode : TestMode.values()) {
+                if (mode.shouldRun()) {
+                    if (containsAllStrictType(res, mode)) {
+                        removeAllStrictType(res, mode);
+                        res.add(mode.keyPart());
+                    }
+                }
             }
 
             if (res.size() > 1) {
@@ -1079,5 +994,315 @@ public class Test262SuiteTest {
             }
             return String.join(",", res);
         }
+
+        public boolean containsAllStrictType(List<String> desc, TestMode mode) {
+            return desc.contains(mode.trackerName(false)) && desc.contains(mode.trackerName(true));
+        }
+
+        public void removeAllStrictType(List<String> desc, TestMode mode) {
+            desc.remove(mode.trackerName(false));
+            desc.remove(mode.trackerName(true));
+        }
+
+        public boolean containsAllModes(List<String> desc, boolean useStrict) {
+            for (var mode : TestMode.values()) {
+                if (mode.shouldRun) {
+                    if (!desc.contains(mode.trackerName(useStrict))) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        public boolean containsAllModes(List<String> desc) {
+            return containsAllModes(desc, true) && containsAllModes(desc, false);
+        }
+
+        public void removeAllModes(List<String> desc, boolean useStrict) {
+            for (var mode : TestMode.values()) {
+                if (mode.shouldRun) {
+                    desc.remove(mode.trackerName(useStrict));
+                }
+            }
+        }
+
+        public void removeAllModes(List<String> desc) {
+            removeAllModes(desc, true);
+            removeAllModes(desc, false);
+        }
+    }
+
+    private static class Test262SuitePropertiesBuilder {
+        private Path testDir;
+        private DirectoryNode rootNode;
+
+        Test262SuitePropertiesBuilder(Path testDir) {
+            this.testDir = testDir;
+            rootNode = new DirectoryNode(Path.of(""));
+        }
+
+        void addTest(
+                Test262SuiteTest.Test262Case testCase,
+                Test262SuiteTest.TestResultTracker resultTracker) {
+            Path testFilePath = testDir.relativize(testCase.file.toPath());
+            if (testCase.file.isDirectory()) {
+                List<File> excludedFiles = new ArrayList<>();
+                TestUtils.recursiveListFilesHelper(testCase.file, JS_FILE_FILTER, excludedFiles);
+                buildNodeTree(testFilePath, (p) -> new ExcludeNode(p, excludedFiles.size()), true);
+                return;
+            }
+
+            boolean isFailure = resultTracker.getResult(testCase) != null;
+            DirectoryNode parentNode =
+                    buildNodeTree(
+                            testFilePath,
+                            (p) -> new TestNode(p, testCase, resultTracker),
+                            isFailure);
+            parentNode.count(isFailure);
+        }
+
+        void write(Writer writer, boolean statsEnabled, boolean rollUpEnabled) throws IOException {
+            writer.write(
+                    "# This is a configuration file for Test262SuiteTest.java. See ./README.md for more info about this file\n");
+            rootNode.writeChildNodes(writer, null, statsEnabled, rollUpEnabled, false);
+        }
+
+        private DirectoryNode buildNodeTree(
+                Path testFilePath, Function<Path, Node> mappingFunction, boolean isFailure) {
+            DirectoryNode parentNode = rootNode;
+            Path nodePath = Path.of("");
+            int i = 0;
+            while (testFilePath.getNameCount() - 1 > i) {
+                nodePath = Paths.get(nodePath.toString(), testFilePath.getName(i).toString());
+                i++;
+
+                parentNode =
+                        (DirectoryNode)
+                                parentNode.computeIfAbsent(nodePath, (p) -> new DirectoryNode(p));
+                parentNode.deepCount(isFailure);
+            }
+            parentNode.computeIfAbsent(testFilePath, mappingFunction);
+            return parentNode;
+        }
+    }
+
+    private abstract static class Node {
+        static final String INDENT = "    ";
+        private Path path;
+
+        Node(Path path) {
+            this.path = path;
+        }
+
+        Path getPath() {
+            return path;
+        }
+
+        abstract void write(
+                Writer writer, DirectoryNode refParent, boolean statsEnabled, boolean rollUpEnabled)
+                throws IOException;
+
+        protected String buildRelativePath(Path parent, Path path) {
+            return normalizePath(parent.relativize(path));
+        }
+
+        protected String normalizePath(Path path) {
+            return path.toString().replace("\\", "/");
+        }
+    }
+
+    private static class DirectoryNode extends Node {
+        private LinkedHashMap<Path, Node> childNodes;
+        private long testDeepCount;
+        private long failureDeepCount;
+        private long testCount;
+        private long failureCount;
+
+        DirectoryNode(Path path) {
+            super(path);
+            childNodes = new LinkedHashMap<>();
+        }
+
+        Node computeIfAbsent(Path path, Function<Path, Node> mappingFunction) {
+            return childNodes.computeIfAbsent(path, mappingFunction);
+        }
+
+        void deepCount(boolean isFailure) {
+            testDeepCount++;
+            if (isFailure) {
+                failureDeepCount++;
+            }
+        }
+
+        void count(boolean isFailure) {
+            testCount++;
+            if (isFailure) {
+                failureCount++;
+            }
+        }
+
+        @Override
+        void write(
+                Writer writer, DirectoryNode refParent, boolean statsEnabled, boolean rollUpEnabled)
+                throws IOException {
+            int pathNameCount = 1;
+            String normalizedPath = normalizePath(getPath());
+            if ("language/expressions".equals(normalizedPath)
+                    || "language/statements".equals(normalizedPath)) {
+                pathNameCount = 2;
+            }
+            if (refParent == null) {
+                if (testCount == 0
+                        && failureDeepCount > 0
+                        && getPath().getNameCount() == pathNameCount) {
+                    writeChildNodes(writer, null, statsEnabled, rollUpEnabled, false);
+                    return;
+                }
+
+                writer.write('\n');
+                writer.write(normalizePath(getPath()));
+                writer.write(statsText(statsEnabled, testDeepCount, failureDeepCount));
+                writer.write('\n');
+
+                writeChildNodes(writer, this, statsEnabled, rollUpEnabled, false);
+                return;
+            }
+
+            if (failureDeepCount == 0) {
+                return;
+            }
+
+            if (rollUpEnabled && testCount > 1 && failureCount == testCount) {
+                writer.write(INDENT);
+                writer.write(buildRelativePath(refParent.getPath(), getPath()));
+                writer.write(statsText(statsEnabled, testCount, failureCount));
+                writer.write('\n');
+
+                writeChildNodes(writer, refParent, statsEnabled, rollUpEnabled, true);
+                return;
+            }
+
+            writeChildNodes(writer, refParent, statsEnabled, rollUpEnabled, false);
+        }
+
+        private void writeChildNodes(
+                Writer writer,
+                DirectoryNode refParent,
+                boolean statsEnabled,
+                boolean rollUpEnabled,
+                boolean onlyDirectories)
+                throws IOException {
+            for (Node node : childNodes.values()) {
+                if (!onlyDirectories || node instanceof DirectoryNode) {
+                    node.write(writer, refParent, statsEnabled, rollUpEnabled);
+                }
+            }
+        }
+
+        static String statsText(boolean statsEnabled, long tests, long failures) {
+            if (!statsEnabled) {
+                return "";
+            }
+
+            String output = " " + failures + "/" + tests;
+            if (failures == tests) {
+                return output + " (100.0%)";
+            }
+
+            double failurePercentage = 0d;
+            if (tests > 0) {
+                failurePercentage = failures * 100d / tests;
+                failurePercentage = Math.round(failurePercentage * 100) / 100d;
+            }
+
+            return output + " (" + failurePercentage + "%)";
+        }
+    }
+
+    private static final class ExcludeNode extends DirectoryNode {
+        long excludedFilesCount;
+
+        ExcludeNode(Path path, int excludedFilesCount) {
+            super(path);
+            this.excludedFilesCount = excludedFilesCount;
+        }
+
+        @Override
+        void write(
+                Writer writer, DirectoryNode refParent, boolean statsEnabled, boolean rollUpEnabled)
+                throws IOException {
+            writer.write("\n~");
+            writer.write(normalizePath(getPath()));
+            writer.write(statsText(statsEnabled, excludedFilesCount, excludedFilesCount));
+            writer.write('\n');
+        }
+    }
+
+    private static final class TestNode extends Node {
+        private Test262SuiteTest.Test262Case testCase;
+        private Test262SuiteTest.TestResultTracker resultTracker;
+
+        TestNode(
+                Path path,
+                Test262SuiteTest.Test262Case testCase,
+                Test262SuiteTest.TestResultTracker resultTracker) {
+            super(path);
+
+            this.testCase = testCase;
+            this.resultTracker = resultTracker;
+        }
+
+        @Override
+        void write(
+                Writer writer, DirectoryNode refParent, boolean statsEnabled, boolean rollUpEnabled)
+                throws IOException {
+            String testResult = resultTracker.getResult(testCase);
+            if (testResult == null) {
+                return;
+            }
+
+            writer.write(INDENT);
+            writer.write(buildRelativePath(refParent.getPath(), getPath()));
+            if (statsEnabled && !testResult.isEmpty()) {
+                writer.write(" ");
+                writer.write(testResult);
+            }
+            if (resultTracker.comment != null && !resultTracker.comment.isEmpty()) {
+                writer.write(" ");
+                writer.write(resultTracker.comment);
+            }
+            writer.write('\n');
+        }
+    }
+
+    private static class NoOpDebugger implements Debugger {
+        @Override
+        public DebugFrame getFrame(Context cx, DebuggableScript fnOrScript) {
+            return new NoOpDebugFrame();
+        }
+
+        @Override
+        public void handleCompilationDone(Context cx, DebuggableScript fnOrScript, String source) {
+            // TODO Auto-generated method stub
+
+        }
+    }
+
+    private static class NoOpDebugFrame implements DebugFrame {
+        @Override
+        public void onDebuggerStatement(Context cx) {}
+
+        @Override
+        public void onEnter(Context cx, VarScope activation, Scriptable thisObj, Object[] args) {}
+
+        @Override
+        public void onExit(Context cx, boolean byThrow, Object resultOrException) {}
+
+        @Override
+        public void onExceptionThrown(Context cx, Throwable ex) {}
+
+        @Override
+        public void onLineChange(Context cx, int lineNumber) {}
     }
 }

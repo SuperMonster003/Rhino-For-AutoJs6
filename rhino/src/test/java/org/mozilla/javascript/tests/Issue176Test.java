@@ -5,27 +5,27 @@
 package org.mozilla.javascript.tests;
 
 import java.io.InputStreamReader;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.ScriptRuntime;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 
 public class Issue176Test {
 
     Context cx;
-    Scriptable scope;
+    TopLevel scope;
 
     @Test
     public void throwing() throws Exception {
         cx = Context.enter();
         try {
             InputStreamReader in =
-                    new InputStreamReader(Bug482203Test.class.getResourceAsStream("Issue176.js"));
+                    new InputStreamReader(Issue176Test.class.getResourceAsStream("Issue176.js"));
             Script script = cx.compileReader(in, "Issue176.js", 1, null);
             scope = cx.initStandardObjects();
             scope.put("host", scope, this);
-            script.exec(cx, scope, scope); // calls our methods
+            script.exec(cx, scope, scope.getGlobalThis()); // calls our methods
         } finally {
             Context.exit();
         }

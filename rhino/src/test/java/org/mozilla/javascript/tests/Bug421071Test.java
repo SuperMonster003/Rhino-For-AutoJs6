@@ -9,13 +9,13 @@
 
 package org.mozilla.javascript.tests;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.ImporterTopLevel;
 import org.mozilla.javascript.Script;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 public class Bug421071Test {
@@ -74,7 +74,7 @@ public class Bug421071Test {
         }
     }
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception {
         globalScope = createGlobalScope();
     }
@@ -99,10 +99,8 @@ public class Bug421071Test {
             try (Context context = factory.enterContext()) {
                 // Run each script in its own scope, to keep global variables
                 // defined in each script separate
-                Scriptable threadScope = context.newObject(globalScope);
-                threadScope.setPrototype(globalScope);
-                threadScope.setParentScope(null);
-                script.exec(context, threadScope, threadScope);
+                TopLevel threadScope = TopLevel.createIsolate(globalScope);
+                script.exec(context, threadScope, threadScope.getGlobalThis());
             } catch (Exception ee) {
                 ee.printStackTrace();
             }

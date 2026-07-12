@@ -4,15 +4,15 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.EvaluatorException;
-import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Wrapper;
 import org.mozilla.javascript.testutils.Utils;
 
@@ -30,7 +30,7 @@ public class InterfaceAdapterTest {
     private void testIt(String js, Object expected) {
         Utils.runWithAllModes(
                 cx -> {
-                    final ScriptableObject scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     scope.put("list", scope, createList());
                     Object o = cx.evaluateString(scope, js, "testNativeFunction.js", 1, null);
                     if (o instanceof Wrapper) {

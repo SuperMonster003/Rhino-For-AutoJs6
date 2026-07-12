@@ -4,7 +4,7 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -13,13 +13,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.drivers.TestUtils;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 
 /**
@@ -30,7 +30,6 @@ import org.mozilla.javascript.tools.shell.Global;
  *
  * @author Norris Boyd
  */
-@RunWith(Parameterized.class)
 public class DoctestsTest {
     static final String baseDirectory = "testsrc" + File.separator + "doctests";
     static final String doctestsExtension = ".doctest";
@@ -38,7 +37,7 @@ public class DoctestsTest {
     String source;
     boolean interpretedMode;
 
-    public DoctestsTest(String name, String source, boolean interpretedMode) {
+    public void initDoctestsTest(String name, String source, boolean interpretedMode) {
         this.name = name;
         this.source = source;
         this.interpretedMode = interpretedMode;
@@ -46,7 +45,9 @@ public class DoctestsTest {
 
     public static File[] getDoctestFiles() {
         return TestUtils.recursiveListFiles(
-                new File(baseDirectory),
+                // For most portability resolvedirectory needs to start with the name
+                // of a well-known file.
+                new File(TestSource.resolveDirectory("testsrc/doctests/arguments.doctest")),
                 new FileFilter() {
                     @Override
                     public boolean accept(File f) {
@@ -64,14 +65,14 @@ public class DoctestsTest {
         return new String(buf);
     }
 
-    @Parameters(name = "{0} interpreted:{2}")
     public static Collection<Object[]> doctestValues() throws IOException {
         File[] doctests = getDoctestFiles();
         List<Object[]> result = new ArrayList<Object[]>();
         for (File f : doctests) {
             String contents = loadFile(f);
-            result.add(new Object[] {f.getName(), contents, false});
-            result.add(new Object[] {f.getName(), contents, true});
+            for (var e : EvaluationMethod.values()) {
+                result.add(new Object[] {f.getName(), contents, e});
+            }
         }
         return result;
     }
@@ -85,13 +86,17 @@ public class DoctestsTest {
         return result;
     }
 
-    @Test
-    public void runDoctest() throws Exception {
+    @MethodSource("doctestValues")
+    @ParameterizedTest(name = "{0} interpreted:{2}")
+    public void runDoctest(String name, String source, EvaluationMethod evalMethod)
+            throws Exception {
+        initDoctestsTest(name, source, interpretedMode);
         ContextFactory factory = ContextFactory.getGlobal();
         try (Context cx = factory.enterContext()) {
             cx.setLanguageVersion(Context.VERSION_DEFAULT);
-            cx.setInterpretedMode(interpretedMode);
+            cx.setEvaluationMethod(evalMethod);
             Global global = new Global(cx);
+            global.setFileLoadPrefix(TestSource.getPrefix());
             // global.runDoctest throws an exception on any failure
             int testsPassed = global.runDoctest(cx, global, source, name, 1);
             assertTrue(testsPassed > 0);

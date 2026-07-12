@@ -6,9 +6,7 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -16,14 +14,15 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.ConsString;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ContinuationPending;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.Script;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.WrappedException;
 import org.mozilla.javascript.serialize.ScriptableInputStream;
 import org.mozilla.javascript.serialize.ScriptableOutputStream;
@@ -35,7 +34,7 @@ import org.mozilla.javascript.serialize.ScriptableOutputStream;
  * @author Norris Boyd
  */
 public class ContinuationsApiTest {
-    Scriptable globalScope;
+    TopLevel globalScope;
 
     public static class MyClass implements Serializable {
 
@@ -72,11 +71,11 @@ public class ContinuationsApiTest {
         }
     }
 
-    @Before
+    @BeforeEach
     public void setUp() {
         try (Context cx = Context.enter()) {
             globalScope = cx.initStandardObjects();
-            cx.setInterpretedMode(true); // must use interpreter mode
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter); // must use interpreter mode
             globalScope.put("myObject", globalScope, Context.javaToJS(new MyClass(), globalScope));
         }
     }
@@ -85,7 +84,7 @@ public class ContinuationsApiTest {
     public void scriptWithContinuations() {
         try (Context cx = Context.enter()) {
             try {
-                cx.setInterpretedMode(true); // must use interpreter mode
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter); // must use interpreter mode
                 Script script = cx.compileString("myObject.f(3) + 1;", "test source", 1, null);
                 cx.executeScriptWithContinuations(script, globalScope);
                 fail("Should throw ContinuationPending");
@@ -104,7 +103,7 @@ public class ContinuationsApiTest {
     public void scriptWithMultipleContinuations() {
         try (Context cx = Context.enter()) {
             try {
-                cx.setInterpretedMode(true); // must use interpreter mode
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter); // must use interpreter mode
                 Script script =
                         cx.compileString(
                                 "myObject.f(3) + myObject.g(3) + 2;", "test source", 1, null);
@@ -134,7 +133,8 @@ public class ContinuationsApiTest {
     public void scriptWithNestedContinuations() {
         try (Context cx = Context.enter()) {
             try {
-                cx.setInterpretedMode(true); // must use interpreter mode
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+                ; // must use interpreter mode
                 Script script =
                         cx.compileString(
                                 "myObject.g( myObject.f(1) ) + 2;", "test source", 1, null);
@@ -164,7 +164,8 @@ public class ContinuationsApiTest {
     public void functionWithContinuations() {
         try (Context cx = Context.enter()) {
             try {
-                cx.setInterpretedMode(true); // must use interpreter mode
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+                ; // must use interpreter mode
                 cx.evaluateString(
                         globalScope,
                         "function f(a) { return myObject.f(a); }",
@@ -194,7 +195,7 @@ public class ContinuationsApiTest {
     @Test
     public void errorOnEvalCall() {
         try (Context cx = Context.enter()) {
-            cx.setInterpretedMode(true); // must use interpreter mode
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter); // must use interpreter mode
             Script script = cx.compileString("eval('myObject.f(3);');", "test source", 1, null);
             cx.executeScriptWithContinuations(script, globalScope);
             fail("Should throw IllegalStateException");
@@ -209,7 +210,8 @@ public class ContinuationsApiTest {
     public void serializationWithContinuations() throws IOException, ClassNotFoundException {
         try (Context cx = Context.enter()) {
             try {
-                cx.setInterpretedMode(true); // must use interpreter mode
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+                ; // must use interpreter mode
                 cx.evaluateString(
                         globalScope,
                         "function f(a) { var k = myObject.f(a); var t = []; return k; }",
@@ -237,7 +239,7 @@ public class ContinuationsApiTest {
                 // deserialize
                 try (ByteArrayInputStream bais = new ByteArrayInputStream(serializedData);
                         ScriptableInputStream sis = new ScriptableInputStream(bais, globalScope)) {
-                    globalScope = (Scriptable) sis.readObject();
+                    globalScope = (TopLevel) sis.readObject();
                     Object continuation = sis.readObject();
                     sis.close();
                     bais.close();
@@ -256,17 +258,19 @@ public class ContinuationsApiTest {
         byte[] serializedData = null;
 
         {
-            Scriptable globalScope;
+            TopLevel globalScope;
 
             try (Context cx = Context.enter()) {
                 globalScope = cx.initStandardObjects();
-                cx.setInterpretedMode(true); // must use interpreter mode
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+                ; // must use interpreter mode
                 globalScope.put(
                         "myObject", globalScope, Context.javaToJS(new MyClass(), globalScope));
             }
 
             try (Context cx = Context.enter()) {
-                cx.setInterpretedMode(true); // must use interpreter mode
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+                ; // must use interpreter mode
                 cx.evaluateString(
                         globalScope,
                         "function f(a) { Number.prototype.blargh = function() {return 'foo';}; var k = myObject.f(a); var t = []; return new Number(8).blargh(); }",
@@ -292,12 +296,12 @@ public class ContinuationsApiTest {
 
         {
             try (Context cx = Context.enter()) {
-                Scriptable globalScope;
+                TopLevel globalScope;
 
                 // deserialize
                 try (ByteArrayInputStream bais = new ByteArrayInputStream(serializedData);
                         ObjectInputStream sis = new ObjectInputStream(bais)) {
-                    globalScope = (Scriptable) sis.readObject();
+                    globalScope = (TopLevel) sis.readObject();
                     Object continuation = sis.readObject();
                     sis.close();
                     bais.close();
@@ -316,16 +320,18 @@ public class ContinuationsApiTest {
     public void continuationsInlineFunctionsSerialization()
             throws IOException, ClassNotFoundException {
 
-        Scriptable globalScope;
+        TopLevel globalScope;
 
         try (Context cx = Context.enter()) {
             globalScope = cx.initStandardObjects();
-            cx.setInterpretedMode(true); // must use interpreter mode
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+            ; // must use interpreter mode
             globalScope.put("myObject", globalScope, Context.javaToJS(new MyClass(), globalScope));
         }
 
         try (Context cx = Context.enter()) {
-            cx.setInterpretedMode(true); // must use interpreter mode
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+            ; // must use interpreter mode
 
             try {
                 cx.evaluateString(
@@ -355,7 +361,7 @@ public class ContinuationsApiTest {
                 // deserialize
                 try (ByteArrayInputStream bais = new ByteArrayInputStream(serializedData);
                         ScriptableInputStream sis = new ScriptableInputStream(bais, globalScope)) {
-                    globalScope = (Scriptable) sis.readObject();
+                    globalScope = (TopLevel) sis.readObject();
                     Object continuation = sis.readObject();
                     sis.close();
                     bais.close();
@@ -384,7 +390,7 @@ public class ContinuationsApiTest {
 
         CharSequence r2 = (CharSequence) ois.readObject();
 
-        assertEquals("still the same at the other end", r1.toString(), r2.toString());
+        assertEquals(r1.toString(), r2.toString(), "still the same at the other end");
     }
 
     /**
@@ -407,7 +413,8 @@ public class ContinuationsApiTest {
                         + "let select = myObject.directThrow()\n";
 
         try (Context cx = Context.enter()) {
-            cx.setInterpretedMode(true); // must use interpreter mode
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+            ; // must use interpreter mode
             Script script = cx.compileString(jsSource, "test source", 1, null);
             cx.executeScriptWithContinuations(script, globalScope);
         } catch (ContinuationPending e) {

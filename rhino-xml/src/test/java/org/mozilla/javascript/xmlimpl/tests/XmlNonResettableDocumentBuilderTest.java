@@ -1,23 +1,23 @@
 package org.mozilla.javascript.xmlimpl.tests;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 
 public class XmlNonResettableDocumentBuilderTest {
     private static final String XML_PROPERTY = "javax.xml.parsers.DocumentBuilderFactory";
     private final String originalDocumentBuilderFactory = System.getProperty(XML_PROPERTY);
 
-    @Before
+    @BeforeEach
     public void setUp() {
         System.setProperty(XML_PROPERTY, NonResettableDocumentBuilderFactory.class.getName());
     }
 
-    @After
+    @AfterEach
     public void tearDown() {
         if (originalDocumentBuilderFactory == null) {
             System.clearProperty(XML_PROPERTY);
@@ -29,7 +29,7 @@ public class XmlNonResettableDocumentBuilderTest {
     @Test
     public void nonResettableDocumentBuilder() {
         try (Context cx = new ContextFactory().enterContext()) {
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             Object result =
                     cx.evaluateString(
                             scope,
@@ -38,7 +38,7 @@ public class XmlNonResettableDocumentBuilderTest {
                             "source",
                             1,
                             null);
-            Assert.assertEquals("John", String.valueOf(result));
+            Assertions.assertEquals("John", String.valueOf(result));
         }
     }
 }

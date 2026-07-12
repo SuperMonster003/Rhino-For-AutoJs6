@@ -6,6 +6,7 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;
@@ -16,13 +17,13 @@ import java.security.PrivilegedAction;
  *
  * <p>This improves startup time and average memory usage.
  */
-public final class LazilyLoadedCtor implements Serializable {
-    private static final long serialVersionUID = 1L;
+public final class LazilyLoadedCtor<T extends PropHolder<T>> implements Serializable {
+    @Serial private static final long serialVersionUID = -1531091529063000542L;
     private static final int STATE_BEFORE_INIT = 0;
     private static final int STATE_INITIALIZING = 1;
     private static final int STATE_WITH_VALUE = 2;
 
-    private final Scriptable scope;
+    private final SlotMapOwner<T> scope;
     private final Initializable initializer;
     private final String propertyName;
     private final boolean sealed;
@@ -38,7 +39,7 @@ public final class LazilyLoadedCtor implements Serializable {
      * initialization function.
      */
     public LazilyLoadedCtor(
-            ScriptableObject scope,
+            SlotMapOwner<T> scope,
             String propertyName,
             boolean sealed,
             boolean privileged,
@@ -61,7 +62,7 @@ public final class LazilyLoadedCtor implements Serializable {
      * initialization function.
      */
     public LazilyLoadedCtor(
-            ScriptableObject scope,
+            SlotMapOwner<T> scope,
             String propertyName,
             boolean sealed,
             Initializable initializer,
@@ -74,7 +75,7 @@ public final class LazilyLoadedCtor implements Serializable {
      * This is a legacy mechanism.
      */
     public LazilyLoadedCtor(
-            ScriptableObject scope, String propertyName, String className, boolean sealed) {
+            SlotMapOwner<T> scope, String propertyName, String className, boolean sealed) {
         this(scope, propertyName, className, sealed, false);
     }
 
@@ -83,7 +84,7 @@ public final class LazilyLoadedCtor implements Serializable {
      * This is a legacy mechanism.
      */
     public LazilyLoadedCtor(
-            ScriptableObject scope,
+            SlotMapOwner<T> scope,
             String propertyName,
             String className,
             boolean sealed,
@@ -93,7 +94,7 @@ public final class LazilyLoadedCtor implements Serializable {
                 propertyName,
                 sealed,
                 privileged,
-                (Context lcx, Scriptable lscope, boolean lsealed) ->
+                (Context lcx, VarScope lscope, boolean lsealed) ->
                         buildUsingReflection(lscope, className, propertyName, lsealed));
     }
 
@@ -130,17 +131,18 @@ public final class LazilyLoadedCtor implements Serializable {
         return buildValueInternal();
     }
 
+    @SuppressWarnings("unchecked")
     private Object buildValueInternal() {
         Context cx = Context.getCurrentContext();
-        Object value = initializer.initialize(cx, scope, sealed);
+        Object value = initializer.initialize(cx, (VarScope) scope, sealed);
         if (value != null) {
             return value;
         }
-        return scope.get(propertyName, scope);
+        return scope.get(propertyName, (T) scope);
     }
 
     private static Object buildUsingReflection(
-            Scriptable scope, String className, String propertyName, boolean sealed) {
+            VarScope scope, String className, String propertyName, boolean sealed) {
         Class<? extends Scriptable> cl = cast(Kit.classOrNull(className));
         if (cl != null) {
             try {

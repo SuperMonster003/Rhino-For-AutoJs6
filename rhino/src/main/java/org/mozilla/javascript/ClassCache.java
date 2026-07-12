@@ -6,6 +6,7 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Objects;
@@ -19,14 +20,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ClassCache implements Serializable {
 
-    private static final long serialVersionUID = -8866246036237312215L;
+    @Serial private static final long serialVersionUID = -8866246036237312215L;
     private static final Object AKEY = "ClassCache";
     private volatile boolean cachingIsEnabled = true;
     private transient volatile Map<CacheKey, JavaMembers> classTable;
     private transient volatile Map<JavaAdapter.JavaAdapterSignature, Class<?>> classAdapterCache;
     private transient volatile Map<Class<?>, Object> interfaceAdapterCache;
     private int generatedClassSerial;
-    private Scriptable associatedScope;
+    private VarScope associatedScope;
 
     /**
      * CacheKey is a combination of class and securityContext. This is required when classes are
@@ -60,31 +61,25 @@ public class ClassCache implements Serializable {
 
     /**
      * Search for ClassCache object in the given scope. The method first calls {@link
-     * ScriptableObject#getTopLevelScope(Scriptable scope)} to get the top most scope and then tries
-     * to locate associated ClassCache object in the prototype chain of the top scope. If none was
+     * ScriptableObject#getTopLevelScope(VarScope obj)} to get the top most scope and then tries to
+     * locate associated ClassCache object in the prototype chain of the top scope. If none was
      * found, it will try to associate a new ClassCache object to the top scope.
      *
      * @param scope scope to search for ClassCache object.
      * @return previously associated ClassCache object or a new instance of ClassCache if no
      *     ClassCache object was found.
-     * @see #associate(ScriptableObject topScope)
+     * @see #associate(TopLevel topScope)
      * @throws IllegalArgumentException if the top scope of provided scope have no associated
      *     ClassCache, and cannot have ClassCache associated due to the top scope not being a {@link
      *     ScriptableObject}
      */
-    public static ClassCache get(Scriptable scope) {
+    public static ClassCache get(VarScope scope) {
         ClassCache cache = (ClassCache) ScriptableObject.getTopScopeValue(scope, AKEY);
         if (cache == null) {
             // we expect this to not happen frequently, so computing top scope twice is acceptable
             var topScope = ScriptableObject.getTopLevelScope(scope);
-            if (!(topScope instanceof ScriptableObject)) {
-                // Note: it's originally a RuntimeException, the super class of
-                // IllegalArgumentException, so this will not break error catching
-                throw new IllegalArgumentException(
-                        "top scope have no associated ClassCache and cannot have ClassCache associated due to not being a ScriptableObject");
-            }
             cache = new ClassCache();
-            cache.associate(((ScriptableObject) topScope));
+            cache.associate(topScope);
         }
         return cache;
     }
@@ -96,9 +91,9 @@ public class ClassCache implements Serializable {
      * @param topScope scope to associate this ClassCache object with.
      * @return true if no previous ClassCache objects were embedded into the scope and this
      *     ClassCache were successfully associated or false otherwise.
-     * @see #get(Scriptable scope)
+     * @see #get(VarScope scope)
      */
-    public boolean associate(ScriptableObject topScope) {
+    public boolean associate(TopLevel topScope) {
         if (topScope.getParentScope() != null) {
             // Can only associate cache with top level scope
             throw new IllegalArgumentException();
@@ -211,7 +206,7 @@ public class ClassCache implements Serializable {
         }
     }
 
-    Scriptable getAssociatedScope() {
+    VarScope getAssociatedScope() {
         return associatedScope;
     }
 }

@@ -3,20 +3,21 @@ package org.mozilla.javascript.tests;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.StringWriter;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 
 public class HashCollisionTest {
     private static final String mediumInput = "testsrc/jstests/collisions.json";
     private static String collisions;
 
-    @BeforeClass
+    @BeforeAll
     public static void loadFile() throws IOException {
         StringWriter out = new StringWriter();
 
-        try (FileReader in = new FileReader(mediumInput)) {
+        try (FileReader in = new FileReader(TestSource.resolve(mediumInput))) {
             char[] buf = new char[16392];
             int rc;
             do {
@@ -37,7 +38,8 @@ public class HashCollisionTest {
      */
     @Test
     public void mediumCollisions() throws IOException {
-        try (FileReader scriptIn = new FileReader("testsrc/jstests/hash-collisions.js")) {
+        try (FileReader scriptIn =
+                new FileReader(TestSource.resolve("testsrc/jstests/hash-collisions.js"))) {
             try (Context cx = Context.enter()) {
                 Global glob = new Global(cx);
                 glob.put("collisions", glob, collisions);

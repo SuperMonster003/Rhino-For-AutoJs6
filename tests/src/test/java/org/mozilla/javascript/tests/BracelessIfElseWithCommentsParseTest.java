@@ -1,0 +1,147 @@
+package org.mozilla.javascript.tests;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.mozilla.javascript.CompilerEnvirons;
+import org.mozilla.javascript.Parser;
+import org.mozilla.javascript.ast.AstRoot;
+import org.mozilla.javascript.testutils.TestSource;
+
+/**
+ * Tests that braceless if/else statements with inline comments parse correctly when {@code
+ * setRecordingComments(true)} is enabled. Multiple consecutive comments between a braceless {@code
+ * if} and its body used to cause a parse failure because {@code
+ * getNextStatementAfterInlineComments()} only consumed a single comment.
+ *
+ * @see <a href="https://github.com/mozilla/rhino/issues/XXX">GitHub issue</a>
+ */
+public class BracelessIfElseWithCommentsParseTest {
+
+    @Test
+    public void testBracelessIfElseWithMultipleComments() throws IOException {
+        CompilerEnvirons env = new CompilerEnvirons();
+        env.setRecordingComments(true);
+
+        Parser parser = new Parser(env);
+        String source;
+        try (BufferedReader reader =
+                new BufferedReader(
+                        new FileReader(
+                                TestSource.resolve(
+                                        "testsrc/jstests/braceless-if-else-with-comments.js")))) {
+            source = reader.lines().collect(Collectors.joining(System.lineSeparator()));
+        }
+
+        // Parsing should not throw a syntax error
+        AstRoot ast = parser.parse(source, "test", 1);
+        Assertions.assertNotNull(ast);
+
+        // The fixture has 18 comments — verify they were all recorded
+        Assertions.assertEquals(14, ast.getComments().size());
+    }
+
+    @Test
+    public void testMinimalTwoCommentRepro() {
+        String source =
+                "if (x)\n"
+                        + "    // comment 1\n"
+                        + "    // comment 2\n"
+                        + "    doSomething();\n"
+                        + "else\n"
+                        + "    doSomethingElse();\n";
+
+        CompilerEnvirons env = new CompilerEnvirons();
+        env.setRecordingComments(true);
+
+        Parser parser = new Parser(env);
+        AstRoot ast = parser.parse(source, "test", 1);
+        Assertions.assertNotNull(ast);
+        Assertions.assertEquals(1, ast.getComments().size());
+    }
+
+    @Test
+    public void testSingleCommentStillWorks() {
+        String source =
+                "if (x)\n"
+                        + "    // single comment\n"
+                        + "    doSomething();\n"
+                        + "else\n"
+                        + "    doSomethingElse();\n";
+
+        CompilerEnvirons env = new CompilerEnvirons();
+        env.setRecordingComments(true);
+
+        Parser parser = new Parser(env);
+        AstRoot ast = parser.parse(source, "test", 1);
+        Assertions.assertNotNull(ast);
+        Assertions.assertEquals(1, ast.getComments().size());
+    }
+
+    @Test
+    public void testConsecutiveCommentsAreMergedInToSource() {
+        String source =
+                "if (x)\n"
+                        + "    // comment 1\n"
+                        + "    // comment 2\n"
+                        + "    doSomething();\n"
+                        + "else\n"
+                        + "    doSomethingElse();\n";
+
+        CompilerEnvirons env = new CompilerEnvirons();
+        env.setRecordingComments(true);
+
+        Parser parser = new Parser(env);
+        AstRoot ast = parser.parse(source, "test", 1);
+
+        String expected =
+                "if (x)     // comment 1\n"
+                        + "// comment 2\n"
+                        + "  doSomething();\n"
+                        + "else \n"
+                        + "  doSomethingElse();\n";
+        Assertions.assertEquals(expected, ast.toSource());
+    }
+
+    @Test
+    public void testCommentContentAfterMerging() {
+        String source =
+                "if (x)\n" + "    // comment 1\n" + "    // comment 2\n" + "    doSomething();\n";
+
+        CompilerEnvirons env = new CompilerEnvirons();
+        env.setRecordingComments(true);
+
+        Parser parser = new Parser(env);
+        AstRoot ast = parser.parse(source, "test", 1);
+
+        // Check how many comments are in the global list
+        java.util.SortedSet<org.mozilla.javascript.ast.Comment> comments = ast.getComments();
+        Assertions.assertEquals(1, comments.size());
+
+        java.util.Iterator<org.mozilla.javascript.ast.Comment> it = comments.iterator();
+        org.mozilla.javascript.ast.Comment c1 = it.next();
+
+        Assertions.assertEquals("// comment 1\n// comment 2", c1.getValue());
+    }
+
+    @Test
+    public void testWithoutRecordingCommentsStillWorks() {
+        String source =
+                "if (x)\n"
+                        + "    // comment 1\n"
+                        + "    // comment 2\n"
+                        + "    doSomething();\n"
+                        + "else\n"
+                        + "    doSomethingElse();\n";
+
+        CompilerEnvirons env = new CompilerEnvirons();
+        env.setRecordingComments(false);
+
+        Parser parser = new Parser(env);
+        AstRoot ast = parser.parse(source, "test", 1);
+        Assertions.assertNotNull(ast);
+    }
+}

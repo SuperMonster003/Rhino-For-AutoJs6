@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -11,17 +11,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeConsole;
 import org.mozilla.javascript.NativeConsole.Level;
 import org.mozilla.javascript.ScriptStackElement;
 import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SecurityUtilities;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.VarScope;
 
 /** Test NativeConsole */
 public class NativeConsoleTest {
@@ -42,32 +43,33 @@ public class NativeConsoleTest {
         }
 
         public void assertEquals(PrinterCall expectedCall) {
-            Assert.assertEquals(expectedCall.level, this.level);
+            Assertions.assertEquals(expectedCall.level, this.level);
             if (expectedCall.args != null) {
-                Assert.assertEquals(expectedCall.args.length, this.args.length);
+                Assertions.assertEquals(expectedCall.args.length, this.args.length);
                 for (int i = 0; i < expectedCall.args.length; ++i) {
                     if (expectedCall.args[i] instanceof Pattern && this.args[i] instanceof String) {
-                        Assert.assertTrue(
+                        Assertions.assertTrue(
+                                ((Pattern) expectedCall.args[i])
+                                        .matcher((String) this.args[i])
+                                        .matches(),
                                 "\""
                                         + this.args[i]
                                         + "\" does not matches \""
                                         + expectedCall.args[i]
-                                        + "\"",
-                                ((Pattern) expectedCall.args[i])
-                                        .matcher((String) this.args[i])
-                                        .matches());
+                                        + "\"");
                     } else {
-                        Assert.assertEquals(expectedCall.args[i], this.args[i]);
+                        Assertions.assertEquals(expectedCall.args[i], this.args[i]);
                     }
                 }
             }
             if (expectedCall.stack != null) {
-                Assert.assertEquals(expectedCall.stack.length, this.stack.length);
+                Assertions.assertEquals(expectedCall.stack.length, this.stack.length);
                 for (int i = 0; i < expectedCall.stack.length; ++i) {
-                    Assert.assertEquals(expectedCall.stack[i].fileName, this.stack[i].fileName);
-                    Assert.assertEquals(
+                    Assertions.assertEquals(expectedCall.stack[i].fileName, this.stack[i].fileName);
+                    Assertions.assertEquals(
                             expectedCall.stack[i].functionName, this.stack[i].functionName);
-                    Assert.assertEquals(expectedCall.stack[i].lineNumber, this.stack[i].lineNumber);
+                    Assertions.assertEquals(
+                            expectedCall.stack[i].lineNumber, this.stack[i].lineNumber);
                 }
             }
         }
@@ -80,7 +82,7 @@ public class NativeConsoleTest {
         @Override
         public void print(
                 Context cx,
-                Scriptable scope,
+                VarScope scope,
                 Level level,
                 Object[] args,
                 ScriptStackElement[] stack) {
@@ -227,7 +229,7 @@ public class NativeConsoleTest {
     @Test
     public void formatObject() {
         try (Context cx = Context.enter()) {
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
 
             Scriptable emptyObject = cx.newObject(scope);
             assertFormat(new Object[] {"%o", emptyObject}, "{}");
@@ -270,7 +272,7 @@ public class NativeConsoleTest {
     @Test
     public void formatValueOnly() {
         try (Context cx = Context.enter()) {
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
 
             assertFormat(new Object[] {"param1", "param2"}, "param1 param2");
             assertFormat(new Object[] {1, 2, 7}, "1 2 7");
@@ -304,7 +306,7 @@ public class NativeConsoleTest {
     @Test
     public void formatMissingPlaceholder() {
         try (Context cx = Context.enter()) {
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
 
             assertFormat(
                     new Object[] {"string: %s;", "param1", "param2"}, "string: param1; param2");
@@ -563,7 +565,7 @@ public class NativeConsoleTest {
 
     private static void assertFormat(Object[] args, String expected) {
         try (Context cx = Context.enter()) {
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             assertEquals(expected, NativeConsole.format(cx, scope, args));
         }
     }
@@ -572,7 +574,7 @@ public class NativeConsoleTest {
         DummyConsolePrinter printer = new DummyConsolePrinter();
 
         try (Context cx = Context.enter()) {
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             NativeConsole.init(scope, false, printer);
             cx.evaluateString(scope, source, "source", 1, null);
             printer.assertCalls(expectedCalls);
@@ -584,7 +586,7 @@ public class NativeConsoleTest {
 
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_DEFAULT);
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             NativeConsole.init(scope, false, printer);
             cx.evaluateString(scope, source, "source", 1, null);
             printer.assertMsf(expectedMsg);
@@ -596,7 +598,7 @@ public class NativeConsoleTest {
 
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_DEFAULT);
-            ScriptableObject scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             NativeConsole.init(scope, false, printer);
             return cx.evaluateString(scope, js, "source", 1, null);
         }

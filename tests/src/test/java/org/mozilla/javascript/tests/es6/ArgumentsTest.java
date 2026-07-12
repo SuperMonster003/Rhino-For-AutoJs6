@@ -4,7 +4,7 @@
 
 package org.mozilla.javascript.tests.es6;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.testutils.Utils;
@@ -238,7 +238,7 @@ public class ArgumentsTest {
                         + "res";
 
         // Utils.assertWithAllModes_ES6("ex [object Arguments] ex ex", code);
-        Utils.assertWithAllModes_ES6("null [object Arguments] null null", code);
+        Utils.assertWithAllModes_ES6("null [object Arguments] ex null", code);
         Utils.assertWithAllModes_1_8("null [object Arguments] null null", code);
     }
 
@@ -255,7 +255,7 @@ public class ArgumentsTest {
                         + "res";
 
         // Utils.assertWithAllModes_ES6("undefined length,name,prototype", code);
-        Utils.assertWithAllModes_ES6("[object Object] arguments,arity,length,name,prototype", code);
+        Utils.assertWithAllModes_ES6("undefined arity,length,name,prototype", code);
         Utils.assertWithAllModes_1_8("[object Object] arguments,arity,length,name,prototype", code);
     }
 
@@ -308,7 +308,6 @@ public class ArgumentsTest {
 
         Utils.assertWithAllModes_ES6("callee,length", code);
         Utils.assertWithAllModes_1_8("callee,caller,length", code);
-        Utils.assertWithAllModes(Context.VERSION_1_3, null, "callee,caller,length", code);
     }
 
     @Test
@@ -340,8 +339,7 @@ public class ArgumentsTest {
                         + "test('hi', 'there');\n"
                         + "res";
 
-        // Utils.assertWithAllModes_ES6("2 ex", code);
-        Utils.assertWithAllModes_ES6("2 null", code);
+        Utils.assertWithAllModes_ES6("2 ex", code);
         Utils.assertWithAllModes_1_8("2 null", code);
     }
 
@@ -636,7 +634,7 @@ public class ArgumentsTest {
                         + "function test() {\n"
                         + "  try {\n"
                         + "    res += ' ' + (arguments == test.arguments);\n"
-                        + "  } catch(e) { res += 'ex'; }"
+                        + "  } catch(e) { res += ' ex'; }"
                         + "  try {\n"
                         + "    res += ' ' + (arguments === test.arguments);\n"
                         + "  } catch(e) { res += ' ex'; }"
@@ -645,8 +643,7 @@ public class ArgumentsTest {
                         + "test('hello', 'world');\n"
                         + "res";
 
-        // Utils.assertWithAllModes_ES6("ex ex", code);
-        Utils.assertWithAllModes_ES6("null false false", code);
+        Utils.assertWithAllModes_ES6("null ex ex", code);
         Utils.assertWithAllModes_1_8("null false false", code);
     }
 
@@ -799,11 +796,6 @@ public class ArgumentsTest {
         Utils.assertWithAllModes_ES6("undefined", code);
         Utils.assertException(
                 Context.VERSION_1_8,
-                EcmaError.class,
-                "TypeError: This operation is not allowed.",
-                code);
-        Utils.assertException(
-                Context.VERSION_1_3,
                 EcmaError.class,
                 "TypeError: This operation is not allowed.",
                 code);

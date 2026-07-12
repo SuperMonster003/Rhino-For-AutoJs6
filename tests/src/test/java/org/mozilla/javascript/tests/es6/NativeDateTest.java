@@ -7,15 +7,13 @@
  */
 package org.mozilla.javascript.tests.es6;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.TimeZone;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EcmaError;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 /** Test for NativeDate. */
@@ -420,7 +418,7 @@ public class NativeDateTest {
     private static void ctorDateTimeString(final String expected, final String js) {
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone("GMT"));
 
@@ -434,7 +432,7 @@ public class NativeDateTest {
             final Class<T> expectedThrowable, final String expectedMessage, final String js) {
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone("GMT"));
 
@@ -444,12 +442,12 @@ public class NativeDateTest {
                                     () -> cx.evaluateString(scope, js, "test", 1, null));
 
                     assertTrue(
+                            e.getMessage().startsWith(expectedMessage),
                             "'"
                                     + e.getMessage()
                                     + "' does not start with '"
                                     + expectedMessage
-                                    + "'",
-                            e.getMessage().startsWith(expectedMessage));
+                                    + "'");
                     return null;
                 });
     }
@@ -480,7 +478,7 @@ public class NativeDateTest {
 
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone("Europe/Berlin"));
 
@@ -509,7 +507,7 @@ public class NativeDateTest {
         final String js = "new Date('2021-12-18T22:23').toISOString()";
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone(tz));
 
@@ -558,7 +556,7 @@ public class NativeDateTest {
         final String js = "new Date('2021-12-18').toISOString()";
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone(tz));
 
@@ -581,82 +579,57 @@ public class NativeDateTest {
 
     @Test
     public void toLocaleEnUs() {
-        // real browser toLocale("12/18/2021, 10:23:00 PM", "new
-        // Date('2021-12-18T22:23').toLocaleString('en-US')");
-        // toLocale("12/18/21 10:23 PM", "new Date('2021-12-18T22:23').toLocaleString('en-US')");
-        toLocale("12/18/21, 10:23 PM", "new Date('2021-12-18T22:23').toLocaleString('en-US')");
-
-        // real browser toLocale("12/18/2021", "new
-        // Date('2021-12-18T22:23').toLocaleDateString('en-US')");
-        toLocale("12/18/21", "new Date('2021-12-18T22:23').toLocaleDateString('en-US')");
-
-        // real browser toLocale("10:23:00 PM", "new
-        // Date('2021-12-18T22:23').toLocaleTimeString('en-US')");
-        toLocale("10:23 PM", "new Date('2021-12-18T22:23').toLocaleTimeString('en-US')");
+        toLocale("12/18/2021, 10:23:00 PM", "new Date('2021-12-18T22:23').toLocaleString('en-US')");
+        toLocale("12/18/2021", "new Date('2021-12-18T22:23').toLocaleDateString('en-US')");
+        toLocale("10:23:00 PM", "new Date('2021-12-18T22:23').toLocaleTimeString('en-US')");
     }
 
     @Test
     public void toLocaleDeDe() {
-        // real browser toLocale("18.12.2021, 22:23:00", "new
-        // Date('2021-12-18T22:23').toLocaleString('de-DE')");
-        // toLocale("18.12.21 22:23", "new Date('2021-12-18T22:23').toLocaleString('de-DE')");
-        toLocale("18.12.21, 22:23", "new Date('2021-12-18T22:23').toLocaleString('de-DE')");
-
-        // real browser toLocale("18.12.2021", "new
-        // Date('2021-12-18T22:23').toLocaleDateString('de-DE')");
-        toLocale("18.12.21", "new Date('2021-12-18T22:23').toLocaleDateString('de-DE')");
-
-        // real browser toLocale("22:23:00", "new
-        // Date('2021-12-18T22:23').toLocaleTimeString('de-DE')");
-        toLocale("22:23", "new Date('2021-12-18T22:23').toLocaleTimeString('de-DE')");
+        toLocale("18.12.2021, 22:23:00", "new Date('2021-12-18T22:23').toLocaleString('de-DE')");
+        toLocale("18.12.2021", "new Date('2021-12-18T22:23').toLocaleDateString('de-DE')");
+        toLocale("22:23:00", "new Date('2021-12-18T22:23').toLocaleTimeString('de-DE')");
     }
 
     @Test
     public void toLocaleJaJp() {
-        // real browser toLocale("2021/12/18 22:23:00", "new
-        // Date('2021-12-18T22:23').toLocaleString('ja-JP')");
-        // toLocale("21/12/18 22:23", "new Date('2021-12-18T22:23').toLocaleString('ja-JP')");
-        toLocale("2021/12/18 22:23", "new Date('2021-12-18T22:23').toLocaleString('ja-JP')");
-
-        // real browser toLocale("2021/12/18", "new
-        // Date('2021-12-18T22:23').toLocaleDateString('ja-JP')");
-        // toLocale("21/12/18", "new Date('2021-12-18T22:23').toLocaleDateString('ja-JP')");
+        toLocale("2021/12/18 22:23:00", "new Date('2021-12-18T22:23').toLocaleString('ja-JP')");
         toLocale("2021/12/18", "new Date('2021-12-18T22:23').toLocaleDateString('ja-JP')");
+        toLocale("22:23:00", "new Date('2021-12-18T22:23').toLocaleTimeString('ja-JP')");
+    }
 
-        // real browser toLocale("22:23:00", "new
-        // Date('2021-12-18T22:23').toLocaleTimeString('ja-JP')");
-        toLocale("22:23", "new Date('2021-12-18T22:23').toLocaleTimeString('ja-JP')");
+    @Test
+    public void toLocaleFrFr() {
+        toLocale("18/12/2021 22:23:00", "new Date('2021-12-18T22:23').toLocaleString('fr-FR')");
+        toLocale("18/12/2021", "new Date('2021-12-18T22:23').toLocaleDateString('fr-FR')");
+        toLocale("22:23:00", "new Date('2021-12-18T22:23').toLocaleTimeString('fr-FR')");
+    }
+
+    @Test
+    public void toLocaleFiFi() {
+        // real browser: "18.12.2021 klo 22.23.00" (includes "klo" between date and time)
+        toLocale("18.12.2021 22.23.00", "new Date('2021-12-18T22:23').toLocaleString('fi-FI')");
+        toLocale("18.12.2021", "new Date('2021-12-18T22:23').toLocaleDateString('fi-FI')");
+        toLocale("22.23.00", "new Date('2021-12-18T22:23').toLocaleTimeString('fi-FI')");
     }
 
     @Test
     public void toLocaleArray() {
-        // real browser toLocale("2021/12/18 22:23:00", "new
-        // Date('2021-12-18T22:23').toLocaleString(['foo', 'ja-JP', 'en-US'])");
-        // toLocale("21/12/18 22:23", "new Date('2021-12-18T22:23').toLocaleString(['foo', 'ja-JP',
-        // 'en-US'])");
         toLocale(
-                "2021/12/18 22:23",
+                "2021/12/18 22:23:00",
                 "new Date('2021-12-18T22:23').toLocaleString(['foo', 'ja-JP', 'en-US'])");
-
-        // real browser toLocale("2021/12/18", "new
-        // Date('2021-12-18T22:23').toLocaleDateString(['foo', 'ja-JP', 'en-US'])");
-        // toLocale("21/12/18", "new Date('2021-12-18T22:23').toLocaleDateString(['foo', 'ja-JP',
-        // 'en-US'])");
         toLocale(
                 "2021/12/18",
                 "new Date('2021-12-18T22:23').toLocaleDateString(['foo', 'ja-JP', 'en-US'])");
-
-        // real browser toLocale("22:23:00", "new
-        // Date('2021-12-18T22:23').toLocaleTimeString(['foo', 'ja-JP', 'en-US'])");
         toLocale(
-                "22:23",
+                "22:23:00",
                 "new Date('2021-12-18T22:23').toLocaleTimeString(['foo', 'ja-JP', 'en-US'])");
     }
 
     private static void toLocale(final String expected, final String js) {
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone("GMT"));
 
@@ -664,6 +637,29 @@ public class NativeDateTest {
                     assertEquals(expected, res);
                     return null;
                 });
+    }
+
+    @Test
+    public void toLocaleEpochDate() {
+        toLocale("1/1/1970, 12:00:00 AM", "new Date(0).toLocaleString('en-US')");
+        // real browser: "1.1.1970, 00:00:00" (without zero-padding)
+        toLocale("01.01.1970, 00:00:00", "new Date(0).toLocaleString('de-DE')");
+        // real browser: "1970/1/1 0:00:00" (without zero-padding)
+        toLocale("1970/01/01 0:00:00", "new Date(0).toLocaleString('ja-JP')");
+        toLocale("1/1/1970", "new Date(0).toLocaleDateString('en-US')");
+        // real browser: "1.1.1970" (without zero-padding)
+        toLocale("01.01.1970", "new Date(0).toLocaleDateString('de-DE')");
+        toLocale("12:00:00 AM", "new Date(0).toLocaleTimeString('en-US')");
+        toLocale("00:00:00", "new Date(0).toLocaleTimeString('de-DE')");
+    }
+
+    @Test
+    public void toLocaleWithSeconds() {
+        toLocale(
+                "12/18/2021, 10:23:45 PM",
+                "new Date('2021-12-18T22:23:45').toLocaleString('en-US')");
+        toLocale("10:23:45 PM", "new Date('2021-12-18T22:23:45').toLocaleTimeString('en-US')");
+        toLocale("22:23:45", "new Date('2021-12-18T22:23:45').toLocaleTimeString('ja-JP')");
     }
 
     @Test
@@ -705,7 +701,7 @@ public class NativeDateTest {
         final String js = "new Date('Sat, 18 Dec 2021 22:23:00 UTC').toDateString()";
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone(tz));
 
@@ -725,10 +721,13 @@ public class NativeDateTest {
         toTimeString("22:23:00 GMT-0000 (UTC)", "UTC");
     }
 
+    /*
+    * The time zone that comes back from this platform differs between Java versions,
+    * and ECMAScript says that this functionality may be platform-dependent.
     @Test
     public void toTimeStringEST() {
-        toTimeString("17:23:00 GMT-0500 (-05:00)", "EST");
-    }
+        toTimeString("17:23:00 GMT-0500 (EST)", "EST");
+    }*/
 
     @Test
     public void toTimeStringBerlin() {
@@ -756,7 +755,7 @@ public class NativeDateTest {
         final String js = "new Date('Sat, 18 Dec 2021 22:23:00 UTC').toTimeString()";
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone(tz));
 
@@ -805,7 +804,7 @@ public class NativeDateTest {
         final String js = "new Date('Sat, 18 Dec 2021 22:23:00 UTC').toUTCString()";
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone(tz));
 
@@ -854,7 +853,7 @@ public class NativeDateTest {
         final String js = "new Date(0).getTimezoneOffset()";
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     cx.setTimeZone(TimeZone.getTimeZone(tz));
 

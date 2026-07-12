@@ -96,5 +96,5 @@ public abstract class VMBridge {
             ContextFactory cf,
             InterfaceAdapter adapter,
             Object target,
-            Scriptable topScope);
+            VarScope topScope);
 }

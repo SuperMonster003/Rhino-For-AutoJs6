@@ -4,15 +4,17 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.ClassShutter;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 
 public class CatchTest {
     public static class Foo extends ScriptableObject {
@@ -50,11 +52,11 @@ public class CatchTest {
 
         return factory.call(
                 context -> {
-                    context.setInterpretedMode(true);
+                    context.setEvaluationMethod(EvaluationMethod.Interpreter);
                     if (shutter != null) {
                         context.setClassShutter(shutter);
                     }
-                    final Scriptable scope = context.initStandardObjects();
+                    TopLevel scope = context.initStandardObjects();
 
                     try {
                         ScriptableObject.defineClass(scope, Foo.class);

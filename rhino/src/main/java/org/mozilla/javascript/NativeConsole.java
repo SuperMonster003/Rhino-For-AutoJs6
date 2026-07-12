@@ -6,6 +6,7 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.Map;
@@ -15,7 +16,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class NativeConsole extends ScriptableObject {
-    private static final long serialVersionUID = 5694613212458273057L;
+    @Serial private static final long serialVersionUID = 5694613212458273057L;
 
     private static final String CLASS_NAME = "Console";
 
@@ -39,14 +40,10 @@ public class NativeConsole extends ScriptableObject {
 
     public interface ConsolePrinter extends Serializable {
         void print(
-                Context cx,
-                Scriptable scope,
-                Level level,
-                Object[] args,
-                ScriptStackElement[] stack);
+                Context cx, VarScope scope, Level level, Object[] args, ScriptStackElement[] stack);
     }
 
-    public static void init(Scriptable scope, boolean sealed, ConsolePrinter printer) {
+    public static void init(VarScope scope, boolean sealed, ConsolePrinter printer) {
         NativeConsole obj = new NativeConsole(printer);
         obj.setPrototype(getObjectPrototype(scope));
         obj.setParentScope(scope);
@@ -81,47 +78,46 @@ public class NativeConsole extends ScriptableObject {
         return CLASS_NAME;
     }
 
-    private static Object js_toSource(
-            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private static Object js_toSource(Context cx, VarScope scope, Object thisObj, Object[] args) {
         return CLASS_NAME;
     }
 
-    private Object js_trace(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_trace(Context cx, VarScope scope, Object thisObj, Object[] args) {
         ScriptStackElement[] stack = new EvaluatorException("[object Object]").getScriptStack();
         printer.print(cx, scope, Level.TRACE, args, stack);
         return Undefined.instance;
     }
 
-    private Object js_debug(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_debug(Context cx, VarScope scope, Object thisObj, Object[] args) {
         printer.print(cx, scope, Level.DEBUG, args, null);
         return Undefined.instance;
     }
 
-    private Object js_log(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_log(Context cx, VarScope scope, Object thisObj, Object[] args) {
         printer.print(cx, scope, Level.INFO, args, null);
         return Undefined.instance;
     }
 
-    private Object js_info(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_info(Context cx, VarScope scope, Object thisObj, Object[] args) {
         printer.print(cx, scope, Level.INFO, args, null);
         return Undefined.instance;
     }
 
-    private Object js_warn(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_warn(Context cx, VarScope scope, Object thisObj, Object[] args) {
         printer.print(cx, scope, Level.WARN, args, null);
         return Undefined.instance;
     }
 
-    private Object js_error(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_error(Context cx, VarScope scope, Object thisObj, Object[] args) {
         printer.print(cx, scope, Level.ERROR, args, null);
         return Undefined.instance;
     }
 
-    private void print(Context cx, Scriptable scope, Level level, String msg) {
+    private void print(Context cx, VarScope scope, Level level, String msg) {
         printer.print(cx, scope, level, new String[] {msg}, null);
     }
 
-    public static String format(Context cx, Scriptable scope, Object[] args) {
+    public static String format(Context cx, VarScope scope, Object[] args) {
         if (args == null || args.length == 0) {
             return "";
         }
@@ -234,7 +230,7 @@ public class NativeConsole extends ScriptableObject {
         return ScriptRuntime.numberToString(ScriptRuntime.toNumber(val), 10);
     }
 
-    private static String formatObj(Context cx, Scriptable scope, Object arg) {
+    private static String formatObj(Context cx, VarScope scope, Object arg) {
         if (arg == null) {
             return "null";
         }
@@ -259,7 +255,7 @@ public class NativeConsole extends ScriptableObject {
                         @Override
                         public Object call(
                                 Context callCx,
-                                Scriptable callScope,
+                                VarScope callScope,
                                 Scriptable callThisObj,
                                 Object[] callArgs) {
                             Object value = callArgs[1];
@@ -294,7 +290,7 @@ public class NativeConsole extends ScriptableObject {
         }
     }
 
-    private Object js_assert(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_assert(Context cx, VarScope scope, Object thisObj, Object[] args) {
         if (args != null && args.length > 0 && ScriptRuntime.toBoolean(args[0])) {
             return Undefined.instance;
         }
@@ -323,14 +319,14 @@ public class NativeConsole extends ScriptableObject {
         return Undefined.instance;
     }
 
-    private Object js_count(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_count(Context cx, VarScope scope, Object thisObj, Object[] args) {
         String label = args.length > 0 ? ScriptRuntime.toString(args[0]) : DEFAULT_LABEL;
         int count = counters.computeIfAbsent(label, l -> new AtomicInteger(0)).incrementAndGet();
         print(cx, scope, Level.INFO, label + ": " + count);
         return Undefined.instance;
     }
 
-    private Object js_countReset(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_countReset(Context cx, VarScope scope, Object thisObj, Object[] args) {
         String label = args.length > 0 ? ScriptRuntime.toString(args[0]) : DEFAULT_LABEL;
         AtomicInteger counter = counters.remove(label);
         if (counter == null) {
@@ -339,7 +335,7 @@ public class NativeConsole extends ScriptableObject {
         return Undefined.instance;
     }
 
-    private Object js_time(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_time(Context cx, VarScope scope, Object thisObj, Object[] args) {
         String label = args.length > 0 ? ScriptRuntime.toString(args[0]) : DEFAULT_LABEL;
         Long start = timers.get(label);
         if (start != null) {
@@ -350,7 +346,7 @@ public class NativeConsole extends ScriptableObject {
         return Undefined.instance;
     }
 
-    private Object js_timeEnd(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_timeEnd(Context cx, VarScope scope, Object thisObj, Object[] args) {
         String label = args.length > 0 ? ScriptRuntime.toString(args[0]) : DEFAULT_LABEL;
         Long start = timers.remove(label);
         if (start == null) {
@@ -361,7 +357,7 @@ public class NativeConsole extends ScriptableObject {
         return Undefined.instance;
     }
 
-    private Object js_timeLog(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private Object js_timeLog(Context cx, VarScope scope, Object thisObj, Object[] args) {
         String label = args.length > 0 ? ScriptRuntime.toString(args[0]) : DEFAULT_LABEL;
         Long start = timers.get(label);
         if (start == null) {

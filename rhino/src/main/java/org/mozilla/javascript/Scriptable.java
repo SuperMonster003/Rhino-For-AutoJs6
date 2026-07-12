@@ -23,7 +23,7 @@ package org.mozilla.javascript;
  * @author Nick Thompson
  * @author Brendan Eich
  */
-public interface Scriptable {
+public interface Scriptable extends PropHolder<Scriptable> {
 
     /**
      * Get the name of the set of objects implemented by this Java class. This corresponds to the
@@ -76,11 +76,10 @@ public interface Scriptable {
      * @return the value of the property (may be null), or NOT_FOUND
      * @see org.mozilla.javascript.Context#getUndefinedValue
      */
+    @Override
     public Object get(String name, Scriptable start);
 
-    /**
-     * Get a named property from current object.
-     */
+    /** Get a named property from current object. */
     public default Object get(String name) {
         return get(name, this);
     }
@@ -96,7 +95,13 @@ public interface Scriptable {
      * @return the value of the property (may be null), or NOT_FOUND
      * @see org.mozilla.javascript.Scriptable#get(String,Scriptable)
      */
+    @Override
     public Object get(int index, Scriptable start);
+
+    @Override
+    default Object get(Symbol key, Scriptable start) {
+        return ScriptableObject.NOT_FOUND;
+    }
 
     /**
      * Indicates whether or not a named property is defined in an object.
@@ -111,11 +116,10 @@ public interface Scriptable {
      * @see org.mozilla.javascript.Scriptable#get(String, Scriptable)
      * @see org.mozilla.javascript.ScriptableObject#getProperty(Scriptable, String)
      */
+    @Override
     public boolean has(String name, Scriptable start);
 
-    /**
-     * Indicates whether or not a named property is defined in current object.
-     */
+    /** Indicates whether or not a named property is defined in current object. */
     public default boolean has(String name) {
         return has(name, this);
     }
@@ -133,7 +137,13 @@ public interface Scriptable {
      * @see org.mozilla.javascript.Scriptable#get(int, Scriptable)
      * @see org.mozilla.javascript.ScriptableObject#getProperty(Scriptable, int)
      */
+    @Override
     public boolean has(int index, Scriptable start);
+
+    @Override
+    default boolean has(Symbol key, Scriptable start) {
+        return false;
+    }
 
     /**
      * Sets a named property in this object.
@@ -179,8 +189,9 @@ public interface Scriptable {
      * @see org.mozilla.javascript.Scriptable#has(String, Scriptable)
      * @see org.mozilla.javascript.Scriptable#get(String, Scriptable)
      * @see org.mozilla.javascript.ScriptableObject#putProperty(Scriptable, String, Object)
-     * @see org.mozilla.javascript.Context#toObject(Object, Scriptable)
+     * @see org.mozilla.javascript.Context#toObject(Object, VarScope)
      */
+    @Override
     public void put(String name, Scriptable start, Object value);
 
     /**
@@ -197,9 +208,13 @@ public interface Scriptable {
      * @see org.mozilla.javascript.Scriptable#has(int, Scriptable)
      * @see org.mozilla.javascript.Scriptable#get(int, Scriptable)
      * @see org.mozilla.javascript.ScriptableObject#putProperty(Scriptable, int, Object)
-     * @see org.mozilla.javascript.Context#toObject(Object, Scriptable)
+     * @see org.mozilla.javascript.Context#toObject(Object, VarScope)
      */
+    @Override
     public void put(int index, Scriptable start, Object value);
+
+    @Override
+    default void put(Symbol key, Scriptable start, Object value) {}
 
     /**
      * Removes a property from this object. This operation corresponds to the ECMA [[Delete]] except
@@ -218,6 +233,7 @@ public interface Scriptable {
      * @see org.mozilla.javascript.Scriptable#get(String, Scriptable)
      * @see org.mozilla.javascript.ScriptableObject#deleteProperty(Scriptable, String)
      */
+    @Override
     public void delete(String name);
 
     /**
@@ -234,7 +250,11 @@ public interface Scriptable {
      * @see org.mozilla.javascript.Scriptable#get(int, Scriptable)
      * @see org.mozilla.javascript.ScriptableObject#deleteProperty(Scriptable, int)
      */
+    @Override
     public void delete(int index);
+
+    @Override
+    default void delete(Symbol key) {}
 
     /**
      * Get the prototype of the object.
@@ -242,6 +262,11 @@ public interface Scriptable {
      * @return the prototype
      */
     public Scriptable getPrototype();
+
+    @Override
+    default Scriptable getAncestor() {
+        return getPrototype();
+    }
 
     /**
      * Set the prototype of the object.
@@ -255,14 +280,14 @@ public interface Scriptable {
      *
      * @return the parent scope
      */
-    public Scriptable getParentScope();
+    public VarScope getParentScope();
 
     /**
      * Set the parent scope of the object.
      *
      * @param parent the parent scope to set
      */
-    public void setParentScope(Scriptable parent);
+    public void setParentScope(VarScope parent);
 
     /**
      * Get an array of property ids.
@@ -273,6 +298,7 @@ public interface Scriptable {
      * @return an array of Objects. Each entry in the array is either a java.lang.String or a
      *     java.lang.Number
      */
+    @Override
     public Object[] getIds();
 
     /**

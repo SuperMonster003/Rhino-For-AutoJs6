@@ -4,17 +4,17 @@
 
 package org.mozilla.javascript.testutils;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.Locale;
 import java.util.stream.IntStream;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ContextAction;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.JavaScriptException;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.TopLevel;
 
 /**
@@ -65,10 +65,10 @@ public class Utils {
     public static void executeScript(String script, boolean interpreted) {
         Utils.runWithMode(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     return cx.evaluateString(scope, script, "myScript.js", 1, null);
                 },
-                interpreted);
+                interpreted ? EvaluationMethod.Interpreter : EvaluationMethod.Compiler);
     }
 
     /**
@@ -76,9 +76,8 @@ public class Utils {
      *
      * @param action the action to execute
      */
-    public static void runWithAllModes(final ContextAction<?> action) {
-        runWithMode(action, true);
-        runWithMode(action, false);
+    public static <T> void runWithAllModes(final ContextAction<T> action) {
+        runWithAllModes(new ContextFactory(), action);
     }
 
     /**
@@ -87,20 +86,16 @@ public class Utils {
      * @param contextFactory the context factory to use
      * @param action the action to execute
      */
-    public static void runWithAllModes(
-            final ContextFactory contextFactory, final ContextAction<?> action) {
-        runWithMode(contextFactory, action, true);
-        runWithMode(contextFactory, action, false);
+    public static <T> void runWithAllModes(
+            final ContextFactory contextFactory, final ContextAction<T> action) {
+        for (var e : EvaluationMethod.values()) {
+            runWithMode(contextFactory, action, e);
+        }
     }
 
-    /**
-     * Runs the provided action at the given interpretation mode
-     *
-     * @param action the action to execute
-     * @param interpretedMode true if interpreted mode should be used
-     */
-    public static void runWithMode(final ContextAction<?> action, final boolean interpretedMode) {
-        runWithMode(new ContextFactory(), action, interpretedMode);
+    public static void runWithMode(
+            final ContextAction<?> action, final Context.EvaluationMethod mode) {
+        runWithMode(new ContextFactory(), action, mode);
     }
 
     /**
@@ -108,15 +103,15 @@ public class Utils {
      *
      * @param contextFactory the context factory to use
      * @param action the action to execute
-     * @param interpretedMode true if interpreted mode should be used
+     * @param mode evaluation mode to use
      */
     public static void runWithMode(
             final ContextFactory contextFactory,
             final ContextAction<?> action,
-            final boolean interpretedMode) {
+            final Context.EvaluationMethod mode) {
 
         try (final Context cx = contextFactory.enterContext()) {
-            cx.setInterpretedMode(interpretedMode);
+            cx.setEvaluationMethod(mode);
             action.run(cx);
         }
     }
@@ -158,14 +153,53 @@ public class Utils {
     }
 
     /**
-     * Execute the provided script and assert the result. Before the execution the language version
-     * is set to {@link Context#VERSION_1_4}.
+     * Execute the provided script and assert the result. The language version is not changed. The
+     * {@link Context} feature Context.FEATURE_INTL_402 is enabled.
      *
      * @param expected the expected result
      * @param script the javascript script to execute
      */
-    public static void assertWithAllModes_1_4(final Object expected, final String script) {
-        assertWithAllModes(Context.VERSION_1_4, null, expected, script);
+    public static void assertWithAllModes402(final Object expected, final String script) {
+        Utils.runWithAllModes(
+                Utils.contextFactoryWithFeatures(Context.FEATURE_INTL_402),
+                cx -> {
+                    TopLevel scope = cx.initStandardObjects();
+
+                    final Object res = cx.evaluateString(scope, script, "test.js", 0, null);
+                    assertEquals(expected, res);
+                    return null;
+                });
+    }
+
+    /**
+     * Execute the provided script and assert the result. The language version is not changed. The
+     * {@link Context} feature Context.FEATURE_INTL_402 is enabled and the locale set to the
+     * provided one
+     *
+     * @param expected the expected result
+     * @param script the javascript script to execute
+     * @param locale the locale to be used for the context
+     */
+    public static void assertWithAllModes402(
+            final Object expected, final String script, Locale locale) {
+        Utils.runWithAllModes(
+                Utils.contextFactoryWithFeatures(Context.FEATURE_INTL_402),
+                cx -> {
+                    TopLevel scope = cx.initStandardObjects();
+                    cx.setLocale(locale);
+
+                    final Object res = cx.evaluateString(scope, script, "test.js", 0, null);
+
+                    final StringBuilder hex = new StringBuilder();
+                    for (final char c : res.toString().toCharArray()) {
+                        hex.append("\\u")
+                                .append(String.format("%04X", (int) c).toLowerCase(Locale.ROOT));
+                    }
+                    System.out.println(hex.toString());
+
+                    assertEquals(expected, res);
+                    return null;
+                });
     }
 
     /**
@@ -253,27 +287,27 @@ public class Utils {
                     if (languageVersion > -1) {
                         cx.setLanguageVersion(languageVersion);
                     }
-                    final Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     final Object res = cx.evaluateString(scope, script, "test.js", 1, null);
 
                     if (expected instanceof Integer && res instanceof Double) {
                         assertEquals(
-                                message,
                                 ((Integer) expected).doubleValue(),
                                 ((Double) res).doubleValue(),
-                                0.00001);
+                                0.00001,
+                                message);
                         return null;
                     }
                     if (expected instanceof Double && res instanceof Integer) {
                         assertEquals(
-                                message,
                                 ((Double) expected).doubleValue(),
                                 ((Integer) res).doubleValue(),
-                                0.00001);
+                                0.00001,
+                                message);
                         return null;
                     }
 
-                    assertEquals(message, expected, res);
+                    assertEquals(expected, res, message);
                     return null;
                 });
     }
@@ -290,7 +324,7 @@ public class Utils {
         runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
-                    Scriptable scope = cx.initStandardObjects(new TopLevel());
+                    TopLevel scope = cx.initStandardObjects(new TopLevel());
                     final Object res = cx.evaluateString(scope, script, "test.js", 1, null);
 
                     assertEquals(expected, res);
@@ -438,8 +472,8 @@ public class Utils {
 
         // to avoid false positives because we use startsWith()
         assertTrue(
-                "expectedMessage can't be empty",
-                expectedMessage != null && !expectedMessage.isEmpty());
+                expectedMessage != null && !expectedMessage.isEmpty(),
+                "expectedMessage can't be empty");
 
         Utils.runWithAllModes(
                 contextFactory,
@@ -447,7 +481,7 @@ public class Utils {
                     if (languageVersion > -1) {
                         cx.setLanguageVersion(languageVersion);
                     }
-                    ScriptableObject scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
 
                     T e =
                             assertThrows(
@@ -455,12 +489,12 @@ public class Utils {
                                     () -> cx.evaluateString(scope, script, "test", 1, null));
 
                     assertTrue(
+                            e.getMessage().startsWith(expectedMessage),
                             "'"
                                     + e.getMessage()
                                     + "' does not start with '"
                                     + expectedMessage
-                                    + "'",
-                            e.getMessage().startsWith(expectedMessage));
+                                    + "'");
                     return null;
                 });
     }

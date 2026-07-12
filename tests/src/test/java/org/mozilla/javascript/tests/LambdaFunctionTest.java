@@ -1,12 +1,12 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.FileReader;
 import java.io.IOException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.LambdaConstructor;
 import org.mozilla.javascript.LambdaFunction;
@@ -15,24 +15,26 @@ import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.VarScope;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.testutils.Utils;
 
 public class LambdaFunctionTest {
 
     private Context cx;
-    private Scriptable root;
+    private VarScope root;
 
-    @Before
+    @BeforeEach
     public void init() throws IOException {
         cx = Context.enter();
         cx.setLanguageVersion(Context.VERSION_ES6);
         root = cx.initStandardObjects();
-        try (FileReader rdr = new FileReader("testsrc/assert.js")) {
+        try (FileReader rdr = new FileReader(TestSource.resolve("testsrc/assert.js"))) {
             cx.evaluateReader(root, rdr, "assert.js", 1, null);
         }
     }
 
-    @After
+    @AfterEach
     public void cleanup() {
         Context.exit();
     }
@@ -61,9 +63,8 @@ public class LambdaFunctionTest {
                         root,
                         "foo",
                         0,
-                        (Context ctx, Scriptable scope, Scriptable thisObj, Object[] args) -> {
-                            return "Hello";
-                        });
+                        (Context ctx, VarScope scope, Scriptable thisObj, Object[] args) ->
+                                "Hello");
         ScriptableObject.putProperty(root, "foo", f);
         eval(
                 "assertEquals(foo.name, 'foo');\n"
@@ -138,9 +139,7 @@ public class LambdaFunctionTest {
         TestClass.init(root);
         assertThrows(
                 RhinoException.class,
-                () -> {
-                    eval("let tc = new TestClass('foo');\n" + "tc.notFound();");
-                });
+                () -> eval("let tc = new TestClass('foo');\n" + "tc.notFound();"));
     }
 
     @Test
@@ -180,7 +179,7 @@ public class LambdaFunctionTest {
                         "NewOnly",
                         0,
                         LambdaConstructor.CONSTRUCTOR_NEW,
-                        (Context ctx, Scriptable scope, Object[] args) -> ctx.newObject(scope));
+                        (Context ctx, VarScope scope, Object[] args) -> ctx.newObject(scope));
         ScriptableObject.defineProperty(root, "NewOnly", constructor, 0);
         eval(
                 "let o = new NewOnly();\n"
@@ -196,7 +195,7 @@ public class LambdaFunctionTest {
                         "NewOnly",
                         0,
                         LambdaConstructor.CONSTRUCTOR_FUNCTION,
-                        (Context ctx, Scriptable scope, Object[] args) -> ctx.newObject(scope));
+                        (Context ctx, VarScope scope, Object[] args) -> ctx.newObject(scope));
         ScriptableObject.defineProperty(root, "NewOnly", constructor, 0);
         eval(
                 "let o = NewOnly();\n"
@@ -210,7 +209,7 @@ public class LambdaFunctionTest {
                 new LambdaFunction(
                         root,
                         0,
-                        (Context ctx, Scriptable scope, Scriptable thisObj, Object[] args) -> true);
+                        (Context ctx, VarScope scope, Scriptable thisObj, Object[] args) -> true);
         ScriptableObject.defineProperty(root, "noNewFunc", func, 0);
         eval(
                 "let o = noNewFunc();\n"
@@ -238,13 +237,13 @@ public class LambdaFunctionTest {
 
         private String instanceVal;
 
-        public static void init(Scriptable scope) {
+        public static void init(VarScope scope) {
             LambdaConstructor constructor =
                     new LambdaConstructor(
                             scope,
                             "TestClass",
                             1,
-                            (Context cx, Scriptable s, Object[] args) -> {
+                            (Context cx, VarScope s, Object[] args) -> {
                                 TestClass tc = new TestClass();
                                 if (args.length > 0) {
                                     tc.instanceVal = ScriptRuntime.toString(args[0]);
@@ -255,7 +254,7 @@ public class LambdaFunctionTest {
                     scope,
                     "sayHello",
                     1,
-                    (Context cx, Scriptable s, Scriptable thisObj, Object[] args) ->
+                    (Context cx, VarScope s, Scriptable thisObj, Object[] args) ->
                             TestClass.sayHello(args),
                     0,
                     DONTENUM | READONLY);
@@ -263,7 +262,7 @@ public class LambdaFunctionTest {
                     scope,
                     "appendToValue",
                     1,
-                    (Context cx, Scriptable s, Scriptable thisObj, Object[] args) -> {
+                    (Context cx, VarScope s, Scriptable thisObj, Object[] args) -> {
                         TestClass self =
                                 LambdaConstructor.convertThisObject(thisObj, TestClass.class);
                         return self.appendToValue(args);
@@ -322,20 +321,20 @@ public class LambdaFunctionTest {
     private static class SpecialConstructorClass extends ScriptableObject {
         private String value;
 
-        public static void init(Context cx, Scriptable scope) {
+        public static void init(Context cx, VarScope scope) {
             LambdaConstructor constructor =
                     new LambdaConstructor(
                             scope,
                             "SpecialConstructorClass",
                             1,
-                            (Context lcx, Scriptable s, Scriptable thisObj, Object[] args) -> {
+                            (Context lcx, VarScope s, Scriptable thisObj, Object[] args) -> {
                                 String arg = "";
                                 if (args.length > 0) {
                                     arg = ScriptRuntime.toString(args[0]);
                                 }
                                 return "You passed " + arg;
                             },
-                            (Context lcx, Scriptable s, Object[] args) -> {
+                            (Context lcx, VarScope s, Object[] args) -> {
                                 SpecialConstructorClass tc = new SpecialConstructorClass();
                                 if (args.length > 0) {
                                     tc.value = ScriptRuntime.toString(args[0]);

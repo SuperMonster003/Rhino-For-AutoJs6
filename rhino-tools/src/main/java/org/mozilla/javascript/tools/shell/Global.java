@@ -17,6 +17,7 @@ import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.PrintStream;
 import java.io.Reader;
+import java.io.Serial;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -24,10 +25,12 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.mozilla.javascript.Context;
@@ -44,7 +47,9 @@ import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Synchronizer;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.VarScope;
 import org.mozilla.javascript.Wrapper;
 import org.mozilla.javascript.commonjs.module.Require;
 import org.mozilla.javascript.commonjs.module.RequireBuilder;
@@ -52,6 +57,8 @@ import org.mozilla.javascript.commonjs.module.provider.SoftCachingModuleScriptPr
 import org.mozilla.javascript.commonjs.module.provider.UrlModuleSourceProvider;
 import org.mozilla.javascript.serialize.ScriptableInputStream;
 import org.mozilla.javascript.serialize.ScriptableOutputStream;
+import org.mozilla.javascript.tools.Console;
+import org.mozilla.javascript.tools.ConsoleProvider;
 import org.mozilla.javascript.tools.ToolErrorReporter;
 
 /**
@@ -61,23 +68,46 @@ import org.mozilla.javascript.tools.ToolErrorReporter;
  * @author Norris Boyd
  */
 public class Global extends ImporterTopLevel {
-    static final long serialVersionUID = 4029130780977538005L;
+    @Serial private static final long serialVersionUID = 4029130780977538005L;
+
+    private static final String[] TOP_COMMANDS = {
+        "defineClass",
+        "deserialize",
+        "doctest",
+        "gc",
+        "help",
+        "load",
+        "loadClass",
+        "print",
+        "quit",
+        "readline",
+        "readFile",
+        "readUrl",
+        "runCommand",
+        "seal",
+        "serialize",
+        "spawn",
+        "sync",
+        "toint32",
+        "version",
+        "write"
+    };
 
     NativeArray history;
-    boolean attemptedJLineLoad;
-    private ShellConsole console;
-    private InputStream inStream;
-    private PrintStream outStream;
-    private PrintStream errStream;
+    private Console console;
     private boolean sealedStdLib = false;
     boolean initialized;
     private QuitAction quitAction;
-    private String[] prompts = {"js> ", "  > "};
+    private String fileLoadPrefix;
+    private static final String[] prompts = {"js> ", "  > "};
     private HashMap<String, String> doctestCanonicalizations;
 
-    public Global() {}
+    public Global() {
+        super(true);
+    }
 
     public Global(Context cx) {
+        super(true);
         init(cx);
     }
 
@@ -101,34 +131,21 @@ public class Global extends ImporterTopLevel {
                 });
     }
 
+    /**
+     * Set a path that should be prefixed to every "load" call from the script. This is used in our
+     * different test environments and tools so that we can write scripts that load files using a
+     * relative location (usually starting with "testsrc") and have them always find the file
+     */
+    public void setFileLoadPrefix(String prefix) {
+        this.fileLoadPrefix = prefix;
+    }
+
     public void init(Context cx) {
         // Define some global functions particular to the shell. Note
         // that these functions are not part of ECMA.
         initStandardObjects(cx, sealedStdLib);
         NativeConsole.init(this, sealedStdLib, new ShellConsolePrinter());
-        String[] names = {
-            "defineClass",
-            "deserialize",
-            "doctest",
-            "gc",
-            "help",
-            "load",
-            "loadClass",
-            "print",
-            "quit",
-            "readline",
-            "readFile",
-            "readUrl",
-            "runCommand",
-            "seal",
-            "serialize",
-            "spawn",
-            "sync",
-            "toint32",
-            "version",
-            "write"
-        };
-        defineFunctionProperties(names, Global.class, ScriptableObject.DONTENUM);
+        defineFunctionProperties(this, TOP_COMMANDS, Global.class, ScriptableObject.DONTENUM);
 
         // Set up "environment" in the global scope to provide access to the
         // System environment variables.
@@ -140,6 +157,15 @@ public class Global extends ImporterTopLevel {
         defineProperty("history", history, ScriptableObject.DONTENUM);
 
         initialized = true;
+    }
+
+    public void cleanup() {
+        if (console != null) {
+            try {
+                console.close();
+            } catch (IOException ignore) {
+            }
+        }
     }
 
     public Require installRequire(Context cx, List<String> modulePath, boolean sandboxed) {
@@ -178,8 +204,7 @@ public class Global extends ImporterTopLevel {
      * <p>This method is defined as a JavaScript function.
      */
     public static void help(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        PrintStream out = getInstance(funObj).getOut();
-        out.println(ToolErrorReporter.getMessage("msg.help"));
+        getInstance(funObj).getConsole().println(ToolErrorReporter.getMessage("msg.help"));
     }
 
     public static void gc(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
@@ -203,17 +228,17 @@ public class Global extends ImporterTopLevel {
     }
 
     private static Object doPrint(Object[] args, Function funObj, boolean newline) {
-        PrintStream out = getInstance(funObj).getOut();
+        Console c = getInstance(funObj).getConsole();
         for (int i = 0; i < args.length; i++) {
-            if (i > 0) out.print(" ");
+            if (i > 0) c.print(" ");
 
             // Convert the arbitrary JavaScript value into a string form.
             String s = Context.toString(args[i]);
 
-            out.print(s);
+            c.print(s);
         }
         if (newline) {
-            out.println();
+            c.println();
         }
         return Context.getUndefinedValue();
     }
@@ -252,8 +277,11 @@ public class Global extends ImporterTopLevel {
     public static void load(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
         for (Object arg : args) {
             String file = Context.toString(arg);
+            if (getInstance(funObj).fileLoadPrefix != null) {
+                file = Path.of(getInstance(funObj).fileLoadPrefix, file).toString();
+            }
             try {
-                Main.processFile(cx, thisObj, file);
+                Main.processFile(cx, funObj.getDeclarationScope(), file);
             } catch (IOException ioex) {
                 String msg =
                         ToolErrorReporter.getMessage(
@@ -278,7 +306,7 @@ public class Global extends ImporterTopLevel {
      * @exception InstantiationException if unable to instantiate the named class
      * @exception InvocationTargetException if an exception is thrown during execution of methods of
      *     the named class
-     * @see org.mozilla.javascript.ScriptableObject#defineClass(Scriptable, Class)
+     * @see org.mozilla.javascript.ScriptableObject#defineClass(VarScope, Class)
      */
     @SuppressWarnings({"unchecked"})
     public static void defineClass(Context cx, Scriptable thisObj, Object[] args, Function funObj)
@@ -287,7 +315,8 @@ public class Global extends ImporterTopLevel {
         if (!Scriptable.class.isAssignableFrom(clazz)) {
             throw reportRuntimeError("msg.must.implement.Scriptable");
         }
-        ScriptableObject.defineClass(thisObj, (Class<? extends Scriptable>) clazz);
+        ScriptableObject.defineClass(
+                funObj.getDeclarationScope(), (Class<? extends Scriptable>) clazz);
     }
 
     /**
@@ -310,7 +339,7 @@ public class Global extends ImporterTopLevel {
             throw reportRuntimeError("msg.must.implement.Script");
         }
         Script script = (Script) clazz.getDeclaredConstructor().newInstance();
-        script.exec(cx, thisObj, thisObj);
+        script.exec(cx, funObj.getDeclarationScope(), thisObj);
     }
 
     private static Class<?> getClass(Object[] args) {
@@ -340,7 +369,7 @@ public class Global extends ImporterTopLevel {
         Object obj = args[0];
         String filename = Context.toString(args[1]);
         FileOutputStream fos = new FileOutputStream(filename);
-        Scriptable scope = ScriptableObject.getTopLevelScope(thisObj);
+        TopLevel scope = ScriptableObject.getTopLevelScope(funObj.getDeclarationScope());
         try (ScriptableOutputStream out = new ScriptableOutputStream(fos, scope)) {
             out.writeObject(obj);
         }
@@ -353,7 +382,7 @@ public class Global extends ImporterTopLevel {
         }
         String filename = Context.toString(args[0]);
         try (FileInputStream fis = new FileInputStream(filename)) {
-            Scriptable scope = ScriptableObject.getTopLevelScope(thisObj);
+            VarScope scope = ScriptableObject.getTopLevelScope(funObj.getDeclarationScope());
             try (ObjectInputStream in = new ScriptableInputStream(fis, scope)) {
                 Object deserialized = in.readObject();
                 return Context.toObject(deserialized, scope);
@@ -398,11 +427,11 @@ public class Global extends ImporterTopLevel {
 
     @SuppressWarnings("AndroidJdkLibsChecker")
     public int runDoctest(
-            Context cx, Scriptable scope, String session, String sourceName, int lineNumber) {
+            Context cx, VarScope scope, String session, String sourceName, int lineNumber) {
         doctestCanonicalizations = new HashMap<String, String>();
         String[] lines = session.split("\r\n?|\n", -1);
-        String prompt0 = this.prompts[0].trim();
-        String prompt1 = this.prompts[1].trim();
+        String prompt0 = prompts[0].trim();
+        String prompt1 = prompts[1].trim();
         int testCount = 0;
         int i = 0;
         while (i < lines.length && !lines[i].trim().startsWith(prompt0)) {
@@ -423,15 +452,15 @@ public class Global extends ImporterTopLevel {
                 expectedString.append(lines[i]).append('\n');
                 i++;
             }
-            PrintStream savedOut = this.getOut();
-            PrintStream savedErr = this.getErr();
+            PrintStream savedOut = getBasicConsole().getOut();
+            PrintStream savedErr = getBasicConsole().getErr();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             ByteArrayOutputStream err = new ByteArrayOutputStream();
             this.setOut(new PrintStream(out));
             this.setErr(new PrintStream(err));
             String resultString = "";
             ErrorReporter savedErrorReporter = cx.getErrorReporter();
-            cx.setErrorReporter(new ToolErrorReporter(false, this.getErr()));
+            cx.setErrorReporter(new ToolErrorReporter(false, getConsole().getErr()));
             try {
                 testCount++;
                 String finalInputString = inputString.toString();
@@ -527,7 +556,7 @@ public class Global extends ImporterTopLevel {
      * </pre>
      */
     public static Object spawn(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
-        Scriptable scope = funObj.getParentScope();
+        VarScope scope = funObj.getParentScope();
         ContextAction<?> action = getAsyncAction(cx, args, scope);
         ContextFactory factory = cx.getFactory();
         Thread thread = new Thread(() -> factory.call(action));
@@ -535,19 +564,19 @@ public class Global extends ImporterTopLevel {
         return cx.getWrapFactory().wrap(cx, scope, thread, Thread.class);
     }
 
-    private static ContextAction<Object> getAsyncAction(
-            Context cx, Object[] args, Scriptable scope) {
+    private static ContextAction<Object> getAsyncAction(Context cx, Object[] args, VarScope scope) {
         ContextAction<Object> action;
+        Scriptable thisObj = ScriptableObject.getTopLevelScope(scope).getGlobalThis();
         if (args.length != 0 && args[0] instanceof Function) {
             Function f = (Function) args[0];
             Object[] newArgs =
                     args.length > 1 && args[1] instanceof Scriptable
                             ? cx.getElements((Scriptable) args[1])
                             : ScriptRuntime.emptyArgs;
-            action = cx2 -> f.call(cx2, scope, scope, newArgs);
+            action = cx2 -> f.call(cx2, scope, thisObj, newArgs);
         } else if (args.length != 0 && args[0] instanceof Script) {
             Script s = (Script) args[0];
-            action = cx2 -> s.exec(cx2, scope, scope);
+            action = cx2 -> s.exec(cx2, scope, thisObj);
         } else {
             throw reportRuntimeError("msg.spawn.args");
         }
@@ -705,49 +734,68 @@ public class Global extends ImporterTopLevel {
         return ScriptRuntime.wrapInt(ScriptRuntime.toInt32(arg));
     }
 
-    private boolean loadJLine(Charset cs) {
-        if (!attemptedJLineLoad) {
-            // Check if we can use JLine for better command line handling
-            attemptedJLineLoad = true;
-            console = ShellConsole.getConsole(this, cs);
-        }
-        return console != null;
-    }
-
-    public ShellConsole getConsole(Charset cs) {
-        if (!loadJLine(cs)) {
-            console = ShellConsole.getConsole(getIn(), getErr(), cs);
+    /** Return the best console that we have for interactive work. */
+    public Console getConsole(Charset cs) {
+        if (console == null) {
+            console = loadNewConsole();
         }
         return console;
     }
 
-    public InputStream getIn() {
-        if (inStream == null && !attemptedJLineLoad) {
-            if (loadJLine(Charset.defaultCharset())) {
-                inStream = console.getIn();
+    public Console getConsole() {
+        return getConsole(StandardCharsets.UTF_8);
+    }
+
+    private Console loadNewConsole() {
+        var loader = ServiceLoader.load(ConsoleProvider.class);
+        // Find the first interactive, command-line editing console
+        for (var p : loader) {
+            if (p.isSupported() && p.supportsEditing()) {
+                return p.newConsole();
             }
         }
-        return inStream == null ? System.in : inStream;
+        // Find the first one that at least works
+        for (var p : loader) {
+            if (p.isSupported()) {
+                return p.newConsole();
+            }
+        }
+        // Fall back
+        throw new AssertionError("Configuration error: no consoles available");
     }
 
+    /**
+     * Some tools, like the graphical console and debugger, want to override input and output. If we
+     * are using a fancy console. then switch to one that supports that.
+     */
+    private BasicConsole getBasicConsole() {
+        if (!(console instanceof BasicConsole)) {
+            if (console != null) {
+                try {
+                    console.close();
+                } catch (IOException ignore) {
+                }
+            }
+            console = new BasicConsole();
+        }
+        return (BasicConsole) console;
+    }
+
+    /*
+     * Methods to replace console input and output. Fall back to the basic stdio-based console
+     * because fancy consoles like JLine won't do this cleanly. These are used by tools like
+     * the graphical console and debugger.
+     */
     public void setIn(InputStream in) {
-        inStream = in;
-    }
-
-    public PrintStream getOut() {
-        return outStream == null ? System.out : outStream;
+        getBasicConsole().setIn(in);
     }
 
     public void setOut(PrintStream out) {
-        outStream = out;
-    }
-
-    public PrintStream getErr() {
-        return errStream == null ? System.err : errStream;
+        getBasicConsole().setOut(out);
     }
 
     public void setErr(PrintStream err) {
-        errStream = err;
+        getBasicConsole().setErr(err);
     }
 
     public void setSealedStdLib(boolean value) {
@@ -755,7 +803,7 @@ public class Global extends ImporterTopLevel {
     }
 
     private static Global getInstance(Function function) {
-        Scriptable scope = function.getParentScope();
+        VarScope scope = function.getParentScope();
         if (!(scope instanceof Global))
             throw reportRuntimeError("msg.bad.shell.function.scope", String.valueOf(scope));
         return (Global) scope;

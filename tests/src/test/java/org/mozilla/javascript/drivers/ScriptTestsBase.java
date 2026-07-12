@@ -4,9 +4,9 @@
 
 package org.mozilla.javascript.drivers;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -14,17 +14,19 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.BlockJUnit4ClassRunner;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.JavaScriptException;
 import org.mozilla.javascript.LambdaFunction;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.VarScope;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 
 /**
@@ -32,10 +34,9 @@ import org.mozilla.javascript.tools.shell.Global;
  * represented by a class that extends this class, and has a "RhinoTest" annotation at the class
  * level that returns the file name of the script to execute.
  */
-@RunWith(BlockJUnit4ClassRunner.class)
 public abstract class ScriptTestsBase {
 
-    private Object executeRhinoScript(boolean interpretedMode) {
+    private Object executeRhinoScript(EvaluationMethod evalMethod) {
         RhinoTest anno = this.getClass().getAnnotation(RhinoTest.class);
         assertNotNull(anno);
 
@@ -53,7 +54,8 @@ public abstract class ScriptTestsBase {
             if (!"".equals(anno.value())) {
                 script =
                         new InputStreamReader(
-                                new FileInputStream(anno.value()), StandardCharsets.UTF_8);
+                                new FileInputStream(TestSource.resolve(anno.value())),
+                                StandardCharsets.UTF_8);
                 suiteName = anno.value();
             } else if (!"".equals(anno.inline())) {
                 script =
@@ -65,15 +67,14 @@ public abstract class ScriptTestsBase {
                 suiteName = "inline.js";
             }
 
-            cx.setInterpretedMode(interpretedMode);
+            cx.setEvaluationMethod(evalMethod);
             cx.setLanguageVersion(jsVersion);
 
             Global global = new Global(cx);
+            global.setFileLoadPrefix(TestSource.getPrefix());
             loadNatives(global);
 
-            Scriptable scope = cx.newObject(global);
-            scope.setPrototype(global);
-            scope.setParentScope(null);
+            var scope = TopLevel.createIsolate(global);
 
             return cx.evaluateReader(scope, script, suiteName, 1, null);
         } catch (JavaScriptException ex) {
@@ -104,7 +105,7 @@ public abstract class ScriptTestsBase {
      * <p>PerformMicrotaskCheckpoint ensures that all the pending microtasks are executed
      * immediately.
      */
-    private void loadNatives(Scriptable scope) {
+    private void loadNatives(VarScope scope) {
         ScriptableObject.putProperty(
                 scope,
                 "AbortJS",
@@ -112,7 +113,7 @@ public abstract class ScriptTestsBase {
                         scope,
                         "AbortJS",
                         1,
-                        (Context lcx, Scriptable lscope, Scriptable localThis, Object[] args) -> {
+                        (Context lcx, VarScope lscope, Scriptable localThis, Object[] args) -> {
                             assert (args.length > 0);
                             throw new TestFailureException(ScriptRuntime.toString(args[0]));
                         }));
@@ -124,7 +125,7 @@ public abstract class ScriptTestsBase {
                         scope,
                         "EnqueueMicrotask",
                         1,
-                        (Context lcx, Scriptable lscope, Scriptable localThis, Object[] args) -> {
+                        (Context lcx, VarScope lscope, Scriptable localThis, Object[] args) -> {
                             assert (args.length > 0);
                             assert (args[0] instanceof Callable);
                             lcx.enqueueMicrotask(
@@ -139,7 +140,7 @@ public abstract class ScriptTestsBase {
                         scope,
                         "PerformMicrotaskCheckpoint",
                         0,
-                        (Context lcx, Scriptable lscope, Scriptable localThis, Object[] args) -> {
+                        (Context lcx, VarScope lscope, Scriptable localThis, Object[] args) -> {
                             lcx.processMicrotasks();
                             return Undefined.instance;
                         }));
@@ -147,11 +148,11 @@ public abstract class ScriptTestsBase {
 
     @Test
     public void rhinoTestInterpreted() {
-        assertEquals("success", executeRhinoScript(true));
+        assertEquals("success", executeRhinoScript(EvaluationMethod.Interpreter));
     }
 
     @Test
     public void rhinoTestCompiled() {
-        assertEquals("success", executeRhinoScript(false));
+        assertEquals("success", executeRhinoScript(EvaluationMethod.Compiler));
     }
 }

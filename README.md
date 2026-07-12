@@ -8,12 +8,28 @@ Rhino is an implementation of JavaScript in Java.
 
 Rhino is licensed under the [MPL 2.0](./LICENSE.txt).
 
+## Summary
+
+Rhino requires Java 17 or higher to run, and 21 or higher to build. Java
+25 is highly recommended.
+
+To build and run a Rhino shell:
+
+    ./gradlew run -q --console=plain
+
+To run the tests:
+
+    git submodule init
+    git submodule update
+    ./gradlew check
+
 ## Releases
 
-The current release is <a href="https://github.com/mozilla/rhino/releases/tag/Rhino1_9_0_Release">Rhino 1.9.0</a>. Please see the [Release Notes](./RELEASE-NOTES.md).
+The current release is <a href="https://github.com/mozilla/rhino/releases/tag/Rhino1_9_1_Release">Rhino 1.9.1</a>. Please see the [Release Notes](./RELEASE-NOTES.md).
 
 <details><summary>Releases</summary>
 <table>
+<tr><td><a href="https://github.com/mozilla/rhino/releases/tag/Rhino1_9_1_Release">Rhino 1.9.1</a></td><td>February 15, 2026</td></tr>
 <tr><td><a href="https://github.com/mozilla/rhino/releases/tag/Rhino1_9_0_Release">Rhino 1.9.0</a></td><td>December 22, 2025</td></tr>
 <tr><td><a href="https://github.com/mozilla/rhino/releases/tag/Rhino1_8_1_Release">Rhino 1.8.1</a></td><td>December 2, 2025</td></tr>
 <tr><td><a href="https://github.com/mozilla/rhino/releases/tag/Rhino1_8_0_Release">Rhino 1.8.0</a></td><td>January 2, 2025</td></tr>
@@ -43,11 +59,9 @@ features from ES6, and ES2016+ are implemented in Rhino.
 
 Information for script builders and embedders:
 
-[Archived](http://web.archive.org/web/20210304081342/https://developer.mozilla.org/en-US/docs/Mozilla/Projects/Rhino/Documentation)
+[Documentation](https://rhino.github.io)
 
-JavaDoc for all the APIs:
-
-[https://javadoc.io/doc/org.mozilla/rhino](https://javadoc.io/doc/org.mozilla/rhino)
+[JavaDoc](https://javadoc.io/doc/org.mozilla/rhino)
 
 [List of projects using Rhino](USAGE.md)
 
@@ -73,18 +87,35 @@ testing but which are not published to Maven Central:
 * **benchmarks**: Runs benchmarks using JMH.
 * **examples**: Surprisingly, this contains example code.
 
+### Recommendations
+
+All applications that embed rhino need the main "rhino" module. Many applications don't
+need anything else -- consider doing the same, for a few reasons:
+
+* While "rhino-engine" implements the Java ScriptEngine interface, this is a strange
+abstraction that does not necessarily map well to Rhino.
+* "rhino-tools" includes the Global module, which many tools use because it includes
+handy built-in functions like "print" and "load". However, these are not part of any
+formal standard, and it includes functionality to launch programs and load
+files that you may not necessarily want in your environment. (Note that "rhino" includes
+an implementation of the "console" object that you may want to use instead.)
+
 ## Building
 
 ### Requirements
 
-Rhino requires Java 17 or higher to build. The "spotless" tool, which enforces code formatting, will not
-run on older Java versions and you will receive a warning. If in doubt, Java 21 works great.
+It's recommended to build Rhino using Java 25. However, it will build with Java 17
+and up. The "spotless" tool, which enforces code formatting, will not
+run on older Java versions -- it will emit a warning.
 
-Rhino runs on Java 11 and higher. The build tools use the "--release" flag to ensure that only
-features from Java 11 are used in the product.
+Rhino runs on Java 17 and higher. The build tools use the "--release" flag to ensure that only
+features from Java 17 are used in the product.
 
-The CI tools run the Rhino tests on Java 11, 17, and 21. Regardless of what version of Java you are
+The CI tools run the Rhino tests on Java 17, 21, and 25. Regardless of what version of Java you are
 building with, you can test on another Java version using the RHINO_TEST_JAVA_VERSION environment variable.
+
+The "production" builds of Rhino build using Gradle, but on Linux and Mac you can also
+build Gradle using Bazel.
 
 ### How to Build
 
@@ -100,8 +131,51 @@ To just run the Rhino shell, you can do this from the top-level directory:
 
 Alternately, you can build an all-in-one JAR and run that:
 
-    ./gradlew :rhino-all:build
-    java -jar rhino-all/build/libs/rhino-all-1.7.16-SNAPSHOT.jar
+    ./gradlew shadowJar
+    java -jar rhino-all/build/libs/rhino-all-2.0.0-SNAPSHOT.jar
+
+And finally, you can extract the classpath and use it in a variety of ways:
+
+    export CLASSPATH=$(./gradlew -q printClasspath)
+    java org.mozilla.javascript.tools.shell.Main
+
+### Optional Bazel Build
+
+Building with Bazel instead of Gradle gives you a few advantages:
+
+* Bazel caches very aggressively which saves time the more you use it
+* You can use a [hosted build service](https://bazel.build/community/remote-execution-services) and run your build in parallell on a few, or a dozen, machines. In this way you can run the tests in only a few minutes.
+
+At the moment, we don't have all the support in Bazel to do everything that the
+Gradle build does so both will remain.
+
+To build with Bazel:
+
+* At the very least you will need a Java 25 JVM to bootstrap all this.
+* [Get Bazel](https://bazel.build/start).
+* Build. Bazel downloads and caches all dependencies.
+
+For example, you can install a wrapper that will download the right version
+of Bazel:
+
+    npm install -g @bazel/bazelisk
+
+You can run all the tests:
+
+    bazel test ...
+
+You can run the shell (or skip the tests and go right here):
+
+    bazel run //:shell
+
+### JLine-Based Console
+
+If the JLine library is present, the Rhino shell will use it for command-line
+editing. The commands above will all include JLine. However, the Gradle wrapper
+interferes with JLine's ability to manipulate the terminal. For the best CLI
+experience, use either of the last two options, instead of ./gradlew run.
+
+### Benchmarking
 
 You can also run the benchmarks:
 
@@ -120,11 +194,11 @@ When running the benchmarks you may find a couple of environment variables usefu
 
 ### Testing on other Java Versions
 
-It is a good idea to test major changes on Java 11 before assuming that they will pass the CI
+It is a good idea to test major changes on Java 17 before assuming that they will pass the CI
 tests. To do this, set the environment variable RHINO_TEST_JAVA_VERSION to the version that you
 want to test. For example:
 
-    RHINO_TEST_JAVA_VERSION=11 ./gradlew check
+    RHINO_TEST_JAVA_VERSION=17 ./gradlew check
 
 This will only work if Gradle can find a JDK of the appropriate version. You can troubleshoot
 this using the command:
@@ -132,7 +206,7 @@ this using the command:
     ./gradlew -q javaToolchains
 
 Not all installers seem to put JDKs in the places where Gradle can find them. When in doubt,
-installatioons from [Adoptium](https://adoptium.net) seem to work on most platforms.
+installations from [Adoptium](https://adoptium.net) seem to work on most platforms.
 
 ### Testing on Android
 
@@ -151,6 +225,7 @@ To see an aggregated coverage report for everything, which is probably what you 
     ./gradlew testCodeCoverageReport
 
 The result is in:
+
     ./tests/build/reports/jacoco/testCodeCoverageReport/html
 
 ## Releasing and publishing new version
@@ -213,7 +288,7 @@ If you are adding new capabilities to Rhino, you may be making more test262 test
 a good thing. Please [see the instructions](./tests/testsrc/README.md) on how to update our test262 configuration.
 
 Because of differences between Java and JavaScript, when testing on newer Java versions, many
-Unicode-related test262 tests appear to pass, but they will fail on Java 11. Please ignore these!
+Unicode-related test262 tests appear to pass, but they will fail on Java 17. Please ignore these!
 
 ### Code Formatting
 

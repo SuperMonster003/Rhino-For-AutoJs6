@@ -4,10 +4,7 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,11 +13,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
-import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 
 /**
  * See https://bugzilla.mozilla.org/show_bug.cgi?id=466207
@@ -32,7 +29,7 @@ public class Bug466207Test {
     List<Object> list, reference;
 
     @SuppressWarnings("unchecked")
-    @Before
+    @BeforeEach
     public void setUp() {
         // set up a reference map
         reference = new ArrayList<Object>();
@@ -44,7 +41,7 @@ public class Bug466207Test {
         // get a js object as map
 
         try (Context context = Context.enter()) {
-            ScriptableObject scope = context.initStandardObjects();
+            TopLevel scope = context.initStandardObjects();
             list =
                     (List<Object>)
                             context.evaluateString(
@@ -190,7 +187,7 @@ public class Bug466207Test {
 
     private void listPop() {
         try (Context context = Context.enter()) {
-            ScriptableObject scope = context.initStandardObjects();
+            TopLevel scope = context.initStandardObjects();
             scope.put("list", scope, list);
             context.evaluateString(scope, "list.pop()", "testsrc", 1, null);
         }
@@ -199,7 +196,7 @@ public class Bug466207Test {
     @Test
     public void bigList() {
         try (Context context = Context.enter()) {
-            ScriptableObject scope = context.initStandardObjects();
+            TopLevel scope = context.initStandardObjects();
             NativeArray array =
                     (NativeArray)
                             context.evaluateString(

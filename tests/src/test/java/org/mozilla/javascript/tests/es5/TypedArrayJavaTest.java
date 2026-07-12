@@ -1,10 +1,10 @@
 package org.mozilla.javascript.tests.es5;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 
 /** Test for TypedArrays. */
 public class TypedArrayJavaTest {
@@ -29,7 +29,7 @@ public class TypedArrayJavaTest {
 
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_1_8);
-            Scriptable global = cx.initStandardObjects();
+            TopLevel global = cx.initStandardObjects();
 
             for (String type : allNativeTypes) {
                 String script =

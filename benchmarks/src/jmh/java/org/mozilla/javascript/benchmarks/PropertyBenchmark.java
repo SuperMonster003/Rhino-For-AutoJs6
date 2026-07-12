@@ -4,10 +4,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.ScriptRuntime;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.openjdk.jmh.annotations.*;
 
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -15,7 +16,7 @@ public class PropertyBenchmark {
     @State(Scope.Thread)
     public static class PropertyState {
         Context cx;
-        Scriptable scope;
+        TopLevel scope;
 
         Function create;
         Function createFieldByField;
@@ -24,13 +25,13 @@ public class PropertyBenchmark {
 
         Object object;
 
-        @Param({"false", "true"})
-        public boolean interpreted;
+        @Param({"Interpreter", "Compiler"})
+        public EvaluationMethod evalMethod;
 
         @Setup(Level.Trial)
         public void setup() throws IOException {
             cx = Context.enter();
-            cx.setInterpretedMode(interpreted);
+            cx.setEvaluationMethod(evalMethod);
             cx.setLanguageVersion(Context.VERSION_ES6);
             scope = cx.initStandardObjects();
 

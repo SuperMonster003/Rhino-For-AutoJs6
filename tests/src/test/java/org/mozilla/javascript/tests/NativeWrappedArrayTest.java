@@ -1,21 +1,23 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.VarScope;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 
 /**
@@ -25,17 +27,18 @@ import org.mozilla.javascript.tools.shell.Global;
 public class NativeWrappedArrayTest {
 
     private Context cx;
-    private Scriptable global;
+    private Global global;
 
-    @Before
+    @BeforeEach
     public void init() {
         cx = Context.enter();
         cx.setLanguageVersion(Context.VERSION_ES6);
         cx.getWrapFactory().setJavaPrimitiveWrap(false);
         global = new Global(cx);
+        global.setFileLoadPrefix(TestSource.getPrefix());
     }
 
-    @After
+    @AfterEach
     public void terminate() {
         Context.exit();
     }
@@ -46,7 +49,9 @@ public class NativeWrappedArrayTest {
         cx.evaluateString(global, setFunc, "setfunc.js", 1, null);
 
         try (InputStreamReader rdr =
-                new InputStreamReader(new FileInputStream("testsrc/jstests/wrapped-arrays.js"))) {
+                new InputStreamReader(
+                        new FileInputStream(
+                                TestSource.resolve("testsrc/jstests/wrapped-arrays.js")))) {
             Object ret = cx.evaluateReader(global, rdr, "wrapped-arrays.js", 1, null);
             assertEquals("success", ret);
         } catch (RhinoException re) {
@@ -60,7 +65,9 @@ public class NativeWrappedArrayTest {
         cx.evaluateString(global, setFunc, "setfunc.js", 1, null);
 
         try (InputStreamReader rdr =
-                new InputStreamReader(new FileInputStream("testsrc/jstests/wrapped-arrays.js"))) {
+                new InputStreamReader(
+                        new FileInputStream(
+                                TestSource.resolve("testsrc/jstests/wrapped-arrays.js")))) {
             Object ret = cx.evaluateReader(global, rdr, "wrapped-arrays.js", 1, null);
             assertEquals("success", ret);
         } catch (RhinoException re) {
@@ -74,7 +81,9 @@ public class NativeWrappedArrayTest {
         cx.evaluateString(global, setFunc, "setfunc.js", 1, null);
 
         try (InputStreamReader rdr =
-                new InputStreamReader(new FileInputStream("testsrc/jstests/wrapped-arrays.js"))) {
+                new InputStreamReader(
+                        new FileInputStream(
+                                TestSource.resolve("testsrc/jstests/wrapped-arrays.js")))) {
             Object ret = cx.evaluateReader(global, rdr, "wrapped-arrays.js", 1, null);
             assertEquals("success", ret);
         } catch (RhinoException re) {
@@ -84,15 +93,17 @@ public class NativeWrappedArrayTest {
 
     @Test
     public void customArray() throws IOException {
-        ((ScriptableObject) global)
+        global.getGlobalThis()
                 .defineFunctionProperties(
-                        new String[] {"makeCustomArray"}, NativeWrappedArrayTest.class, 0);
+                        global, new String[] {"makeCustomArray"}, NativeWrappedArrayTest.class, 0);
 
         final String setFunc = "function makeTestArray() { return makeCustomArray(); }";
         cx.evaluateString(global, setFunc, "setfunc.js", 1, null);
 
         try (InputStreamReader rdr =
-                new InputStreamReader(new FileInputStream("testsrc/jstests/wrapped-arrays.js"))) {
+                new InputStreamReader(
+                        new FileInputStream(
+                                TestSource.resolve("testsrc/jstests/wrapped-arrays.js")))) {
             Object ret = cx.evaluateReader(global, rdr, "wrapped-arrays.js", 1, null);
             assertEquals("success", ret);
         } catch (RhinoException re) {
@@ -108,7 +119,7 @@ public class NativeWrappedArrayTest {
         a.add("two");
         a.add("three");
         a.add("four");
-        return new WrappedArray(thisObj, a);
+        return new WrappedArray(fn.getDeclarationScope(), a);
     }
 
     static class WrappedArray extends ScriptableObject {
@@ -116,7 +127,7 @@ public class NativeWrappedArrayTest {
         private final ArrayList<String> list;
         private int length;
 
-        WrappedArray(Scriptable scope, ArrayList<String> l) {
+        WrappedArray(VarScope scope, ArrayList<String> l) {
             super(scope, ScriptableObject.getArrayPrototype(scope));
             this.list = l;
             this.length = l.size();

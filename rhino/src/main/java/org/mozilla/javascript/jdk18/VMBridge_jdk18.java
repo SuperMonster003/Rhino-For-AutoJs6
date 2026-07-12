@@ -15,8 +15,8 @@ import java.lang.reflect.Proxy;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.InterfaceAdapter;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.VMBridge;
+import org.mozilla.javascript.VarScope;
 
 public class VMBridge_jdk18 extends VMBridge {
     private static final ThreadLocal<Object[]> contextLocal = new ThreadLocal<>();
@@ -84,7 +84,7 @@ public class VMBridge_jdk18 extends VMBridge {
             final ContextFactory cf,
             final InterfaceAdapter adapter,
             final Object target,
-            final Scriptable topScope) {
+            final VarScope topScope) {
         Constructor<?> c = (Constructor<?>) proxyHelper;
 
         InvocationHandler handler =

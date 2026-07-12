@@ -4,13 +4,13 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextAction;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 public class LookupSetterTest {
@@ -52,7 +52,6 @@ public class LookupSetterTest {
     public void lookedUpGetter_equals() throws Exception {
         test("true", "new Foo().__lookupGetter__('s') == new Foo().__lookupGetter__('s')");
     }
-
 
     @Test
     public void getOwnPropertyDescriptor_equals() throws Exception {
@@ -110,7 +109,7 @@ public class LookupSetterTest {
                     @Override
                     public String run(final Context cx) {
                         try {
-                            final Scriptable scope = cx.initStandardObjects(new TopScope());
+                            TopLevel scope = cx.initStandardObjects(new TopScope());
                             ScriptableObject.defineClass(scope, Foo.class);
                             cx.evaluateString(scope, defineSetterAndGetterX, "initX", 1, null);
                             Object result =
@@ -150,10 +149,5 @@ public class LookupSetterTest {
         }
     }
 
-    public static class TopScope extends ScriptableObject {
-        @Override
-        public String getClassName() {
-            return "TopScope";
-        }
-    }
+    public static class TopScope extends TopLevel {}
 }

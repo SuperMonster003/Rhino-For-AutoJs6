@@ -4,35 +4,35 @@
 
 package org.mozilla.javascript.drivers;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import org.junit.BeforeClass;
+import org.junit.jupiter.api.BeforeAll;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ContextFactory;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 public abstract class JsTestsBase {
-    private boolean interpretedMode;
+    private EvaluationMethod evalMethod;
 
     private static ContextFactory threadSafeFactory;
 
-    @BeforeClass
+    @BeforeAll
     public static void init() {
         threadSafeFactory = Utils.contextFactoryWithFeatures(Context.FEATURE_THREAD_SAFE_OBJECTS);
     }
 
-    public void setInterpretedMode(boolean interpretedMode) {
-        this.interpretedMode = interpretedMode;
+    public void setEvaluationMethod(EvaluationMethod evalMethod) {
+        this.evalMethod = evalMethod;
     }
 
-    public void runJsTest(Context cx, Scriptable shared, String name, String source) {
+    public void runJsTest(Context cx, TopLevel shared, String name, String source) {
         // create a lightweight top-level scope
-        Scriptable scope = cx.newObject(shared);
-        scope.setPrototype(shared);
+        TopLevel scope = TopLevel.createIsolate(shared);
         Object result;
         try {
             result = cx.evaluateString(scope, source, "jstest input: " + name, 1, null);
@@ -47,15 +47,17 @@ public abstract class JsTestsBase {
 
     public void runJsTests(File[] tests) throws IOException {
         try (Context cx = threadSafeFactory.enterContext()) {
-            cx.setInterpretedMode(this.interpretedMode);
-            Scriptable shared = cx.initStandardObjects();
+            cx.setEvaluationMethod(evalMethod);
+            TopLevel shared = cx.initStandardObjects();
             for (File f : tests) {
                 int length = (int) f.length(); // don't worry about very long
                 // files
                 char[] buf = new char[length];
-                new FileReader(f).read(buf, 0, length);
-                String session = new String(buf);
-                runJsTest(cx, shared, f.getName(), session);
+                try (var fr = new FileReader(f)) {
+                    fr.read(buf, 0, length);
+                    String session = new String(buf);
+                    runJsTest(cx, shared, f.getName(), session);
+                }
             }
         }
     }

@@ -5,12 +5,13 @@
 package org.mozilla.javascript.tests;
 
 import java.lang.reflect.Method;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 
 /**
  * Test that read-only properties can be... set when needed. This was the standard behavior in Rhino
@@ -37,20 +38,18 @@ public class WriteReadOnlyPropertyTest {
     public void writeReadOnly_throws() throws Exception {
         try {
             testWriteReadOnly(false);
-            Assert.fail();
+            Assertions.fail();
         } catch (EcmaError e) {
-            Assert.assertTrue(
-                    e.getMessage(),
+            Assertions.assertTrue(
                     e.getMessage()
                             .contains(
-                                    "Cannot set property [Foo].myProp that has only a getter to value '123'"));
+                                    "Cannot set property [Foo].myProp that has only a getter to value '123'"),
+                    e.getMessage());
         }
     }
 
     void testWriteReadOnly(final boolean acceptWriteReadOnly) throws Exception {
         final Method readMethod = Foo.class.getMethod("getMyProp", (Class[]) null);
-        final Foo foo = new Foo("hello");
-        foo.defineProperty("myProp", null, readMethod, null, ScriptableObject.EMPTY);
 
         final String script = "foo.myProp = 123; foo.myProp";
 
@@ -66,7 +65,10 @@ public class WriteReadOnlyPropertyTest {
                 };
         contextFactory.call(
                 cx -> {
-                    final ScriptableObject top = cx.initStandardObjects();
+                    TopLevel top = cx.initStandardObjects();
+                    final Foo foo = new Foo("hello");
+                    foo.defineProperty(
+                            top, "myProp", null, readMethod, null, ScriptableObject.EMPTY);
                     ScriptableObject.putProperty(top, "foo", foo);
 
                     cx.evaluateString(top, script, "script", 0, null);

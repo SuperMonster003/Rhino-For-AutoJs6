@@ -1,17 +1,18 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.Context.EvaluationMethod;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.VarScope;
 
 /**
  * Test cases for a legacy ToNumber conversion applied to a String type.
@@ -26,7 +27,6 @@ import org.mozilla.javascript.Scriptable;
  *
  * <p>This is only enabled with a language version < ES6 (200).
  */
-@RunWith(Parameterized.class)
 public class ToNumberLegacyConversionsTest {
     private static final int[] OPT_LEVELS = {-1, 0, 9};
     private static final Object[][] TESTS = {
@@ -93,7 +93,6 @@ public class ToNumberLegacyConversionsTest {
     private static final String PRELUDE =
             "function eq(a,b) {" + "if (a != a) return b != b;" + "return a == b;" + "}\n";
 
-    @Parameterized.Parameters(name = "ToNumber(\"{1}\") == {0} (opt={2})")
     public static Collection<Object[]> data() {
         List<Object[]> cases = new ArrayList<>();
 
@@ -106,62 +105,72 @@ public class ToNumberLegacyConversionsTest {
         return cases;
     }
 
-    @Parameterized.Parameter(0)
     public String expected;
-
-    @Parameterized.Parameter(1)
     public String source;
-
-    @Parameterized.Parameter(2)
     public boolean interpreted;
 
     @SuppressWarnings("ConstantConditions")
-    private boolean execute(Context cx, Scriptable scope, String script) {
+    private boolean execute(Context cx, VarScope scope, String script) {
         return (Boolean) cx.evaluateString(scope, script, "inline", 1, null);
     }
 
     public Context cx;
-    public Scriptable scope;
+    public TopLevel scope;
 
-    @Before
+    @BeforeEach
     public void setup() {
         cx = Context.enter();
-        cx.setInterpretedMode(interpreted);
+        cx.setEvaluationMethod(EvaluationMethod.Interpreter);
         cx.setLanguageVersion(Context.VERSION_1_8);
         scope = cx.initSafeStandardObjects();
     }
 
-    @After
+    @AfterEach
     public void tearDown() {
         Context.exit();
     }
 
-    @Test
-    public void numberConstructor() {
+    @MethodSource("data")
+    @ParameterizedTest(name = "ToNumber(\"{1}\") == {0} (opt={2})")
+    public void numberConstructor(String expected, String source, boolean interpreted) {
+        initToNumberLegacyConversionsTest(expected, source, interpreted);
         String script = String.format("%seq(Number(\"%s\"), %s)", PRELUDE, source, expected);
         assertTrue(
-                "Number('" + source + "') doesn't produce " + expected, execute(cx, scope, script));
+                execute(cx, scope, script), "Number('" + source + "') doesn't produce " + expected);
     }
 
-    @Test
-    public void coercion() {
+    @MethodSource("data")
+    @ParameterizedTest(name = "ToNumber(\"{1}\") == {0} (opt={2})")
+    public void coercion(String expected, String source, boolean interpreted) {
+        initToNumberLegacyConversionsTest(expected, source, interpreted);
         String script = String.format("%seq(+(\"%s\"), %s)", PRELUDE, source, expected);
-        assertTrue("+('" + source + "') doesn't produce " + expected, execute(cx, scope, script));
+        assertTrue(execute(cx, scope, script), "+('" + source + "') doesn't produce " + expected);
     }
 
-    @Test
-    public void isNaN() {
+    @MethodSource("data")
+    @ParameterizedTest(name = "ToNumber(\"{1}\") == {0} (opt={2})")
+    public void isNaN(String expected, String source, boolean interpreted) {
+        initToNumberLegacyConversionsTest(expected, source, interpreted);
         String script = String.format("%seq(isNaN(\"%s\"), isNaN(%s))", PRELUDE, source, expected);
         assertTrue(
-                "isNaN('" + source + "') !== isNaN(" + expected + ")", execute(cx, scope, script));
+                execute(cx, scope, script), "isNaN('" + source + "') !== isNaN(" + expected + ")");
     }
 
-    @Test
-    public void isFinite() {
+    @MethodSource("data")
+    @ParameterizedTest(name = "ToNumber(\"{1}\") == {0} (opt={2})")
+    public void isFinite(String expected, String source, boolean interpreted) {
+        initToNumberLegacyConversionsTest(expected, source, interpreted);
         String script =
                 String.format("%seq(isFinite(\"%s\"), isFinite(%s))", PRELUDE, source, expected);
         assertTrue(
-                "isFinite('" + source + "') !== isFinite(" + expected + ")",
-                execute(cx, scope, script));
+                execute(cx, scope, script),
+                "isFinite('" + source + "') !== isFinite(" + expected + ")");
+    }
+
+    public void initToNumberLegacyConversionsTest(
+            String expected, String source, boolean interpreted) {
+        this.expected = expected;
+        this.source = source;
+        this.interpreted = interpreted;
     }
 }

@@ -1,66 +1,65 @@
 package org.mozilla.javascript;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class SlotMapTest {
     // Random number generator with fixed seed to ensure repeatable tests
     private static final Random rand = new Random(0);
 
     private static class TestScriptableObject extends ScriptableObject {
 
-        public TestScriptableObject() {
-            super();
-        }
+        public void initSlotMapTest() {}
 
         public String getClassName() {
             return "foo";
         }
     }
 
-    private final ScriptableObject obj;
+    private ScriptableObject obj;
 
     // `SingleSlotMaps` will always have a slot, so we need to record
     // the starting size of our slot map and take that into account
     // when testing with one of those as the initial map.
-    private final int startingSize;
+    private int startingSize;
 
-    public SlotMapTest(Supplier<SlotMap> mapSupplier) {
+    public void initSlotMapTest(Supplier<SlotMap<Scriptable>> mapSupplier) {
         this.obj = new TestScriptableObject();
         this.obj.setMap(mapSupplier.get());
         startingSize = this.obj.getMap().size();
     }
 
-    @Parameterized.Parameters
     public static Collection<Object[]> mapTypes() {
-        List<Supplier<SlotMap>> suppliers =
+        @SuppressWarnings("unchecked")
+        List<Supplier<SlotMap<Scriptable>>> suppliers =
                 List.of(
-                        () -> SlotMapOwner.EMPTY_SLOT_MAP,
-                        () -> new SlotMapOwner.SingleEntrySlotMap(new Slot(new Object(), 0, 0)),
-                        () -> new EmbeddedSlotMap(),
-                        () -> new HashSlotMap(),
-                        () -> SlotMapOwner.THREAD_SAFE_EMPTY_SLOT_MAP,
+                        () -> (SlotMap<Scriptable>) SlotMapOwner.EMPTY_SLOT_MAP,
                         () ->
-                                new SlotMapOwner.ThreadSafeSingleEntrySlotMap(
-                                        new Slot(new Object(), 0, 0)),
-                        () -> new ThreadSafeEmbeddedSlotMap(),
-                        () -> new ThreadSafeHashSlotMap());
+                                new SlotMapOwner.SingleEntrySlotMap<Scriptable>(
+                                        new Slot<Scriptable>(new Object(), 0, 0)),
+                        () -> new EmbeddedSlotMap<>(),
+                        () -> new HashSlotMap<>(),
+                        () -> (SlotMap<Scriptable>) SlotMapOwner.THREAD_SAFE_EMPTY_SLOT_MAP,
+                        () ->
+                                new SlotMapOwner.ThreadSafeSingleEntrySlotMap<Scriptable>(
+                                        new Slot<Scriptable>(new Object(), 0, 0)),
+                        () -> new ThreadSafeEmbeddedSlotMap<>(),
+                        () -> new ThreadSafeHashSlotMap<>());
         return suppliers.stream().map(i -> new Object[] {i}).collect(Collectors.toList());
     }
 
-    @Test
-    public void empty() {
+    @MethodSource("mapTypes")
+    @ParameterizedTest
+    public void empty(Supplier<SlotMap<Scriptable>> mapSupplier) {
+        initSlotMapTest(mapSupplier);
         if (startingSize == 0) {
             assertEquals(0, obj.getMap().size());
             assertTrue(obj.getMap().isEmpty());
@@ -72,17 +71,19 @@ public class SlotMapTest {
         }
     }
 
-    @Test
-    public void crudOneString() {
+    @MethodSource("mapTypes")
+    @ParameterizedTest
+    public void crudOneString(Supplier<SlotMap<Scriptable>> mapSupplier) {
+        initSlotMapTest(mapSupplier);
         assertNull(obj.getMap().query("foo", 0));
-        Slot slot = obj.getMap().modify(obj, "foo", 0, 0);
+        var slot = obj.getMap().modify(obj, "foo", 0, 0);
         assertNotNull(slot);
         slot.value = "Testing";
         assertEquals(1 + startingSize, obj.getMap().size());
         assertFalse(obj.getMap().isEmpty());
-        Slot newSlot = new Slot(slot);
+        var newSlot = new Slot<>(slot);
         obj.getMap().compute(obj, "foo", 0, (k, i, e, m, o) -> newSlot);
-        Slot foundNewSlot = obj.getMap().query("foo", 0);
+        var foundNewSlot = obj.getMap().query("foo", 0);
         assertEquals("Testing", foundNewSlot.value);
         assertSame(foundNewSlot, newSlot);
         obj.getMap().compute(obj, "foo", 0, (k, ii, e, m, o) -> null);
@@ -95,17 +96,19 @@ public class SlotMapTest {
         }
     }
 
-    @Test
-    public void crudOneIndex() {
+    @MethodSource("mapTypes")
+    @ParameterizedTest
+    public void crudOneIndex(Supplier<SlotMap<Scriptable>> mapSupplier) {
+        initSlotMapTest(mapSupplier);
         assertNull(obj.getMap().query(null, 11));
-        Slot slot = obj.getMap().modify(obj, null, 11, 0);
+        var slot = obj.getMap().modify(obj, null, 11, 0);
         assertNotNull(slot);
         slot.value = "Testing";
         assertEquals(1 + startingSize, obj.getMap().size());
         assertFalse(obj.getMap().isEmpty());
-        Slot newSlot = new Slot(slot);
+        var newSlot = new Slot<>(slot);
         obj.getMap().compute(obj, null, 11, (k, i, e, m, o) -> newSlot);
-        Slot foundNewSlot = obj.getMap().query(null, 11);
+        var foundNewSlot = obj.getMap().query(null, 11);
         assertEquals("Testing", foundNewSlot.value);
         assertSame(foundNewSlot, newSlot);
         obj.getMap().compute(obj, null, 11, (k, ii, e, m, o) -> null);
@@ -118,11 +121,13 @@ public class SlotMapTest {
         }
     }
 
-    @Test
-    public void computeReplaceSlot() {
-        Slot slot = obj.getMap().modify(obj, "one", 0, 0);
+    @MethodSource("mapTypes")
+    @ParameterizedTest
+    public void computeReplaceSlot(Supplier<SlotMap<Scriptable>> mapSupplier) {
+        initSlotMapTest(mapSupplier);
+        var slot = obj.getMap().modify(obj, "one", 0, 0);
         slot.value = "foo";
-        Slot newSlot =
+        var newSlot =
                 obj.getMap()
                         .compute(
                                 obj,
@@ -133,7 +138,7 @@ public class SlotMapTest {
                                     assertEquals(i, 0);
                                     assertNotNull(e);
                                     assertEquals(e.value, "foo");
-                                    Slot n = new Slot(e);
+                                    var n = new Slot<>(e);
                                     n.value = "bar";
                                     return n;
                                 });
@@ -143,9 +148,11 @@ public class SlotMapTest {
         assertEquals(1 + startingSize, obj.getMap().size());
     }
 
-    @Test
-    public void computeCreateNewSlot() {
-        Slot newSlot =
+    @MethodSource("mapTypes")
+    @ParameterizedTest
+    public void computeCreateNewSlot(Supplier<SlotMap<Scriptable>> mapSupplier) {
+        initSlotMapTest(mapSupplier);
+        var newSlot =
                 obj.getMap()
                         .compute(
                                 obj,
@@ -155,23 +162,25 @@ public class SlotMapTest {
                                     assertEquals(k, "one");
                                     assertEquals(i, 0);
                                     assertNull(e);
-                                    Slot n = new Slot(k, i, 0);
+                                    var n = new Slot<Scriptable>(k, i, 0);
                                     n.value = "bar";
                                     return n;
                                 });
         assertNotNull(newSlot);
         assertEquals(newSlot.value, "bar");
-        Slot slot = obj.getMap().query("one", 0);
+        var slot = obj.getMap().query("one", 0);
         assertNotNull(slot);
         assertEquals(slot.value, "bar");
         assertEquals(1 + startingSize, obj.getMap().size());
     }
 
-    @Test
-    public void computeRemoveSlot() {
-        Slot slot = obj.getMap().modify(obj, "one", 0, 0);
+    @MethodSource("mapTypes")
+    @ParameterizedTest
+    public void computeRemoveSlot(Supplier<SlotMap<Scriptable>> mapSupplier) {
+        initSlotMapTest(mapSupplier);
+        var slot = obj.getMap().modify(obj, "one", 0, 0);
         slot.value = "foo";
-        Slot newSlot =
+        var newSlot =
                 obj.getMap()
                         .compute(
                                 obj,
@@ -192,14 +201,16 @@ public class SlotMapTest {
 
     private static final int NUM_INDICES = 67;
 
-    @Test
-    public void manyKeysAndIndices() {
+    @MethodSource("mapTypes")
+    @ParameterizedTest
+    public void manyKeysAndIndices(Supplier<SlotMap<Scriptable>> mapSupplier) {
+        initSlotMapTest(mapSupplier);
         for (int i = 0; i < NUM_INDICES; i++) {
-            Slot newSlot = obj.getMap().modify(obj, null, i, 0);
+            var newSlot = obj.getMap().modify(obj, null, i, 0);
             newSlot.value = i;
         }
         for (String key : KEYS) {
-            Slot newSlot = obj.getMap().modify(obj, key, 0, 0);
+            var newSlot = obj.getMap().modify(obj, key, 0, 0);
             newSlot.value = key;
         }
         assertEquals(KEYS.length + NUM_INDICES + startingSize, obj.getMap().size());
@@ -209,15 +220,15 @@ public class SlotMapTest {
         // Randomly replace some slots
         for (int i = 0; i < 20; i++) {
             int ix = rand.nextInt(NUM_INDICES);
-            Slot slot = obj.getMap().query(null, ix);
+            var slot = obj.getMap().query(null, ix);
             assertNotNull(slot);
-            obj.getMap().compute(obj, null, ix, (k, j, e, m, o) -> new Slot(slot));
+            obj.getMap().compute(obj, null, ix, (k, j, e, m, o) -> new Slot<>(slot));
         }
         for (int i = 0; i < 20; i++) {
             int ix = rand.nextInt(KEYS.length);
-            Slot slot = obj.getMap().query(KEYS[ix], 0);
+            var slot = obj.getMap().query(KEYS[ix], 0);
             assertNotNull(slot);
-            obj.getMap().compute(obj, KEYS[ix], 0, (k, j, e, m, o) -> new Slot(slot));
+            obj.getMap().compute(obj, KEYS[ix], 0, (k, j, e, m, o) -> new Slot<>(slot));
         }
         verifyIndicesAndKeys();
 
@@ -237,7 +248,7 @@ public class SlotMapTest {
         }
 
         for (int i = 0; i < NUM_INDICES; i++) {
-            Slot slot = obj.getMap().query(null, i);
+            var slot = obj.getMap().query(null, i);
             if (removedIds.contains(i)) {
                 assertNull(slot);
             } else {
@@ -246,7 +257,7 @@ public class SlotMapTest {
             }
         }
         for (String key : KEYS) {
-            Slot slot = obj.getMap().query(key, 0);
+            var slot = obj.getMap().query(key, 0);
             if (removedKeys.contains(key)) {
                 assertNull(slot);
             } else {
@@ -258,20 +269,20 @@ public class SlotMapTest {
 
     private void verifyIndicesAndKeys() {
         try (var map = obj.startCompoundOp(false)) {
-            Iterator<Slot> it = map.iterator();
+            var it = map.iterator();
             for (int i = 0; i < startingSize; i++) {
                 // Skip initial slots
                 it.next();
             }
             for (int i = 0; i < NUM_INDICES; i++) {
-                Slot slot = map.query(null, i);
+                var slot = map.query(null, i);
                 assertNotNull(slot);
                 assertEquals(i, slot.value);
                 assertTrue(it.hasNext());
                 assertEquals(slot, it.next());
             }
             for (String key : KEYS) {
-                Slot slot = map.query(key, 0);
+                var slot = map.query(key, 0);
                 assertNotNull(slot);
                 assertEquals(key, slot.value);
                 assertTrue(it.hasNext());

@@ -21,9 +21,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
-import org.mozilla.javascript.lc.type.impl.factory.WeakReferenceFactory;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.VarScope;
+import org.mozilla.javascript.lc.type.impl.factory.ClassValueCacheFactory;
+import org.mozilla.javascript.lc.type.impl.factory.LegacyCacheFactory;
 
 /**
  * Factory for {@link TypeInfo}
@@ -52,14 +54,9 @@ public interface TypeInfoFactory extends Serializable {
      * types from being unloaded
      *
      * <p>For actions with scope available, the TypeInfoFactory can be obtained via {@link
-     * #get(Scriptable)}.
+     * #get(VarScope)}.
      */
-    TypeInfoFactory GLOBAL =
-            new WeakReferenceFactory() {
-                private Object readResolve() {
-                    return GLOBAL;
-                }
-            };
+    TypeInfoFactory GLOBAL = createGlobalFactory();
 
     TypeInfo[] EMPTY_ARRAY = new TypeInfo[0];
 
@@ -350,9 +347,9 @@ public interface TypeInfoFactory extends Serializable {
      * @return {@code this} if no previous TypeInfoFactory object was associated with the scope and
      *     this TypeInfoFactory is successfully associated, or the old associated factory otherwise.
      * @throws IllegalArgumentException if provided scope is not top scope
-     * @see #get(Scriptable scope)
+     * @see #get(VarScope scope)
      */
-    default TypeInfoFactory associate(ScriptableObject topScope) {
+    default TypeInfoFactory associate(TopLevel topScope) {
         if (topScope.getParentScope() != null) {
             throw new IllegalArgumentException("provided scope not top scope");
         }
@@ -366,9 +363,9 @@ public interface TypeInfoFactory extends Serializable {
      * @return previously associated TypeInfoFactory object.
      * @throws IllegalArgumentException if the top scope of provided scope have no associated
      *     TypeInfoFactory.
-     * @see #associate(ScriptableObject topScope)
+     * @see #associate(TopLevel topScope)
      */
-    static TypeInfoFactory get(Scriptable scope) {
+    static TypeInfoFactory get(VarScope scope) {
         var got = getOrElse(scope, null);
         if (got == null) {
             throw new IllegalArgumentException("top scope have no associated TypeInfoFactory");
@@ -382,14 +379,45 @@ public interface TypeInfoFactory extends Serializable {
      *
      * @param scope scope to search for TypeInfoFactory object.
      * @return previously associated TypeInfoFactory object, or {@code fallback} if none was found
-     * @see #get(Scriptable)
-     * @see #associate(ScriptableObject topScope)
+     * @see #get(VarScope)
+     * @see #associate(TopLevel topScope)
      */
-    static TypeInfoFactory getOrElse(Scriptable scope, TypeInfoFactory fallback) {
+    static TypeInfoFactory getOrElse(VarScope scope, TypeInfoFactory fallback) {
         var got = (TypeInfoFactory) ScriptableObject.getTopScopeValue(scope, "TypeInfoFactory");
         if (got == null) {
             return fallback;
         }
         return got;
+    }
+
+    /**
+     * the {@code androidApi} field from {@link org.mozilla.javascript.ScriptRuntime} is not
+     * accessible here, so we detect Android version manually
+     */
+    private static TypeInfoFactory createGlobalFactory() {
+        int androidAPI;
+        try {
+            androidAPI = Class.forName("android.os.Build$VERSION").getField("SDK_INT").getInt(null);
+        } catch (Exception e) {
+            if ("Dalvik".equals(System.getProperty("java.vm.name"))) {
+                androidAPI = 1;
+            } else {
+                androidAPI = -1;
+            }
+        }
+
+        if (androidAPI >= 34 || androidAPI < 0) {
+            // modern Android or not Android
+            return new ClassValueCacheFactory.WeakReference() {
+                private Object readResolve() {
+                    return GLOBAL;
+                }
+            };
+        }
+        return new LegacyCacheFactory.WeakReference() {
+            private Object readResolve() {
+                return GLOBAL;
+            }
+        };
     }
 }

@@ -4,35 +4,31 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Locale;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.BlockJUnit4ClassRunner;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.EvaluatorException;
-import org.mozilla.javascript.IdFunctionObject;
 import org.mozilla.javascript.ImporterTopLevel;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.JSFunction;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.VarScope;
 import org.mozilla.javascript.Wrapper;
 
-@RunWith(BlockJUnit4ClassRunner.class)
 public class SealedSharedScopeTest {
 
     private Context ctx;
     private ImporterTopLevel sharedScope;
-    private Scriptable scope1;
-    private Scriptable scope2;
+    private VarScope scope1;
+    private VarScope scope2;
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception {
         try (Context tmpCtx = Context.enter()) {
             sharedScope = new ImporterTopLevel(tmpCtx, true);
@@ -41,20 +37,16 @@ public class SealedSharedScopeTest {
 
         ctx = Context.enter();
         ctx.setLanguageVersion(Context.VERSION_DEFAULT);
-        scope1 = ctx.newObject(sharedScope);
-        scope1.setPrototype(sharedScope);
-        scope1.setParentScope(null);
-        scope2 = ctx.newObject(sharedScope);
-        scope2.setPrototype(sharedScope);
-        scope2.setParentScope(null);
+        scope1 = TopLevel.createIsolate(sharedScope);
+        scope2 = TopLevel.createIsolate(sharedScope);
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws Exception {
         Context.exit();
     }
 
-    private Object evaluateString(Scriptable scope, String source) {
+    private Object evaluateString(VarScope scope, String source) {
         Object o = ctx.evaluateString(scope, source, "test", 1, null);
         if (o instanceof Wrapper) {
             o = ((Wrapper) o).unwrap();
@@ -80,7 +72,7 @@ public class SealedSharedScopeTest {
         assertEquals(java.sql.Date.class, o);
 
         o = evaluateString(scope1, "Date"); // JavaScript "Statement" function
-        assertTrue(o instanceof IdFunctionObject);
+        assertTrue(o instanceof JSFunction);
 
         o = evaluateString(scope2, "typeof imp1"); // scope 2 has
         // no imp1
@@ -105,7 +97,7 @@ public class SealedSharedScopeTest {
         assertEquals(java.sql.Date.class, o);
 
         o = evaluateString(scope1, "Date"); // JavaScript "Statement" function
-        assertTrue(o instanceof IdFunctionObject);
+        assertTrue(o instanceof JSFunction);
 
         o = evaluateString(scope2, "typeof imp1 == 'undefined'"); // scope 2 has
         // no imp1
@@ -161,9 +153,11 @@ public class SealedSharedScopeTest {
         assertEquals("undefined", o);
     }
 
-    @Test(expected = EvaluatorException.class)
+    @Test
     public void importClassFailsOnSealedScope() throws Exception {
-        evaluateString(sharedScope, "importClass(java.util.Locale);");
+        assertThrows(
+                EvaluatorException.class,
+                () -> evaluateString(sharedScope, "importClass(java.util.Locale);"));
     }
 
     @Test

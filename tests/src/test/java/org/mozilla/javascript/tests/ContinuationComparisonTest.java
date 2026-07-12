@@ -6,17 +6,19 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.Interpreter;
 import org.mozilla.javascript.NativeContinuation;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 
 public class ContinuationComparisonTest {
 
@@ -32,8 +34,8 @@ public class ContinuationComparisonTest {
     private NativeContinuation createContinuation() throws Exception {
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_DEFAULT);
-            cx.setInterpretedMode(true); // interpreter for continuations
-            ScriptableObject global = cx.initStandardObjects();
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+            TopLevel global = cx.initStandardObjects();
             final AtomicReference<NativeContinuation> captured = new AtomicReference<>();
             ScriptableObject.putProperty(
                     global,
@@ -52,7 +54,7 @@ public class ContinuationComparisonTest {
                         cx.compileReader(r, "ContinuationComparisonTest.js", 1, null), global);
             }
             // Make the global standard again
-            ScriptableObject.deleteProperty(global, "capture");
+            global.delete("capture");
 
             return captured.get();
         }

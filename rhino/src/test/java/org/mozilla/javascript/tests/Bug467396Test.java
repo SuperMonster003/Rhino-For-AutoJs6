@@ -4,13 +4,13 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Wrapper;
 
 /**
@@ -24,7 +24,7 @@ public class Bug467396Test {
     @Test
     public void overloadedVarargs() {
         try (Context cx = ContextFactory.getGlobal().enterContext()) {
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             Object result =
                     unwrap(
                             cx.evaluateString(

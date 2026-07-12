@@ -1,11 +1,11 @@
 package org.mozilla.javascript.tests;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContinuationPending;
 import org.mozilla.javascript.Script;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 
 // Tests that continuations work across arrow function, bound function, and apply/call invocations.
 public class InterpreterFunctionPeelingTest {
@@ -20,13 +20,10 @@ public class InterpreterFunctionPeelingTest {
         try (var cx = Context.enter()) {
             cx.setInterpretedMode(true);
             Script s = cx.compileString(script, "unknown source", 0, null);
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             scope.put("c", scope, Context.javaToJS(CAPTURER, scope));
-            Assert.assertThrows(
-                    ContinuationPending.class,
-                    () -> {
-                        cx.executeScriptWithContinuations(s, scope);
-                    });
+            Assertions.assertThrows(
+                    ContinuationPending.class, () -> cx.executeScriptWithContinuations(s, scope));
         }
     }
 

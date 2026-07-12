@@ -1,10 +1,10 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Scriptable;
@@ -49,7 +49,7 @@ public class DynamicScopeTest {
         }
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws Exception {
         while (Context.getCurrentContext() != null) {
             Context.exit();
@@ -66,7 +66,7 @@ public class DynamicScopeTest {
         try {
             // Used to fail with org.mozilla.javascript.EvaluatorException: Cannot modify a property
             // of a sealed object: iterator.
-            final ScriptableObject scope = cx.initStandardObjects(new TopLevel(), true);
+            TopLevel scope = cx.initStandardObjects(new TopLevel(), true);
 
             Object result = cx.evaluateString(scope, "42", "source", 1, null);
             assertEquals(42, result);
@@ -81,7 +81,7 @@ public class DynamicScopeTest {
         try {
             // Used to fail with org.mozilla.javascript.EvaluatorException: Cannot modify a property
             // of a sealed object: iterator.
-            final ScriptableObject scope = cx.initStandardObjects(new TopLevel(), true);
+            TopLevel scope = cx.initStandardObjects(new TopLevel(), true);
 
             Object result = cx.evaluateString(scope, "23", "source", 1, null);
             assertEquals(23, result);
@@ -99,7 +99,7 @@ public class DynamicScopeTest {
 
             // Used to fail with org.mozilla.javascript.EvaluatorException: Cannot modify a property
             // of a sealed object: iterator.
-            final ScriptableObject someScope = cx.initStandardObjects();
+            TopLevel someScope = cx.initStandardObjects();
 
             Scriptable someObj =
                     (Scriptable)
@@ -113,12 +113,12 @@ public class DynamicScopeTest {
                                     "source2",
                                     1,
                                     null);
-            subScope.setParentScope(null);
+            var newTopLevel = TopLevel.createIsolate(someScope, (ScriptableObject) subScope);
 
             Scriptable subObj =
                     (Scriptable)
                             cx.evaluateString(
-                                    subScope,
+                                    newTopLevel,
                                     "var subObj = Object.create(obj); subObj;",
                                     "source3",
                                     1,

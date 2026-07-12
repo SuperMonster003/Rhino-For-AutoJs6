@@ -6,13 +6,15 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Map;
 
-final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implements Serializable {
-    private static final long serialVersionUID = 5067677351589230234L;
+final class InterpreterData<T extends ScriptOrFn<T>> extends ACompilerData<T, InterpreterData<?>>
+        implements Serializable {
+    @Serial private static final long serialVersionUID = 5067677351589230234L;
 
     static final int INITIAL_MAX_ICODE_LENGTH = 1024;
     static final int INITIAL_STRINGTABLE_SIZE = 64;
@@ -23,32 +25,26 @@ final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implement
             String[] itsStringTable,
             double[] itsDoubleTable,
             BigInteger[] itsBigIntTable,
-            InterpreterData<JSFunction>[] itsNestedFunctions,
             Object[] itsRegExpLiterals,
             Object[] itsTemplateLiterals,
             byte[] itsICode,
-            int[] itsExceptionTable,
-            int itsMaxVars,
-            int itsMaxLocals,
-            int itsMaxStack,
-            int itsMaxFrameArray,
-            int itsMaxCalleeArgs,
+            int[] exceptionTable,
+            int maxVars,
+            int maxLocals,
+            int maxStack,
+            int maxFrameArray,
+            int maxCalleeArgs,
             Object[] literalIds,
             Map<Integer, Integer> longJumps,
             int firstLinePC) {
+        super(maxVars, maxLocals, maxStack, maxFrameArray, exceptionTable);
         this.itsStringTable = itsStringTable;
         this.itsDoubleTable = itsDoubleTable;
         this.itsBigIntTable = itsBigIntTable;
-        this.itsNestedFunctions = itsNestedFunctions;
         this.itsRegExpLiterals = itsRegExpLiterals;
         this.itsTemplateLiterals = itsTemplateLiterals;
         this.itsICode = itsICode;
-        this.itsExceptionTable = itsExceptionTable;
-        this.itsMaxVars = itsMaxVars;
-        this.itsMaxLocals = itsMaxLocals;
-        this.itsMaxStack = itsMaxStack;
-        this.itsMaxFrameArray = itsMaxFrameArray;
-        this.itsMaxCalleeArgs = itsMaxCalleeArgs;
+        this.maxCalleeArgs = maxCalleeArgs;
         this.literalIds = literalIds;
         this.longJumps = longJumps;
         this.firstLinePC = firstLinePC;
@@ -57,20 +53,12 @@ final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implement
     final String[] itsStringTable;
     final double[] itsDoubleTable;
     final BigInteger[] itsBigIntTable;
-    final InterpreterData<JSFunction>[] itsNestedFunctions;
     final Object[] itsRegExpLiterals;
     final Object[] itsTemplateLiterals;
 
     final byte[] itsICode;
 
-    final int[] itsExceptionTable;
-
-    final int itsMaxVars;
-    final int itsMaxLocals;
-    final int itsMaxStack;
-    final int itsMaxFrameArray;
-
-    final int itsMaxCalleeArgs;
+    final int maxCalleeArgs;
 
     final Object[] literalIds;
 
@@ -79,6 +67,16 @@ final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implement
     final int firstLinePC;
 
     private int icodeHashCode = 0;
+
+    @Override
+    public int getLineNumberFromPc(int pc, int pcSourceLineStart) {
+        if (pcSourceLineStart >= 0) {
+            return ((itsICode[pcSourceLineStart] & 0xFF) << 8)
+                    | (itsICode[pcSourceLineStart + 1] & 0xFF);
+        } else {
+            return 0;
+        }
+    }
 
     public int icodeHashCode() {
         int h = icodeHashCode;
@@ -98,7 +96,7 @@ final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implement
             Context cx,
             T executableObject,
             Object newTarget,
-            Scriptable scope,
+            VarScope scope,
             Object thisObj,
             Object[] args) {
         return Interpreter.interpret(executableObject, this, cx, scope, (Scriptable) thisObj, args);
@@ -109,7 +107,7 @@ final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implement
             Context cx,
             T executableObject,
             Object state,
-            Scriptable scope,
+            VarScope scope,
             int operation,
             Object value) {
         return Interpreter.resumeGenerator(cx, scope, operation, state, value);
@@ -119,20 +117,19 @@ final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implement
         String[] itsStringTable;
         double[] itsDoubleTable;
         BigInteger[] itsBigIntTable;
-        InterpreterData<JSFunction>[] itsNestedFunctions;
         Object[] itsRegExpLiterals;
         Object[] itsTemplateLiterals;
 
         byte[] itsICode;
 
-        int[] itsExceptionTable;
+        int[] exceptionTable;
 
-        int itsMaxVars;
-        int itsMaxLocals;
-        int itsMaxStack;
-        int itsMaxFrameArray;
+        int maxVars;
+        int maxLocals;
+        int maxStack;
+        int maxFrameArray;
 
-        int itsMaxCalleeArgs;
+        int maxCalleeArgs;
 
         Object[] literalIds;
 
@@ -157,16 +154,15 @@ final class InterpreterData<T extends ScriptOrFn<T>> extends JSCode<T> implement
                                 itsStringTable,
                                 itsDoubleTable,
                                 itsBigIntTable,
-                                itsNestedFunctions,
                                 itsRegExpLiterals,
                                 itsTemplateLiterals,
                                 itsICode,
-                                itsExceptionTable,
-                                itsMaxVars,
-                                itsMaxLocals,
-                                itsMaxStack,
-                                itsMaxFrameArray,
-                                itsMaxCalleeArgs,
+                                exceptionTable,
+                                maxVars,
+                                maxLocals,
+                                maxStack,
+                                maxFrameArray,
+                                maxCalleeArgs,
                                 literalIds,
                                 jumpMap,
                                 firstLinePC);

@@ -8,6 +8,7 @@ package org.mozilla.javascript;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.io.Serial;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -23,7 +24,7 @@ import java.util.Set;
  * @see NativeJavaClass
  */
 public class NativeJavaPackage extends ScriptableObject {
-    private static final long serialVersionUID = 7445054382212031523L;
+    @Serial private static final long serialVersionUID = 7445054382212031523L;
 
     NativeJavaPackage(boolean internalUsage, String packageName, ClassLoader classLoader) {
         this.packageName = packageName;
@@ -83,7 +84,7 @@ public class NativeJavaPackage extends ScriptableObject {
 
     // set up a name which is known to be a package so we don't
     // need to look for a class by that name
-    NativeJavaPackage forcePackage(String name, Scriptable scope) {
+    NativeJavaPackage forcePackage(String name, VarScope scope) {
         Object cached = super.get(name, this);
         if (cached != null && cached instanceof NativeJavaPackage) {
             return (NativeJavaPackage) cached;
@@ -116,7 +117,7 @@ public class NativeJavaPackage extends ScriptableObject {
             }
             if (cl != null) {
                 WrapFactory wrapFactory = cx.getWrapFactory();
-                newValue = wrapFactory.wrapJavaClass(cx, getTopLevelScope(this), cl);
+                newValue = wrapFactory.wrapJavaClass(cx, getTopLevelScope(getParentScope()), cl);
                 newValue.setPrototype(getPrototype());
             }
         }

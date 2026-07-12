@@ -3,11 +3,12 @@ package org.mozilla.javascript;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serial;
 import java.util.Collections;
 import java.util.Iterator;
 
 public class NativeCollectionIterator extends ES6Iterator {
-    private static final long serialVersionUID = 7094840979404373443L;
+    @Serial private static final long serialVersionUID = 7094840979404373443L;
     private String className;
     private Type type;
     private transient Iterator<Hashtable.Entry> iterator = Collections.emptyIterator();
@@ -18,10 +19,6 @@ public class NativeCollectionIterator extends ES6Iterator {
         BOTH
     }
 
-    static void init(ScriptableObject scope, String tag, boolean sealed) {
-        ES6Iterator.init(scope, sealed, new NativeCollectionIterator(tag), tag);
-    }
-
     public NativeCollectionIterator(String tag) {
         this.className = tag;
         this.iterator = Collections.emptyIterator();
@@ -29,7 +26,7 @@ public class NativeCollectionIterator extends ES6Iterator {
     }
 
     public NativeCollectionIterator(
-            Scriptable scope, String className, Type type, Iterator<Hashtable.Entry> iterator) {
+            VarScope scope, String className, Type type, Iterator<Hashtable.Entry> iterator) {
         super(scope, className);
         this.className = className;
         this.iterator = iterator;
@@ -42,12 +39,12 @@ public class NativeCollectionIterator extends ES6Iterator {
     }
 
     @Override
-    protected boolean isDone(Context cx, Scriptable scope) {
+    protected boolean isDone(Context cx, VarScope scope) {
         return !iterator.hasNext();
     }
 
     @Override
-    protected Object nextValue(Context cx, Scriptable scope) {
+    protected Object nextValue(Context cx, VarScope scope) {
         final Hashtable.Entry e = iterator.next();
         switch (type) {
             case KEYS:
@@ -61,6 +58,7 @@ public class NativeCollectionIterator extends ES6Iterator {
         }
     }
 
+    @Serial
     private void readObject(ObjectInputStream stream) throws IOException, ClassNotFoundException {
         stream.defaultReadObject();
         className = (String) stream.readObject();
@@ -68,6 +66,7 @@ public class NativeCollectionIterator extends ES6Iterator {
         iterator = Collections.emptyIterator();
     }
 
+    @Serial
     private void writeObject(ObjectOutputStream stream) throws IOException {
         stream.defaultWriteObject();
         stream.writeObject(className);

@@ -9,18 +9,15 @@ package org.mozilla.javascript;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serial;
 import java.io.Serializable;
-import java.lang.reflect.Array;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.List;
-import java.util.Map;
-import org.mozilla.javascript.lc.type.TypeInfo;
-import org.mozilla.javascript.lc.type.TypeInfoFactory;
-import org.mozilla.javascript.lc.type.VariableTypeInfo;
 
 /**
  * Wrapper class for Method and Constructor instances to cache getParameterTypes() results, recover
@@ -28,107 +25,46 @@ import org.mozilla.javascript.lc.type.VariableTypeInfo;
  *
  * @author Igor Bukanov
  */
-public final class MemberBox implements Serializable {
-    private static final long serialVersionUID = 6358550398665688245L;
+final class MemberBox implements Serializable {
+    @Serial private static final long serialVersionUID = 8260700214130563887L;
 
     private transient Member memberObject;
-    private transient List<TypeInfo> argTypeInfos;
-    private transient TypeInfo returnTypeInfo;
+    private transient Class<?>[] argTypes;
+    private transient Class<?> returnType;
     private transient NullabilityDetector.NullabilityAccessor argNullability;
-    transient boolean vararg;
 
     transient Function asGetterFunction;
     transient Function asSetterFunction;
     transient Object delegateTo;
 
+    final VarScope scope;
+
     private static final NullabilityDetector nullDetector =
             ScriptRuntime.loadOneServiceImplementation(NullabilityDetector.class);
 
-    MemberBox(Method method, TypeInfoFactory factory) {
-        init(method, factory, method.getDeclaringClass());
+    MemberBox(VarScope scope, Method method) {
+        this.scope = scope;
+        init(method);
     }
 
-    MemberBox(Constructor<?> constructor, TypeInfoFactory factory) {
-        init(constructor, factory);
+    MemberBox(VarScope scope, Constructor<?> constructor) {
+        this.scope = scope;
+        init(constructor);
     }
 
-    MemberBox(Method method, TypeInfoFactory factory, Class<?> parent) {
-        init(method, factory, parent);
-    }
-
-    private void init(Method method, TypeInfoFactory factory, Class<?> parent) {
+    private void init(Method method) {
         this.memberObject = method;
-        if (nullDetector == null) {
-            this.argNullability = NullabilityDetector.NullabilityAccessor.FALSE;
-        }
-        this.vararg = method.isVarArgs();
-
-        // @Hint by SuperMonster003 on Jan 8, 2026.
-        //  ! Prefer generic reflection, but fall back to raw types on older/buggy Android runtimes.
-        //  ! zh-CN: 优先使用泛型反射, 但在旧版/有缺陷的 Android 运行时上失败时降级为原始类型.
-        //  !
-        //  ! On some old devices, parsing a method's generic signature may try to load
-        //  ! framework classes that don't exist on that OS version (e.g. AccessibilityNodeInfo$ExtraRenderingInfo),
-        //  ! causing NoClassDefFoundError during getGenericParameterTypes()/getGenericReturnType().
-        //  ! zh-CN:
-        //  ! 在一些旧设备上, 解析方法的泛型签名可能会尝试加载该系统版本不存在的框架类 (例如 AccessibilityNodeInfo$ExtraRenderingInfo),
-        //  ! 从而在 getGenericParameterTypes()/getGenericReturnType() 期间抛出 NoClassDefFoundError.
-        try {
-            this.argTypeInfos = factory.createList(method.getGenericParameterTypes());
-        } catch (NoClassDefFoundError | TypeNotPresentException ex) {
-            this.argTypeInfos = factory.createList(method.getParameterTypes());
-        }
-
-        try {
-            this.returnTypeInfo = factory.create(method.getGenericReturnType());
-        } catch (NoClassDefFoundError | TypeNotPresentException ex) {
-            // @Hint by SuperMonster003 on Jan 8, 2026.
-            //  ! Some Android 7.x runtimes may also throw NoClassDefFoundError even for getReturnType().
-            //  ! zh-CN: 一些 Android 7.x 运行时在调用 getReturnType() 时也可能抛出 NoClassDefFoundError.
-            try {
-                this.returnTypeInfo = factory.create(method.getReturnType());
-            } catch (NoClassDefFoundError | TypeNotPresentException ex2) {
-                this.returnTypeInfo = factory.create(Object.class);
-            }
-        }
-
-        var mapping = factory.getConsolidationMapping(parent);
-        this.argTypeInfos = TypeInfoFactory.consolidateAll(this.argTypeInfos, mapping);
-        this.returnTypeInfo = returnTypeInfo.consolidate(mapping);
+        this.argTypes = method.getParameterTypes();
+        this.returnType = method.getReturnType();
     }
 
-    private void init(Constructor<?> constructor, TypeInfoFactory factory) {
+    private void init(Constructor<?> constructor) {
         this.memberObject = constructor;
-        if (nullDetector == null) {
-            this.argNullability = NullabilityDetector.NullabilityAccessor.FALSE;
-        }
-        this.vararg = constructor.isVarArgs();
-
-        // @Hint by SuperMonster003 on Jan 8, 2026.
-        //  ! Prefer generic reflection, but fall back to raw types on older/buggy Android runtimes.
-        //  ! zh-CN: 优先使用泛型反射, 但在旧版/有缺陷的 Android 运行时上失败时降级为原始类型.
-        try {
-            this.argTypeInfos = factory.createList(constructor.getGenericParameterTypes());
-        } catch (NoClassDefFoundError | TypeNotPresentException ex) {
-            this.argTypeInfos = factory.createList(constructor.getParameterTypes());
-        }
-
-        this.returnTypeInfo = TypeInfo.NONE;
-
-        // Type consolidation not required for constructor.
-        //
-        // consider this example:
-        // class A<T> {
-        //     A(T value) { ... }
-        // }
-        // class B extends A<String> {
-        //     B(String value) { super(value); }
-        // }
-        // for class B, the constructor must have "String" instead of "T" as parameter type,
-        // otherwise it won't compile. So param types are already concrete types.
+        this.argTypes = constructor.getParameterTypes();
+        this.returnType = null;
     }
 
-    public Method method() {
+    Method method() {
         return (Method) memberObject;
     }
 
@@ -164,27 +100,29 @@ public final class MemberBox implements Serializable {
         return memberObject.getDeclaringClass();
     }
 
-    List<TypeInfo> getArgTypes() {
-        return argTypeInfos;
+    Class<?>[] getArgTypes() {
+        return argTypes;
     }
 
     public NullabilityDetector.NullabilityAccessor getArgNullability() {
         var got = this.argNullability;
         if (got == null) {
             // synchronization is optional, because `getParameterNullability(...)` will always
-            // give `NullabilityAccessor` with same behaviour, which is because arg nullability
-            // for a certain method/constructor will not change at runtime
-            got =
-                    this.isMethod()
-                            ? nullDetector.getParameterNullability(this.method())
-                            : nullDetector.getParameterNullability(this.ctor());
+            // give `NullabilityAccessor` with same behavior for the same method/constructor
+            if (nullDetector == null) {
+                got = NullabilityDetector.NullabilityAccessor.FALSE;
+            } else if (this.isMethod()) {
+                got = nullDetector.getParameterNullability(this.method());
+            } else {
+                got = nullDetector.getParameterNullability(this.ctor());
+            }
             this.argNullability = got;
         }
         return got;
     }
 
-    TypeInfo getReturnType() {
-        return returnTypeInfo;
+    Class<?> getReturnType() {
+        return returnType;
     }
 
     String toJavaDeclaration() {
@@ -223,7 +161,7 @@ public final class MemberBox implements Serializable {
     }
 
     /** Function returned by calls to __lookupGetter__ */
-    Function asGetterFunction(final String name, final Scriptable scope) {
+    Function asGetterFunction(final String name) {
         // Note: scope is the scriptable this function is related to; therefore this function
         // is constant for this member box.
         // Because of this we can cache the function in the attribute
@@ -233,20 +171,16 @@ public final class MemberBox implements Serializable {
                         @Override
                         public Object call(
                                 Context cx,
-                                Scriptable callScope,
+                                VarScope callScope,
                                 Scriptable thisObj,
                                 Object[] originalArgs) {
                             MemberBox nativeGetter = MemberBox.this;
-                            Object getterThis;
-                            Object[] args;
                             if (nativeGetter.delegateTo == null) {
-                                getterThis = thisObj;
-                                args = ScriptRuntime.emptyArgs;
+                                return nativeGetter.invoke(thisObj, ScriptRuntime.emptyArgs);
                             } else {
-                                getterThis = nativeGetter.delegateTo;
-                                args = new Object[] {thisObj};
+                                return nativeGetter.invoke(
+                                        nativeGetter.delegateTo, new Object[] {thisObj});
                             }
-                            return nativeGetter.invoke(getterThis, args);
                         }
 
                         @Override
@@ -259,39 +193,36 @@ public final class MemberBox implements Serializable {
     }
 
     /** Function returned by calls to __lookupSetter__ */
-    Function asSetterFunction(final String name, final Scriptable scope) {
+    Function asSetterFunction(final String name) {
         // Note: scope is the scriptable this function is related to; therefore this function
         // is constant for this member box.
         // Because of this we can cache the function in the attribute
         if (asSetterFunction == null) {
+            var setterTypeTag = FunctionObject.getTypeTag(this.argTypes[0]);
             asSetterFunction =
                     new BaseFunction(scope, ScriptableObject.getFunctionPrototype(scope)) {
                         @Override
                         public Object call(
                                 Context cx,
-                                Scriptable callScope,
+                                VarScope callScope,
                                 Scriptable thisObj,
                                 Object[] originalArgs) {
                             MemberBox nativeSetter = MemberBox.this;
-                            Object setterThis;
-                            Object[] args;
                             Object value =
                                     originalArgs.length > 0
                                             ? FunctionObject.convertArg(
                                                     cx,
-                                                    thisObj,
+                                                    callScope,
                                                     originalArgs[0],
-                                                    nativeSetter.getArgTypes().get(0).getTypeTag(),
+                                                    setterTypeTag,
                                                     nativeSetter.getArgNullability().isNullable(0))
                                             : Undefined.instance;
                             if (nativeSetter.delegateTo == null) {
-                                setterThis = thisObj;
-                                args = new Object[] {value};
+                                return nativeSetter.invoke(thisObj, new Object[] {value});
                             } else {
-                                setterThis = nativeSetter.delegateTo;
-                                args = new Object[] {thisObj, value};
+                                return nativeSetter.invoke(
+                                        nativeSetter.delegateTo, new Object[] {thisObj, value});
                             }
-                            return nativeSetter.invoke(setterThis, args);
                         }
 
                         @Override
@@ -320,22 +251,14 @@ public final class MemberBox implements Serializable {
 
         try {
             try {
-                if (args != null) {
-                    return method.invoke(target, args);
-                }
-                return method.invoke(target);
+                return method.invoke(target, args);
             } catch (IllegalAccessException ex) {
-                Method accessible =
-                        searchAccessibleMethod(
-                                method,
-                                getArgTypes().stream()
-                                        .map(TypeInfo::asClass)
-                                        .toArray(Class[]::new));
+                Method accessible = searchAccessibleMethod(method, getArgTypes());
                 if (accessible != null) {
                     memberObject = accessible;
                     method = accessible;
                 } else {
-                    if (!VMBridge.instance.tryToMakeAccessible(method)) {
+                    if (!tryToMakeAccessible(method)) {
                         throw Context.throwAsScriptRuntimeEx(ex);
                     }
                 }
@@ -361,126 +284,65 @@ public final class MemberBox implements Serializable {
             try {
                 return ctor.newInstance(args);
             } catch (IllegalAccessException ex) {
-                if (!VMBridge.instance.tryToMakeAccessible(ctor)) {
+                if (!tryToMakeAccessible(ctor)) {
                     throw Context.throwAsScriptRuntimeEx(ex);
                 }
+                // Retry after recovery
+                return ctor.newInstance(args);
             }
-            return ctor.newInstance(args);
         } catch (Exception ex) {
             throw Context.throwAsScriptRuntimeEx(ex);
         }
     }
 
-    Object[] wrapArgsInternal(Object[] args, Map<VariableTypeInfo, TypeInfo> mapping) {
-        var argTypes = getArgTypes();
-        var argTypesLen = argTypes.size();
-        var argLen = args.length;
-        final var shouldConsolidate = !mapping.isEmpty();
-
-        if (!this.vararg) {
-            // fast path for getter
-            if (argLen == 0) {
-                return args;
-            }
-
-            var wrappedArgs = args;
-            for (int i = 0; i < argLen; i++) {
-                var arg = args[i];
-                var argType = argTypes.get(i);
-                if (shouldConsolidate) {
-                    argType = argType.consolidate(mapping);
-                }
-
-                var coerced = Context.jsToJava(arg, argType);
-                if (coerced != arg) {
-                    if (wrappedArgs == args) {
-                        wrappedArgs = args.clone();
-                    }
-                    wrappedArgs[i] = coerced;
-                }
-            }
-            return wrappedArgs;
+    @SuppressWarnings("deprecation")
+    private static boolean tryToMakeAccessible(AccessibleObject accessible) {
+        if (!accessible.isAccessible()) {
+            accessible.setAccessible(true);
         }
-
-        // marshall the explicit parameters
-        var wrappedArgs = new Object[argTypesLen];
-        for (int i = 0; i < argTypesLen - 1; i++) {
-            var argType = argTypes.get(i);
-            if (shouldConsolidate) {
-                argType = argType.consolidate(mapping);
-            }
-            wrappedArgs[i] = Context.jsToJava(args[i], argType);
-        }
-
-        // Handle special situation where a single variable parameter
-        // is given, and it is a Java or ECMA array or is null.
-        if (argLen == argTypesLen) {
-            var lastArg = args[argLen - 1];
-            var lastArgType = argTypes.get(argTypesLen - 1);
-            if (shouldConsolidate) {
-                lastArgType = lastArgType.consolidate(mapping);
-            }
-            if (lastArg == null
-                    || lastArg instanceof NativeArray
-                    || lastArg instanceof NativeJavaArray) {
-                // convert the ECMA array into a native array
-                wrappedArgs[argLen - 1] = Context.jsToJava(lastArg, lastArgType);
-                return wrappedArgs;
-            }
-        }
-
-        // marshall the variable parameters
-        var lastArgType = argTypes.get(argTypesLen - 1).getComponentType();
-        if (shouldConsolidate) {
-            lastArgType = lastArgType.consolidate(mapping);
-        }
-        var varArgs = lastArgType.newArray(argLen - argTypesLen + 1);
-        for (int i = 0, arrayLen = Array.getLength(varArgs); i < arrayLen; i++) {
-            Array.set(varArgs, i, Context.jsToJava(args[argTypesLen - 1 + i], lastArgType));
-        }
-        wrappedArgs[argTypesLen - 1] = varArgs;
-
-        return wrappedArgs;
+        return true;
     }
-
-    // @SuppressWarnings("deprecation")
-    // private static boolean tryToMakeAccessible(AccessibleObject accessible) {
-    //     if (!accessible.isAccessible()) {
-    //         accessible.setAccessible(true);
-    //     }
-    //     return true;
-    // }
 
     private static Method searchAccessibleMethod(Method method, Class<?>[] params) {
         int modifiers = method.getModifiers();
         if (Modifier.isPublic(modifiers) && !Modifier.isStatic(modifiers)) {
+            // public instance method being inaccessible
+            // If the declaring is also not accessible (for example, not public), we can try to look
+            // for an accessible method in superclass/interfaces, that the method overrides, and is
+            // declared by an accessible class
+
             Class<?> c = method.getDeclaringClass();
-            if (!Modifier.isPublic(c.getModifiers())) {
-                String name = method.getName();
-                Class<?>[] intfs = c.getInterfaces();
-                for (int i = 0, N = intfs.length; i != N; ++i) {
-                    Class<?> intf = intfs[i];
-                    if (Modifier.isPublic(intf.getModifiers())) {
-                        try {
-                            return intf.getMethod(name, params);
-                        } catch (NoSuchMethodException | SecurityException ex) {
-                        }
+            if (Modifier.isPublic(c.getModifiers())) {
+                // declaring class is accessible, nothing we can do for now
+                return null;
+            }
+
+            String name = method.getName();
+
+            // search in interfaces
+            for (Class<?> intf : c.getInterfaces()) {
+                if (Modifier.isPublic(intf.getModifiers())) {
+                    try {
+                        return intf.getMethod(name, params);
+                    } catch (NoSuchMethodException | SecurityException ignored) {
                     }
                 }
-                for (; ; ) {
-                    c = c.getSuperclass();
-                    if (c == null) {
-                        break;
-                    }
-                    if (Modifier.isPublic(c.getModifiers())) {
-                        try {
-                            Method m = c.getMethod(name, params);
-                            int mModifiers = m.getModifiers();
-                            if (Modifier.isPublic(mModifiers) && !Modifier.isStatic(mModifiers)) {
-                                return m;
-                            }
-                        } catch (NoSuchMethodException | SecurityException ex) {
+            }
+
+            // search in superclasses
+            for (; ; ) {
+                c = c.getSuperclass();
+                if (c == null) {
+                    break;
+                }
+                if (Modifier.isPublic(c.getModifiers())) {
+                    try {
+                        Method m = c.getMethod(name, params);
+                        int mModifiers = m.getModifiers();
+                        if (Modifier.isPublic(mModifiers) && !Modifier.isStatic(mModifiers)) {
+                            return m;
                         }
+                    } catch (NoSuchMethodException | SecurityException ignored) {
                     }
                 }
             }
@@ -488,113 +350,38 @@ public final class MemberBox implements Serializable {
         return null;
     }
 
+    @Serial
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         in.defaultReadObject();
-        Member member = readMember(in);
-        if (member instanceof Method) {
-            init((Method) member, TypeInfoFactory.GLOBAL, member.getDeclaringClass());
-        } else {
-            init((Constructor<?>) member, TypeInfoFactory.GLOBAL);
-        }
-    }
-
-    private void writeObject(ObjectOutputStream out) throws IOException {
-        out.defaultWriteObject();
-        writeMember(out, memberObject);
-    }
-
-    /**
-     * Writes a Constructor or Method object.
-     *
-     * <p>Methods and Constructors are not serializable, so we must serialize information about the
-     * class, the name, and the parameters and recreate upon deserialization.
-     */
-    private static void writeMember(ObjectOutputStream out, Member member) throws IOException {
-        if (member == null) {
-            out.writeBoolean(false);
-            return;
-        }
-        out.writeBoolean(true);
-        if (!(member instanceof Method || member instanceof Constructor))
-            throw new IllegalArgumentException("not Method or Constructor");
-        out.writeBoolean(member instanceof Method);
-        out.writeObject(member.getName());
-        out.writeObject(member.getDeclaringClass());
-        if (member instanceof Method) {
-            writeParameters(out, ((Method) member).getParameterTypes());
-        } else {
-            writeParameters(out, ((Constructor<?>) member).getParameterTypes());
-        }
-    }
-
-    /** Reads a Method or a Constructor from the stream. */
-    private static Member readMember(ObjectInputStream in)
-            throws IOException, ClassNotFoundException {
-        if (!in.readBoolean()) return null;
         boolean isMethod = in.readBoolean();
         String name = (String) in.readObject();
         Class<?> declaring = (Class<?>) in.readObject();
-        Class<?>[] parms = readParameters(in);
+        Class<?>[] parms =
+                MethodType.fromMethodDescriptorString(
+                                (String) in.readObject(), MemberBox.class.getClassLoader())
+                        .parameterArray();
+
         try {
             if (isMethod) {
-                return declaring.getMethod(name, parms);
+                var member = declaring.getMethod(name, parms);
+                init(member);
+            } else {
+                var member = declaring.getConstructor(parms);
+                init(member);
             }
-            return declaring.getConstructor(parms);
         } catch (NoSuchMethodException e) {
             throw new IOException("Cannot find member: " + e);
         }
     }
 
-    private static final Class<?>[] primitives = {
-        Boolean.TYPE,
-        Byte.TYPE,
-        Character.TYPE,
-        Double.TYPE,
-        Float.TYPE,
-        Integer.TYPE,
-        Long.TYPE,
-        Short.TYPE,
-        Void.TYPE
-    };
+    @Serial
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        out.defaultWriteObject();
+        out.writeBoolean(memberObject instanceof Method);
+        out.writeObject(memberObject.getName());
+        out.writeObject(memberObject.getDeclaringClass());
 
-    /**
-     * Writes an array of parameter types to the stream.
-     *
-     * <p>Requires special handling because primitive types cannot be found upon deserialization by
-     * the default Java implementation.
-     */
-    private static void writeParameters(ObjectOutputStream out, Class<?>[] parms)
-            throws IOException {
-        out.writeShort(parms.length);
-        outer:
-        for (Class<?> parm : parms) {
-            boolean primitive = parm.isPrimitive();
-            out.writeBoolean(primitive);
-            if (!primitive) {
-                out.writeObject(parm);
-                continue;
-            }
-            for (int j = 0; j < primitives.length; j++) {
-                if (parm.equals(primitives[j])) {
-                    out.writeByte(j);
-                    continue outer;
-                }
-            }
-            throw new IllegalArgumentException("Primitive " + parm + " not found");
-        }
-    }
-
-    /** Reads an array of parameter types from the stream. */
-    private static Class<?>[] readParameters(ObjectInputStream in)
-            throws IOException, ClassNotFoundException {
-        Class<?>[] result = new Class[in.readShort()];
-        for (int i = 0; i < result.length; i++) {
-            if (!in.readBoolean()) {
-                result[i] = (Class<?>) in.readObject();
-                continue;
-            }
-            result[i] = primitives[in.readByte()];
-        }
-        return result;
+        // we only care about parameter types, so return type is always void
+        out.writeObject(MethodType.methodType(void.class, argTypes).toMethodDescriptorString());
     }
 }

@@ -6,25 +6,21 @@ package org.mozilla.javascript.tests;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.CompilerEnvirons;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.IRFactory;
 import org.mozilla.javascript.JSDescriptor;
 import org.mozilla.javascript.Parser;
-import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.ast.AstRoot;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.ScriptNode;
@@ -39,13 +35,13 @@ public class Bug782363Test {
 
     private Context cx;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         cx = Context.enter();
         cx.setLanguageVersion(Context.VERSION_1_8);
     }
 
-    @After
+    @AfterEach
     public void tearDown() {
         Context.exit();
     }
@@ -102,7 +98,7 @@ public class Bug782363Test {
             assertFalse(opt.isParameter(i));
             String name = fnode.getParamOrVarName(i);
             String msg = format("{%s -> number? = %b}", name, opt.isNumberVar(i));
-            assertEquals(msg, set.contains(name), opt.isNumberVar(i));
+            assertEquals(set.contains(name), opt.isNumberVar(i), msg);
         }
     }
 
@@ -127,9 +123,13 @@ public class Bug782363Test {
 
     @Test
     public void maxLocals() throws IOException {
-        test(339);
+        // 338: Maximum user-defined local variables that can be compiled before hitting
+        // BodyCodegen.MAX_LOCALS (1024). This number must be adjusted downward if BodyCodegen
+        // adds internal fields that consume local slots, or upward if fields are removed.
+        test(338);
         try {
-            test(340);
+            test(339);
+            fail("test(339) did not throw");
         } catch (EvaluatorException e) {
             // may fail with 'out of locals' exception
         }
@@ -149,7 +149,7 @@ public class Bug782363Test {
         }
         sb.append("}; F()");
 
-        ScriptableObject scope = cx.initStandardObjects();
+        TopLevel scope = cx.initStandardObjects();
         Object ret = cx.evaluateString(scope, sb.toString(), "<eval>", 1, null);
         assertTrue(ret instanceof Number);
         assertEquals(expected, ((Number) ret).doubleValue(), 0);

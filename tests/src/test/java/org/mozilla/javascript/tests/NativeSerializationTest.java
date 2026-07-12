@@ -11,20 +11,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.serialize.ScriptableInputStream;
 import org.mozilla.javascript.serialize.ScriptableOutputStream;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 
 public class NativeSerializationTest {
     private Context cx;
-    private Scriptable scope;
+    private Global scope;
 
     @BeforeEach
     public void init() {
         cx = Context.enter();
         scope = new Global(cx);
+        scope.setFileLoadPrefix(TestSource.getPrefix());
     }
 
     @AfterEach

@@ -23,6 +23,8 @@ import org.mozilla.javascript.Token;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.Jump;
 import org.mozilla.javascript.ast.ScriptNode;
+import org.mozilla.javascript.sourcemap.Position;
+import org.mozilla.javascript.sourcemap.SourceMapper;
 
 class BodyCodegen {
     void generateBodyCode() {
@@ -103,7 +105,7 @@ class BodyCodegen {
                     ByteCode.INVOKEINTERFACE,
                     "org/mozilla/javascript/Function",
                     "getDeclarationScope",
-                    "()Lorg/mozilla/javascript/Scriptable;");
+                    "()Lorg/mozilla/javascript/VarScope;");
             cfw.addAStore(variableObjectLocal);
         }
 
@@ -112,7 +114,6 @@ class BodyCodegen {
         cfw.addALoad(contextLocal);
         cfw.addALoad(variableObjectLocal);
         cfw.addALoad(argsLocal);
-        cfw.addPush(scriptOrFn.isInStrictMode());
         cfw.addPush(scriptOrFn.hasRestParameter());
         cfw.addPush(
                 !(scriptOrFn instanceof FunctionNode)
@@ -121,12 +122,11 @@ class BodyCodegen {
                 "createFunctionActivation",
                 "(Lorg/mozilla/javascript/JSFunction;"
                         + "Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "[Ljava/lang/Object;"
                         + "Z"
                         + "Z"
-                        + "Z"
-                        + ")Lorg/mozilla/javascript/Scriptable;");
+                        + ")Lorg/mozilla/javascript/VarScope;");
         cfw.addAStore(variableObjectLocal);
 
         // Evaluate default params for generators after creating activation scope
@@ -153,7 +153,7 @@ class BodyCodegen {
         addOptRuntimeInvoke(
                 "createNativeGenerator",
                 "(Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "Lorg/mozilla/javascript/Scriptable;"
                         + "Lorg/mozilla/javascript/JSFunction;II"
                         + ")Lorg/mozilla/javascript/Scriptable;");
@@ -210,6 +210,7 @@ class BodyCodegen {
         enterAreaStartLabel = -1;
         generatorStateLocal = -1;
         savedHomeObjectLocal = -1;
+        parentStrictnessLocal = -1;
     }
 
     /** Generate the prologue for a function or script. */
@@ -250,7 +251,7 @@ class BodyCodegen {
                     ByteCode.INVOKEINTERFACE,
                     "org/mozilla/javascript/Function",
                     "getDeclarationScope",
-                    "()Lorg/mozilla/javascript/Scriptable;");
+                    "()Lorg/mozilla/javascript/VarScope;");
             cfw.addAStore(variableObjectLocal);
         }
 
@@ -313,6 +314,15 @@ class BodyCodegen {
         // in generateGenerator().
         if (isGenerator) return;
 
+        if (fnCurrent != null) {
+            parentStrictnessLocal = getNewWordLocal();
+            cfw.addALoad(contextLocal);
+            cfw.addPush(scriptOrFn.isInStrictMode());
+            addScriptRuntimeInvoke(
+                    "enterFunctionStrictness", "(Lorg/mozilla/javascript/Context;Z)Z");
+            cfw.addIStore(parentStrictnessLocal);
+        }
+
         if (hasVarsInRegs) {
             // No need to create activation. Pad arguments if need be.
             int parmCount = scriptOrFn.getParamCount();
@@ -327,7 +337,7 @@ class BodyCodegen {
                             "padAndRestArguments",
                             "("
                                     + "Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + "[Ljava/lang/Object;"
                                     + "I"
                                     + ")[Ljava/lang/Object;");
@@ -414,7 +424,6 @@ class BodyCodegen {
             cfw.addALoad(contextLocal);
             cfw.addALoad(variableObjectLocal);
             cfw.addALoad(argsLocal);
-            cfw.addPush(scriptOrFn.isInStrictMode());
             cfw.addPush(scriptOrFn.hasRestParameter());
             cfw.addPush(
                     !(scriptOrFn instanceof FunctionNode)
@@ -426,19 +435,18 @@ class BodyCodegen {
                     methodName,
                     "(Lorg/mozilla/javascript/JSFunction;"
                             + "Lorg/mozilla/javascript/Context;"
-                            + "Lorg/mozilla/javascript/Scriptable;"
+                            + "Lorg/mozilla/javascript/VarScope;"
                             + "[Ljava/lang/Object;"
                             + "Z"
                             + "Z"
-                            + "Z"
-                            + ")Lorg/mozilla/javascript/Scriptable;");
+                            + ")Lorg/mozilla/javascript/VarScope;");
             cfw.addAStore(variableObjectLocal);
             cfw.addALoad(contextLocal);
             cfw.addALoad(variableObjectLocal);
             addScriptRuntimeInvoke(
                     "enterActivationFunction",
                     "(Lorg/mozilla/javascript/Context;"
-                            + "Lorg/mozilla/javascript/Scriptable;"
+                            + "Lorg/mozilla/javascript/VarScope;"
                             + ")V");
         } else {
             debugVariableName = "global";
@@ -452,7 +460,7 @@ class BodyCodegen {
                     "(Lorg/mozilla/javascript/ScriptOrFn;"
                             + "Lorg/mozilla/javascript/Scriptable;"
                             + "Lorg/mozilla/javascript/Context;"
-                            + "Lorg/mozilla/javascript/Scriptable;"
+                            + "Lorg/mozilla/javascript/VarScope;"
                             + "Z"
                             + ")V");
         }
@@ -479,7 +487,7 @@ class BodyCodegen {
             cfw.addAStore(popvLocal);
 
             int linenum = scriptOrFn.getEndLineno();
-            if (linenum != -1) cfw.addLineNumberEntry((short) linenum);
+            if (linenum != -1) addRemappedLineEntry(linenum, 1);
 
         } else {
             if (fnCurrent.itsContainsCalls0) {
@@ -592,6 +600,7 @@ class BodyCodegen {
             cfw.add(ByteCode.ARETURN);
 
         } else if (hasVarsInRegs) {
+            generateFunctionStrictnessExit();
             cfw.add(ByteCode.ARETURN);
 
         } else if (fnCurrent == null) {
@@ -599,6 +608,7 @@ class BodyCodegen {
             cfw.add(ByteCode.ARETURN);
 
         } else {
+            generateFunctionStrictnessExit();
             generateActivationExit();
             cfw.add(ByteCode.ARETURN);
 
@@ -640,6 +650,13 @@ class BodyCodegen {
         if (fnCurrent == null || hasVarsInRegs) throw Kit.codeBug();
         cfw.addALoad(contextLocal);
         addScriptRuntimeInvoke("exitActivationFunction", "(Lorg/mozilla/javascript/Context;)V");
+    }
+
+    private void generateFunctionStrictnessExit() {
+        if (fnCurrent == null) throw Kit.codeBug();
+        cfw.addALoad(contextLocal);
+        cfw.addILoad(parentStrictnessLocal);
+        addScriptRuntimeInvoke("exitFunctionStrictness", "(Lorg/mozilla/javascript/Context;Z)V");
     }
 
     private void generateStatement(Node node) {
@@ -738,7 +755,7 @@ class BodyCodegen {
                                     + "Lorg/mozilla/javascript/Scriptable;"
                                     + "Ljava/lang/String;"
                                     + "Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + ")Lorg/mozilla/javascript/Scriptable;");
                     cfw.addAStore(local);
                 }
@@ -792,8 +809,8 @@ class BodyCodegen {
                         "enterWith",
                         "(Ljava/lang/Object;"
                                 + "Lorg/mozilla/javascript/Context;"
-                                + "Lorg/mozilla/javascript/Scriptable;"
-                                + ")Lorg/mozilla/javascript/Scriptable;");
+                                + "Lorg/mozilla/javascript/VarScope;"
+                                + ")Lorg/mozilla/javascript/VarScope;");
                 cfw.addAStore(variableObjectLocal);
                 incReferenceWordLocal(variableObjectLocal);
                 break;
@@ -802,8 +819,8 @@ class BodyCodegen {
                 cfw.addALoad(variableObjectLocal);
                 addScriptRuntimeInvoke(
                         "leaveWith",
-                        "(Lorg/mozilla/javascript/Scriptable;"
-                                + ")Lorg/mozilla/javascript/Scriptable;");
+                        "(Lorg/mozilla/javascript/VarScope;"
+                                + ")Lorg/mozilla/javascript/VarScope;");
                 cfw.addAStore(variableObjectLocal);
                 decReferenceWordLocal(variableObjectLocal);
                 break;
@@ -817,7 +834,10 @@ class BodyCodegen {
                 cfw.addALoad(variableObjectLocal);
                 int enumType =
                         type == Token.ENUM_INIT_KEYS
-                                ? ScriptRuntime.ENUMERATE_KEYS
+                                ? Context.getCurrentContext().getLanguageVersion()
+                                                <= Context.VERSION_1_8
+                                        ? ScriptRuntime.ENUMERATE_KEYS
+                                        : ScriptRuntime.ENUMERATE_KEYS_NO_ITERATOR
                                 : type == Token.ENUM_INIT_VALUES
                                         ? ScriptRuntime.ENUMERATE_VALUES
                                         : type == Token.ENUM_INIT_VALUES_IN_ORDER
@@ -828,7 +848,7 @@ class BodyCodegen {
                         "enumInit",
                         "(Ljava/lang/Object;"
                                 + "Lorg/mozilla/javascript/Context;"
-                                + "Lorg/mozilla/javascript/Scriptable;"
+                                + "Lorg/mozilla/javascript/VarScope;"
                                 + "I"
                                 + ")Ljava/lang/Object;");
                 cfw.addAStore(getLocalBlockRegister(node));
@@ -987,6 +1007,54 @@ class BodyCodegen {
                 }
                 break;
 
+            case Token.OBJECT_REST:
+                {
+                    // Handle object rest operation: {...rest} in destructuring
+                    cfw.addALoad(contextLocal);
+                    cfw.addALoad(variableObjectLocal);
+                    generateExpression(child, node); // source
+
+                    Object[] excludedKeys = (Object[]) node.getProp(Node.OBJECT_IDS_PROP);
+
+                    // Create Object array to hold all keys
+                    cfw.addPush(excludedKeys.length);
+                    cfw.add(ByteCode.ANEWARRAY, "java/lang/Object");
+                    int arrayIndex = 0;
+
+                    // Fill static keys
+                    for (Object key : excludedKeys) {
+                        if (!(key instanceof org.mozilla.javascript.Node)) {
+                            cfw.add(ByteCode.DUP);
+                            cfw.addPush(arrayIndex++);
+                            cfw.addPush(key.toString());
+                            cfw.add(ByteCode.AASTORE);
+                        }
+                    }
+
+                    // Fill computed keys (evaluate expressions at runtime)
+                    for (Object key : excludedKeys) {
+                        if (key instanceof org.mozilla.javascript.Node) {
+                            cfw.add(ByteCode.DUP);
+                            cfw.addPush(arrayIndex++);
+                            // Generate code to evaluate the computed key expression
+                            generateExpression((org.mozilla.javascript.Node) key, node);
+                            cfw.add(ByteCode.AASTORE);
+                        }
+                    }
+
+                    // Stack: [Context, Scriptable (scope), Object (source), Object[] (excludeKeys)]
+                    // Call: ScriptRuntime.doObjectRest(cx, scope, source, excludeKeys) ->
+                    // Scriptable
+                    addScriptRuntimeInvoke(
+                            "doObjectRest",
+                            "(Lorg/mozilla/javascript/Context;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
+                                    + "Ljava/lang/Object;"
+                                    + "[Ljava/lang/Object;"
+                                    + ")Lorg/mozilla/javascript/Scriptable;");
+                }
+                break;
+
             case Token.CALL:
             case Token.NEW:
                 {
@@ -1136,7 +1204,7 @@ class BodyCodegen {
                             "org/mozilla/javascript/ScriptRuntime",
                             "wrapRegExp",
                             "(Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + "Ljava/lang/Object;"
                                     + ")Lorg/mozilla/javascript/Scriptable;");
                 }
@@ -1496,7 +1564,7 @@ class BodyCodegen {
                             "(Lorg/mozilla/javascript/Ref;"
                                     + "Ljava/lang/Object;"
                                     + "Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + ")Ljava/lang/Object;");
                 }
                 break;
@@ -1618,7 +1686,7 @@ class BodyCodegen {
                             signature =
                                     "(Ljava/lang/Object;"
                                             + "Lorg/mozilla/javascript/Context;"
-                                            + "Lorg/mozilla/javascript/Scriptable;"
+                                            + "Lorg/mozilla/javascript/VarScope;"
                                             + "I"
                                             + ")Lorg/mozilla/javascript/Ref;";
                             cfw.addALoad(variableObjectLocal);
@@ -1629,7 +1697,7 @@ class BodyCodegen {
                                     "(Ljava/lang/Object;"
                                             + "Ljava/lang/Object;"
                                             + "Lorg/mozilla/javascript/Context;"
-                                            + "Lorg/mozilla/javascript/Scriptable;"
+                                            + "Lorg/mozilla/javascript/VarScope;"
                                             + "I"
                                             + ")Lorg/mozilla/javascript/Ref;";
                             cfw.addALoad(variableObjectLocal);
@@ -1759,7 +1827,7 @@ class BodyCodegen {
                 "(Ljava/lang/Object;"
                         + "Ljava/lang/String;"
                         + "Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + ")Lorg/mozilla/javascript/Ref;");
     }
 
@@ -1787,8 +1855,7 @@ class BodyCodegen {
                 String name = unnestedYields.get(node);
                 cfw.addALoad(variableObjectLocal);
                 cfw.addALoad(contextLocal);
-                cfw.addALoad(variableObjectLocal);
-                addDynamicInvoke("PROP:GETNOWARN:" + name, Signatures.PROP_GET_NOWARN);
+                addDynamicInvoke("NAME:GET:" + name, Signatures.NAME_GET);
             }
             return;
         }
@@ -1808,7 +1875,7 @@ class BodyCodegen {
             cfw.add(ByteCode.SWAP);
             cfw.addALoad(contextLocal);
             cfw.addALoad(variableObjectLocal);
-            addDynamicInvoke("PROP:SET:" + nn, Signatures.PROP_SET);
+            addDynamicInvoke("NAME:SET:" + nn, Signatures.NAME_SET);
             cfw.add(ByteCode.POP);
 
             unnestedYields.put(nestedYield, nn);
@@ -1933,7 +2000,7 @@ class BodyCodegen {
                 "org/mozilla/javascript/ScriptRuntime",
                 "getTemplateLiteralCallSite",
                 "(Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "[Ljava/lang/Object;I"
                         + ")Lorg/mozilla/javascript/Scriptable;");
     }
@@ -2035,7 +2102,7 @@ class BodyCodegen {
                 "initFunction",
                 "(Lorg/mozilla/javascript/JSFunction;"
                         + "I"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "Lorg/mozilla/javascript/Context;"
                         + ")V");
     }
@@ -2206,7 +2273,7 @@ class BodyCodegen {
                         + "Ljava/lang/String;"
                         + "I"
                         + "Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + ")Lorg/mozilla/javascript/Scriptable;");
     }
 
@@ -2278,7 +2345,7 @@ class BodyCodegen {
                         "org/mozilla/javascript/NewLiteralStorage",
                         "spread",
                         "(Lorg/mozilla/javascript/Context;"
-                                + "Lorg/mozilla/javascript/Scriptable;"
+                                + "Lorg/mozilla/javascript/VarScope;"
                                 + "Ljava/lang/Object;"
                                 + "I"
                                 + ")V");
@@ -2326,7 +2393,7 @@ class BodyCodegen {
                 "([Ljava/lang/Object;"
                         + "[I"
                         + "Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + ")Lorg/mozilla/javascript/Scriptable;");
     }
 
@@ -2375,7 +2442,7 @@ class BodyCodegen {
                     addOptRuntimeInvoke(
                             "spread",
                             "(Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + "Lorg/mozilla/javascript/NewLiteralStorage;"
                                     + "Ljava/lang/Object;"
                                     + "I"
@@ -2424,7 +2491,7 @@ class BodyCodegen {
                     addOptRuntimeInvoke(
                             "spread",
                             "(Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + "Lorg/mozilla/javascript/NewLiteralStorage;"
                                     + "Ljava/lang/Object;"
                                     + "I"
@@ -2533,7 +2600,7 @@ class BodyCodegen {
                 ByteCode.INVOKEVIRTUAL,
                 "org/mozilla/javascript/Context",
                 "newObject",
-                "(Lorg/mozilla/javascript/Scriptable;)Lorg/mozilla/javascript/Scriptable;");
+                "(Lorg/mozilla/javascript/VarScope;)Lorg/mozilla/javascript/Scriptable;");
         cfw.add(ByteCode.DUP);
         savedHomeObjectLocal = getNewWordLocal();
         cfw.addAStore(savedHomeObjectLocal);
@@ -2572,7 +2639,7 @@ class BodyCodegen {
                         + "[Ljava/lang/Object;"
                         + "[I"
                         + "Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + ")V");
     }
 
@@ -2599,7 +2666,7 @@ class BodyCodegen {
                 "(Lorg/mozilla/javascript/Context;"
                         + "Ljava/lang/Object;"
                         + "[Ljava/lang/Object;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "I"
                         + ")Ljava/lang/Object;");
     }
@@ -2624,7 +2691,7 @@ class BodyCodegen {
                         + "Lorg/mozilla/javascript/Callable;"
                         + "Lorg/mozilla/javascript/Scriptable;"
                         + "[Ljava/lang/Object;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "Lorg/mozilla/javascript/Scriptable;"
                         + "I"
                         + "Ljava/lang/String;IZ"
@@ -2668,7 +2735,7 @@ class BodyCodegen {
                         + "Lorg/mozilla/javascript/Callable;"
                         + "Lorg/mozilla/javascript/Scriptable;"
                         + "[Ljava/lang/Object;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "Lorg/mozilla/javascript/Scriptable;"
                         + "I"
                         + "Ljava/lang/String;IZ"
@@ -2735,7 +2802,7 @@ class BodyCodegen {
                 "org/mozilla/javascript/Callable",
                 "call",
                 "(Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "Lorg/mozilla/javascript/Scriptable;"
                         + "[Ljava/lang/Object;"
                         + ")Ljava/lang/Object;");
@@ -2768,7 +2835,7 @@ class BodyCodegen {
                 "newObject",
                 "(Ljava/lang/Object;"
                         + "Lorg/mozilla/javascript/Context;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/VarScope;"
                         + "[Ljava/lang/Object;"
                         + ")Lorg/mozilla/javascript/Scriptable;");
     }
@@ -2817,6 +2884,16 @@ class BodyCodegen {
         cfw.add(ByteCode.IF_ACMPNE, regularCall);
 
         // stack: ... directFunct
+        if (type != Token.NEW) {
+            cfw.add(ByteCode.DUP);
+            cfw.addALoad(thisObjLocal);
+            cfw.addInvoke(
+                    ByteCode.INVOKEVIRTUAL,
+                    "org/mozilla/javascript/JSFunction",
+                    "getThisObj",
+                    "(Lorg/mozilla/javascript/Scriptable;)Lorg/mozilla/javascript/Scriptable;");
+            cfw.addAStore(thisObjLocal);
+        }
         cfw.addALoad(contextLocal);
         cfw.add(ByteCode.SWAP);
         cfw.addALoad(newTargetLocal);
@@ -2886,7 +2963,7 @@ class BodyCodegen {
                     "newObject",
                     "(Ljava/lang/Object;"
                             + "Lorg/mozilla/javascript/Context;"
-                            + "Lorg/mozilla/javascript/Scriptable;"
+                            + "Lorg/mozilla/javascript/VarScope;"
                             + "[Ljava/lang/Object;"
                             + ")Lorg/mozilla/javascript/Scriptable;");
         } else {
@@ -2895,7 +2972,7 @@ class BodyCodegen {
                     "org/mozilla/javascript/Callable",
                     "call",
                     "(Lorg/mozilla/javascript/Context;"
-                            + "Lorg/mozilla/javascript/Scriptable;"
+                            + "Lorg/mozilla/javascript/VarScope;"
                             + "Lorg/mozilla/javascript/Scriptable;"
                             + "[Ljava/lang/Object;"
                             + ")Ljava/lang/Object;");
@@ -3011,7 +3088,7 @@ class BodyCodegen {
                                 "(Ljava/lang/Object;"
                                         + "Ljava/lang/Object;"
                                         + "Lorg/mozilla/javascript/Context;"
-                                        + "Lorg/mozilla/javascript/Scriptable;"
+                                        + "Lorg/mozilla/javascript/VarScope;"
                                         + ")Lorg/mozilla/javascript/ScriptRuntime$LookupResult;");
                     }
                     break;
@@ -3064,9 +3141,25 @@ class BodyCodegen {
     }
 
     private void updateLineNumber(Node node) {
-        itsLineNumber = node.getLineno();
-        if (itsLineNumber == -1) return;
-        cfw.addLineNumberEntry((short) itsLineNumber);
+        int lineno = node.getLineno();
+        if (lineno == -1) return;
+        int emitLine = remapLine(lineno, node.getColumn());
+        if (emitLine == -1) return;
+        itsLineNumber = emitLine;
+        cfw.addLineNumberEntry((short) emitLine);
+    }
+
+    private void addRemappedLineEntry(int line, int column) {
+        int emitLine = remapLine(line, column);
+        if (emitLine == -1) return;
+        cfw.addLineNumberEntry((short) emitLine);
+    }
+
+    private int remapLine(int line, int column) {
+        SourceMapper mapper = compilerEnv.getSourceMapper();
+        if (mapper == null) return line;
+        Position mapped = mapper.mapPosition(line, column);
+        return mapped == null ? -1 : mapped.getLine();
     }
 
     private void visitTryCatchFinally(Jump node, Node child) {
@@ -3460,7 +3553,7 @@ class BodyCodegen {
             return exceptionInfo.getLast();
         }
 
-        private class ExceptionInfo {
+        private static class ExceptionInfo {
             ExceptionInfo(Jump node, Node finallyBlock) {
                 this.finallyBlock = finallyBlock;
                 handlerLabels = new int[EXCEPTION_MAX];
@@ -3639,7 +3732,7 @@ class BodyCodegen {
         cfw.addPush(node.getString());
         addScriptRuntimeInvoke(
                 "typeofName",
-                "(Lorg/mozilla/javascript/Scriptable;"
+                "(Lorg/mozilla/javascript/VarScope;"
                         + "Ljava/lang/String;"
                         + ")Ljava/lang/String;");
     }
@@ -3777,7 +3870,7 @@ class BodyCodegen {
                 cfw.addPush(incrDecrMask);
                 addScriptRuntimeInvoke(
                         "nameIncrDecr",
-                        "(Lorg/mozilla/javascript/Scriptable;"
+                        "(Lorg/mozilla/javascript/VarScope;"
                                 + "Ljava/lang/String;"
                                 + "Lorg/mozilla/javascript/Context;"
                                 + "I)Ljava/lang/Object;");
@@ -3797,7 +3890,7 @@ class BodyCodegen {
                             "(Ljava/lang/Object;"
                                     + "Ljava/lang/String;"
                                     + "Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + "I)Ljava/lang/Object;");
                     break;
                 }
@@ -3815,7 +3908,7 @@ class BodyCodegen {
                                 "(Ljava/lang/Object;"
                                         + "D"
                                         + "Lorg/mozilla/javascript/Context;"
-                                        + "Lorg/mozilla/javascript/Scriptable;"
+                                        + "Lorg/mozilla/javascript/VarScope;"
                                         + "I"
                                         + ")Ljava/lang/Object;");
                     } else {
@@ -3824,7 +3917,7 @@ class BodyCodegen {
                                 "(Ljava/lang/Object;"
                                         + "Ljava/lang/Object;"
                                         + "Lorg/mozilla/javascript/Context;"
-                                        + "Lorg/mozilla/javascript/Scriptable;"
+                                        + "Lorg/mozilla/javascript/VarScope;"
                                         + "I"
                                         + ")Ljava/lang/Object;");
                     }
@@ -3841,7 +3934,7 @@ class BodyCodegen {
                             "refIncrDecr",
                             "(Lorg/mozilla/javascript/Ref;"
                                     + "Lorg/mozilla/javascript/Context;"
-                                    + "Lorg/mozilla/javascript/Scriptable;"
+                                    + "Lorg/mozilla/javascript/VarScope;"
                                     + "I)Ljava/lang/Object;");
                     break;
                 }
@@ -4596,8 +4689,8 @@ class BodyCodegen {
         addScriptRuntimeInvoke(
                 "enterDotQuery",
                 "(Ljava/lang/Object;"
-                        + "Lorg/mozilla/javascript/Scriptable;"
-                        + ")Lorg/mozilla/javascript/Scriptable;");
+                        + "Lorg/mozilla/javascript/VarScope;"
+                        + ")Lorg/mozilla/javascript/VarScope;");
         cfw.addAStore(variableObjectLocal);
 
         // add push null/pop with label in between to simplify code for loop
@@ -4613,14 +4706,14 @@ class BodyCodegen {
         cfw.addALoad(variableObjectLocal);
         addScriptRuntimeInvoke(
                 "updateDotQuery",
-                "(Z" + "Lorg/mozilla/javascript/Scriptable;" + ")Ljava/lang/Object;");
+                "(Z" + "Lorg/mozilla/javascript/VarScope;" + ")Ljava/lang/Object;");
         cfw.add(ByteCode.DUP);
         cfw.add(ByteCode.IFNULL, queryLoopStart);
         // stack: ... non_null_result_of_updateDotQuery
         cfw.addALoad(variableObjectLocal);
         addScriptRuntimeInvoke(
                 "leaveDotQuery",
-                "(Lorg/mozilla/javascript/Scriptable;" + ")Lorg/mozilla/javascript/Scriptable;");
+                "(Lorg/mozilla/javascript/VarScope;" + ")Lorg/mozilla/javascript/VarScope;");
         cfw.addAStore(variableObjectLocal);
     }
 
@@ -4845,6 +4938,7 @@ class BodyCodegen {
     private int generatorStateLocal;
     private int savedHomeObjectLocal;
     private int newTargetLocal;
+    private int parentStrictnessLocal;
 
     private boolean isGenerator;
     private int generatorSwitch;

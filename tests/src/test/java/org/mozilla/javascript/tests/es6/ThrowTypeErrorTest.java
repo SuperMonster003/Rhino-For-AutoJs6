@@ -4,7 +4,7 @@
 
 package org.mozilla.javascript.tests.es6;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.testutils.Utils;
 
 /** Tests for ThrowTypeError support. */
@@ -15,7 +15,7 @@ public class ThrowTypeErrorTest {
         String code =
                 "let args = function() { 'use strict'; return arguments; }();"
                         + "let desc = Object.getOwnPropertyDescriptor(args, 'callee');"
-                        + "let ThrowTypeError = desc.get"
+                        + "let ThrowTypeError = desc.get;"
                         + "'' + typeof ThrowTypeError";
 
         Utils.assertWithAllModes_ES6("function", code);

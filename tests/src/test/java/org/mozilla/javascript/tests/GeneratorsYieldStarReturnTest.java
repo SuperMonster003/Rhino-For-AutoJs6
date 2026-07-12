@@ -4,12 +4,14 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.PropHolder;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 /**
@@ -53,25 +55,25 @@ public class GeneratorsYieldStarReturnTest {
         Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
-                    Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.evaluateString(scope, script, "test", 1, null);
 
                     Object result = scope.get("result", scope);
-                    assertTrue("result should be a Scriptable", result instanceof Scriptable);
+                    assertTrue(result instanceof Scriptable, "result should be a Scriptable");
 
                     Scriptable resultObj = (Scriptable) result;
                     assertEquals(
-                            "Result value should be 2",
                             2.0,
                             getNumberProperty(resultObj, "value"),
-                            0.001);
+                            0.001,
+                            "Result value should be 2");
                     assertEquals(
-                            "Result should be done",
                             Boolean.TRUE,
-                            resultObj.get("done", resultObj));
+                            resultObj.get("done", resultObj),
+                            "Result should be done");
 
                     double returnGets = getNumberProperty(scope, "returnGets");
-                    assertEquals("Return getter should be called once", 1.0, returnGets, 0.001);
+                    assertEquals(1.0, returnGets, 0.001, "Return getter should be called once");
                     return null;
                 });
     }
@@ -111,25 +113,25 @@ public class GeneratorsYieldStarReturnTest {
         Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
-                    Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.evaluateString(scope, script, "test", 1, null);
 
                     Object result = scope.get("result", scope);
-                    assertTrue("result should be a Scriptable", result instanceof Scriptable);
+                    assertTrue(result instanceof Scriptable, "result should be a Scriptable");
 
                     Scriptable resultObj = (Scriptable) result;
                     assertEquals(
-                            "Result value should be 42",
                             42.0,
                             getNumberProperty(resultObj, "value"),
-                            0.001);
+                            0.001,
+                            "Result value should be 42");
                     assertEquals(
-                            "Result should be done",
                             Boolean.TRUE,
-                            resultObj.get("done", resultObj));
+                            resultObj.get("done", resultObj),
+                            "Result should be done");
 
                     Object returnCalled = scope.get("returnCalled", scope);
-                    assertEquals("Return method should be called", Boolean.TRUE, returnCalled);
+                    assertEquals(Boolean.TRUE, returnCalled, "Return method should be called");
                     return null;
                 });
     }
@@ -161,22 +163,22 @@ public class GeneratorsYieldStarReturnTest {
         Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
-                    Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.evaluateString(scope, script, "test", 1, null);
 
                     Object result = scope.get("result", scope);
-                    assertTrue("result should be a Scriptable", result instanceof Scriptable);
+                    assertTrue(result instanceof Scriptable, "result should be a Scriptable");
 
                     Scriptable resultObj = (Scriptable) result;
                     assertEquals(
-                            "Result value should be 99",
                             99.0,
                             getNumberProperty(resultObj, "value"),
-                            0.001);
+                            0.001,
+                            "Result value should be 99");
                     assertEquals(
-                            "Result should be done",
                             Boolean.TRUE,
-                            resultObj.get("done", resultObj));
+                            resultObj.get("done", resultObj),
+                            "Result should be done");
                     return null;
                 });
     }
@@ -215,30 +217,30 @@ public class GeneratorsYieldStarReturnTest {
         Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
-                    Scriptable scope = cx.initStandardObjects();
+                    TopLevel scope = cx.initStandardObjects();
                     cx.evaluateString(scope, script, "test", 1, null);
 
                     Object result = scope.get("result", scope);
-                    assertTrue("result should be a Scriptable", result instanceof Scriptable);
+                    assertTrue(result instanceof Scriptable, "result should be a Scriptable");
 
                     Scriptable resultObj = (Scriptable) result;
                     assertEquals(
-                            "Result value should be 15",
                             15.0,
                             getNumberProperty(resultObj, "value"),
-                            0.001);
+                            0.001,
+                            "Result value should be 15");
                     assertEquals(
-                            "Result should be done",
                             Boolean.TRUE,
-                            resultObj.get("done", resultObj));
+                            resultObj.get("done", resultObj),
+                            "Result should be done");
 
                     Object returnCalled = scope.get("returnCalled", scope);
-                    assertEquals("Return method should be called", Boolean.TRUE, returnCalled);
+                    assertEquals(Boolean.TRUE, returnCalled, "Return method should be called");
                     return null;
                 });
     }
 
-    private double getNumberProperty(Scriptable obj, String property) {
+    private <T extends PropHolder<T>> double getNumberProperty(T obj, String property) {
         Object value = obj.get(property, obj);
         if (value instanceof Number) {
             return ((Number) value).doubleValue();

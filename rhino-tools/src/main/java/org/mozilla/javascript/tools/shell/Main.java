@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ContextAction;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.GeneratedClassLoader;
@@ -37,9 +38,11 @@ import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SecurityController;
+import org.mozilla.javascript.VarScope;
 import org.mozilla.javascript.commonjs.module.ModuleScope;
 import org.mozilla.javascript.commonjs.module.Require;
 import org.mozilla.javascript.config.RhinoConfig;
+import org.mozilla.javascript.tools.Console;
 import org.mozilla.javascript.tools.SourceReader;
 import org.mozilla.javascript.tools.ToolErrorReporter;
 
@@ -131,7 +134,7 @@ public class Main {
      * it with the current thread. Then set up the execution environment and begin to execute
      * scripts.
      */
-    public static void main(String args[]) {
+    public static void main(String[] args) {
         try {
             if (RhinoConfig.get("rhino.use_java_policy_security", false)) {
                 initJavaPolicySecuritySupport();
@@ -140,15 +143,20 @@ public class Main {
             ex.printStackTrace(System.err);
         }
 
-        int result = exec(args);
+        int result;
+        try {
+            result = exec(args);
+        } finally {
+            global.cleanup();
+        }
         if (result != 0) {
             System.exit(result);
         }
     }
 
     /** Execute the given arguments, but don't System.exit at the end. */
-    public static int exec(String origArgs[]) {
-        errorReporter = new ToolErrorReporter(false, global.getErr());
+    public static int exec(String[] origArgs) {
+        errorReporter = new ToolErrorReporter(false, global.getConsole().getErr());
         shellContextFactory.setErrorReporter(errorReporter);
         String[] args = processOptions(origArgs);
         if (exitCode > 0) {
@@ -201,8 +209,8 @@ public class Main {
         try {
             Script script = cx.compileString(scriptText, "<command>", 1, null);
             if (script != null) {
-                Scriptable scope = getShellScope();
-                script.exec(cx, scope, scope);
+                VarScope scope = getShellScope();
+                script.exec(cx, scope, ScriptableObject.getTopLevelScope(scope).getGlobalThis());
             }
         } catch (RhinoException rex) {
             ToolErrorReporter.reportException(cx.getErrorReporter(), rex);
@@ -220,11 +228,11 @@ public class Main {
         return global;
     }
 
-    static Scriptable getShellScope() {
+    static VarScope getShellScope() {
         return getScope(null);
     }
 
-    static Scriptable getScope(String path) {
+    static VarScope getScope(String path) {
         if (useRequire) {
             // If CommonJS modules are enabled use a module scope that resolves
             // relative ids relative to the current URL, file or working directory.
@@ -245,7 +253,7 @@ public class Main {
                     uri = new File(path).toURI();
                 }
             }
-            return new ModuleScope(global, uri, null);
+            return ModuleScope.createModuleScope(global, uri, null);
         }
         return global;
     }
@@ -300,13 +308,11 @@ public class Main {
                     usageError = args[i];
                     break goodUsage;
                 }
-                if (opt < 0) {
-                    shellContextFactory.setInterpretedMode(true);
-                }
+                shellContextFactory.setEvaluationMethod(EvaluationMethod.forLevel(opt));
                 continue;
             }
             if (arg.equals("-int") || arg.equals("-interpreted")) {
-                shellContextFactory.setInterpretedMode(true);
+                shellContextFactory.setEvaluationMethod(EvaluationMethod.Interpreter);
                 continue;
             }
             if (arg.equals("-encoding")) {
@@ -391,7 +397,7 @@ public class Main {
             }
             if (arg.equals("-?") || arg.equals("-help")) {
                 // print usage message
-                global.getOut()
+                global.getConsole()
                         .println(
                                 ToolErrorReporter.getMessage(
                                         "msg.shell.usage", Main.class.getName()));
@@ -402,8 +408,8 @@ public class Main {
             break goodUsage;
         }
         // print error and usage message
-        global.getOut().println(ToolErrorReporter.getMessage("msg.shell.invalid", usageError));
-        global.getOut()
+        global.getConsole().println(ToolErrorReporter.getMessage("msg.shell.invalid", usageError));
+        global.getConsole()
                 .println(ToolErrorReporter.getMessage("msg.shell.usage", Main.class.getName()));
         exitCode = 1;
         return null;
@@ -437,7 +443,7 @@ public class Main {
      */
     public static void processSource(Context cx, String filename) throws IOException {
         if (filename == null || filename.equals("-")) {
-            Scriptable scope = getShellScope();
+            VarScope scope = getShellScope();
             Charset cs;
             String charEnc = shellContextFactory.getCharacterEncoding();
             if (charEnc != null) {
@@ -445,10 +451,11 @@ public class Main {
             } else {
                 cs = Charset.defaultCharset();
             }
-            ShellConsole console = global.getConsole(cs);
+            Console console = global.getConsole(cs);
             if (filename == null) {
                 // print implementation version
-                console.println(cx.getImplementationVersion());
+                console.println(
+                        cx.getImplementationVersion() + " (" + console.getImplementation() + ')');
             }
 
             int lineno = 1;
@@ -482,7 +489,11 @@ public class Main {
                     String finalSource = source.toString();
                     Script script = cx.compileString(finalSource, "<stdin>", lineno, null);
                     if (script != null) {
-                        Object result = script.exec(cx, scope, scope);
+                        Object result =
+                                script.exec(
+                                        cx,
+                                        scope,
+                                        ScriptableObject.getTopLevelScope(scope).getGlobalThis());
                         // Avoid printing out undefined or function definitions.
                         if (result != Context.getUndefinedValue()
                                 && !(result instanceof Function
@@ -518,7 +529,7 @@ public class Main {
         }
     }
 
-    public static void processFileNoThrow(Context cx, Scriptable scope, String filename) {
+    public static void processFileNoThrow(Context cx, VarScope scope, String filename) {
         try {
             processFile(cx, scope, filename);
         } catch (IOException ioex) {
@@ -538,16 +549,15 @@ public class Main {
         }
     }
 
-    public static void processFile(Context cx, Scriptable scope, String filename)
-            throws IOException {
+    public static void processFile(Context cx, VarScope scope, String filename) throws IOException {
         if (securityImpl == null) {
-            processFileSecure(cx, scope, filename, null);
+            processFileSecure(cx, (VarScope) scope, filename, null);
         } else {
             securityImpl.callProcessFileSecure(cx, scope, filename);
         }
     }
 
-    static void processFileSecure(Context cx, Scriptable scope, String path, Object securityDomain)
+    static void processFileSecure(Context cx, VarScope scope, String path, Object securityDomain)
             throws IOException {
 
         boolean isClass = path.endsWith(".class");
@@ -581,7 +591,8 @@ public class Main {
         }
 
         if (script != null) {
-            script.exec(cx, scope, scope);
+            Scriptable global = ScriptableObject.getTopLevelScope(scope).getGlobalThis();
+            script.exec(cx, scope, global);
         }
     }
 
@@ -665,24 +676,12 @@ public class Main {
         }
     }
 
-    public static InputStream getIn() {
-        return getGlobal().getIn();
-    }
-
     public static void setIn(InputStream in) {
         getGlobal().setIn(in);
     }
 
-    public static PrintStream getOut() {
-        return getGlobal().getOut();
-    }
-
     public static void setOut(PrintStream out) {
         getGlobal().setOut(out);
-    }
-
-    public static PrintStream getErr() {
-        return getGlobal().getErr();
     }
 
     public static void setErr(PrintStream err) {

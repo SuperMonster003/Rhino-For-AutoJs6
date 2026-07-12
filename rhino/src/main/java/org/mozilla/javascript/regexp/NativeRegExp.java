@@ -6,19 +6,28 @@
 
 package org.mozilla.javascript.regexp;
 
+import static org.mozilla.javascript.ClassDescriptor.Destination.CTOR;
+import static org.mozilla.javascript.ClassDescriptor.Destination.PROTO;
+
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntPredicate;
 import org.mozilla.javascript.AbstractEcmaObjectOperations;
 import org.mozilla.javascript.AbstractEcmaStringOperations;
+import org.mozilla.javascript.AbstractEcmaStringOperations.ReplacementOperation;
 import org.mozilla.javascript.Callable;
+import org.mozilla.javascript.ClassDescriptor;
 import org.mozilla.javascript.Constructable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
-import org.mozilla.javascript.IdFunctionObject;
-import org.mozilla.javascript.IdScriptableObject;
+import org.mozilla.javascript.JSDescriptor;
+import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.Kit;
 import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeObject;
@@ -26,10 +35,10 @@ import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
-import org.mozilla.javascript.Symbol;
 import org.mozilla.javascript.SymbolKey;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.VarScope;
 import org.mozilla.javascript.config.RhinoConfig;
 
 /**
@@ -42,8 +51,8 @@ import org.mozilla.javascript.config.RhinoConfig;
  * @author Brendan Eich
  * @author Norris Boyd
  */
-public class NativeRegExp extends IdScriptableObject {
-    private static final long serialVersionUID = 4965263491464903264L;
+public class NativeRegExp extends ScriptableObject {
+    @Serial private static final long serialVersionUID = 4965263491464903264L;
 
     private static final Object REGEXP_TAG = new Object();
 
@@ -88,7 +97,9 @@ public class NativeRegExp extends IdScriptableObject {
     private static final byte REOP_UCFLAT1i = REOP_UCFLAT1 + 1; /* case-independent REOP_UCFLAT1 */
     private static final byte REOP_UCSPFLAT1 =
             REOP_UCFLAT1i + 1; /* single Unicode surrogate pair */
-    private static final byte REOP_CLASS = REOP_UCSPFLAT1 + 1; /* character class with index */
+    private static final byte REOP_UCSPFLAT1i =
+            REOP_UCSPFLAT1 + 1; /* case-independent REOP_UCSPFLAT1 */
+    private static final byte REOP_CLASS = REOP_UCSPFLAT1i + 1; /* character class with index */
     private static final byte REOP_NCLASS = REOP_CLASS + 1; /* negated character class with index */
     private static final byte REOP_NAMED_BACKREF = REOP_NCLASS + 1; /* named back-reference */
     private static final byte REOP_UPROP = REOP_NAMED_BACKREF + 1; /* unicode property */
@@ -145,39 +156,247 @@ public class NativeRegExp extends IdScriptableObject {
 
     private static final int ANCHOR_BOL = -2;
 
-    static Object init(Context cx, Scriptable scope, boolean sealed) {
+    private static final ClassDescriptor DESCRIPTOR;
+    private static final JSDescriptor<JSFunction> EXEC_DESCRIPTOR;
+
+    static {
+        DESCRIPTOR =
+                makeCtorBuilder()
+                        .withMethod(PROTO, "compile", 2, NativeRegExp::js_compile)
+                        .withMethod(PROTO, "toString", 0, NativeRegExp::js_toString)
+                        .withMethod(PROTO, "toSource", 0, NativeRegExp::js_toSource)
+                        .withMethod(PROTO, "exec", 1, NativeRegExp::js_exec)
+                        .withMethod(PROTO, "test", 1, NativeRegExp::js_test)
+                        .withMethod(PROTO, "prefix", 1, NativeRegExp::js_prefix)
+                        .withMethod(PROTO, SymbolKey.MATCH, 1, NativeRegExp::js_match)
+                        .withMethod(PROTO, SymbolKey.MATCH_ALL, 1, NativeRegExp::js_matchAll)
+                        .withMethod(PROTO, SymbolKey.SEARCH, 1, NativeRegExp::js_search)
+                        .withMethod(PROTO, SymbolKey.REPLACE, 2, NativeRegExp::js_replace)
+                        .withMethod(PROTO, SymbolKey.SPLIT, 2, NativeRegExp::js_split)
+                        .withProp(CTOR, SymbolKey.SPECIES, ScriptRuntimeES6::symbolSpecies)
+                        .withProp(
+                                PROTO,
+                                "source",
+                                (c) -> new String(realThis(c, "get source").re.source),
+                                null,
+                                DONTENUM | READONLY)
+                        .withProp(
+                                PROTO,
+                                "flags",
+                                (c) -> {
+                                    StringBuilder buf = new StringBuilder();
+                                    if (!ScriptRuntime.isObject(c)) {
+                                        throw ScriptRuntime.typeErrorById(
+                                                "msg.arg.not.object", ScriptRuntime.typeof(c));
+                                    }
+                                    appendFlags(c, buf);
+                                    return buf.toString();
+                                },
+                                null,
+                                DONTENUM | READONLY)
+                        .withProp(
+                                PROTO,
+                                "global",
+                                (c) ->
+                                        ScriptRuntime.wrapBoolean(
+                                                (realThis(c, "get global").re.flags & JSREG_GLOB)
+                                                        != 0),
+                                null,
+                                DONTENUM | READONLY)
+                        .withProp(
+                                PROTO,
+                                "ignoreCase",
+                                (c) ->
+                                        ScriptRuntime.wrapBoolean(
+                                                (realThis(c, "").re.flags & JSREG_FOLD) != 0),
+                                null,
+                                DONTENUM | READONLY)
+                        .withProp(
+                                PROTO,
+                                "multiline",
+                                (c) ->
+                                        ScriptRuntime.wrapBoolean(
+                                                (realThis(c, "").re.flags & JSREG_MULTILINE) != 0),
+                                null,
+                                DONTENUM | READONLY)
+                        .withProp(
+                                PROTO,
+                                "dotAll",
+                                (c) ->
+                                        ScriptRuntime.wrapBoolean(
+                                                (realThis(c, "").re.flags & JSREG_DOTALL) != 0),
+                                null,
+                                DONTENUM | READONLY)
+                        .withProp(
+                                PROTO,
+                                "sticky",
+                                (c) ->
+                                        ScriptRuntime.wrapBoolean(
+                                                (realThis(c, "").re.flags & JSREG_STICKY) != 0),
+                                null,
+                                DONTENUM | READONLY)
+                        .withProp(
+                                PROTO,
+                                "unicode",
+                                (c) ->
+                                        ScriptRuntime.wrapBoolean(
+                                                (realThis(c, "").re.flags & JSREG_UNICODE) != 0),
+                                null,
+                                DONTENUM | READONLY)
+                        .build();
+        EXEC_DESCRIPTOR = DESCRIPTOR.findProtoDesc("exec");
+    }
+
+    static Object init(Context cx, VarScope scope, boolean sealed) {
 
         NativeRegExp proto = NativeRegExpInstantiator.withLanguageVersion(cx.getLanguageVersion());
         proto.re = compileRE(cx, "", null, false);
-        proto.activatePrototypeMap(MAX_PROTOTYPE_ID);
-        proto.setParentScope(scope);
-        proto.setPrototype(getObjectPrototype(scope));
 
-        var ctor = NativeRegExpCtor.init(cx, scope, sealed);
-        // Bug #324006: ECMA-262 15.10.6.1 says "The initial value of
-        // RegExp.prototype.constructor is the builtin RegExp constructor."
-        proto.defineProperty("constructor", ctor, ScriptableObject.DONTENUM);
-
-        ScriptRuntime.setFunctionProtoAndParent(ctor, cx, scope);
-
-        ctor.setImmunePrototypeProperty(proto);
-
-        if (sealed) {
-            proto.sealObject();
-            ctor.sealObject();
-        }
-
-        ScriptableObject.defineProperty(scope, "RegExp", ctor, ScriptableObject.DONTENUM);
-
-        ScriptRuntimeES6.addSymbolSpecies(cx, scope, ctor);
-
-        return ctor;
+        return DESCRIPTOR.buildConstructor(cx, scope, proto, sealed);
     }
 
-    NativeRegExp(Scriptable scope, RECompiled regexpCompiled) {
+    static ClassDescriptor.Builder makeCtorBuilder() {
+        var builder =
+                new ClassDescriptor.Builder(
+                                "RegExp",
+                                2,
+                                NativeRegExp::js_constructCall,
+                                NativeRegExp::js_construct)
+                        .withProp(
+                                CTOR,
+                                "multiline",
+                                (c) -> ScriptRuntime.wrapBoolean(getImpl().multiline),
+                                (c, v) -> getImpl().multiline = ScriptRuntime.toBoolean(v),
+                                PERMANENT)
+                        .withProp(
+                                CTOR,
+                                "$*",
+                                (c) -> ScriptRuntime.wrapBoolean(getImpl().multiline),
+                                (c, v) -> getImpl().multiline = ScriptRuntime.toBoolean(v),
+                                PERMANENT)
+                        .withProp(
+                                CTOR,
+                                "input",
+                                (c) -> toStr(getImpl().input),
+                                (c, v) -> getImpl().input = ScriptRuntime.toString(v),
+                                PERMANENT)
+                        .withProp(
+                                CTOR,
+                                "$_",
+                                (c) -> toStr(getImpl().input),
+                                (c, v) -> getImpl().input = ScriptRuntime.toString(v),
+                                PERMANENT)
+                        .withProp(
+                                CTOR,
+                                "lastMatch",
+                                (c) -> toStr(getImpl().lastMatch),
+                                null,
+                                PERMANENT)
+                        .withProp(CTOR, "$&", (c) -> toStr(getImpl().lastMatch), null, PERMANENT)
+                        .withProp(
+                                CTOR,
+                                "lastParen",
+                                (c) -> toStr(getImpl().lastParen),
+                                null,
+                                PERMANENT)
+                        .withProp(CTOR, "$+", (c) -> toStr(getImpl().lastParen), null, PERMANENT)
+                        .withProp(
+                                CTOR,
+                                "leftContext",
+                                (c) -> toStr(getImpl().leftContext),
+                                null,
+                                PERMANENT)
+                        .withProp(CTOR, "$`", (c) -> toStr(getImpl().leftContext), null, PERMANENT)
+                        .withProp(
+                                CTOR,
+                                "rightContext",
+                                (c) -> toStr(getImpl().rightContext),
+                                null,
+                                PERMANENT)
+                        .withProp(
+                                CTOR, "$'", (c) -> toStr(getImpl().rightContext), null, PERMANENT);
+
+        for (int i = 1; i < 10; i++) {
+            int c = i - 1;
+            builder.withProp(
+                    CTOR,
+                    String.format("$%d", i),
+                    (x) -> toStr(getImpl().getParenSubString(c)),
+                    null,
+                    PERMANENT);
+        }
+        return builder;
+    }
+
+    private static Scriptable js_constructCall(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        if (args.length > 0
+                && args[0] instanceof NativeRegExp
+                && (args.length == 1 || args[1] == Undefined.instance)) {
+            return (Scriptable) args[0];
+        }
+        return js_construct(cx, f, nt, s, thisObj, args);
+    }
+
+    private static Scriptable js_construct(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        NativeRegExp re = NativeRegExpInstantiator.withLanguageVersion(cx.getLanguageVersion());
+        re.compile(cx, s, args);
+        ScriptRuntime.setBuiltinProtoAndParent(re, s, TopLevel.Builtins.RegExp);
+        return re;
+    }
+
+    private static String toStr(String subStr) {
+        return subStr == null ? "" : subStr;
+    }
+
+    private static String toStr(SubString subStr) {
+        return subStr == null ? "" : subStr.toString();
+    }
+
+    private static RegExpImpl getImpl() {
+        Context cx = Context.getCurrentContext();
+        return (RegExpImpl) ScriptRuntime.getRegExpProxy(cx);
+    }
+
+    NativeRegExp(VarScope scope, RECompiled regexpCompiled) {
         this.re = regexpCompiled;
+        // This needs to be built in.
+        createLastIndexProp();
         setLastIndex(ScriptRuntime.zeroObj);
         ScriptRuntime.setBuiltinProtoAndParent(this, scope, TopLevel.Builtins.RegExp);
+    }
+
+    NativeRegExp() {
+        createLastIndexProp();
+    }
+
+    private void createLastIndexProp() {
+        ScriptableObject.defineBuiltInProperty(
+                this,
+                "lastIndex",
+                lastIndexAttr,
+                NativeRegExp::lastIndexGetter,
+                NativeRegExp::lastIndexSetter,
+                NativeRegExp::lastIndexAttrSetter);
+    }
+
+    private static Object lastIndexGetter(NativeRegExp regexp, Scriptable start) {
+        return regexp.lastIndex;
+    }
+
+    private static boolean lastIndexSetter(
+            NativeRegExp builtIn,
+            Object value,
+            Scriptable owner,
+            Scriptable start,
+            boolean isThrow) {
+        builtIn.setLastIndex(value);
+        return true;
+    }
+
+    private static void lastIndexAttrSetter(NativeRegExp builtIn, int attrs) {
+        builtIn.lastIndexAttr = attrs;
     }
 
     @Override
@@ -196,7 +415,7 @@ public class NativeRegExp extends IdScriptableObject {
         return "object";
     }
 
-    Scriptable compile(Context cx, Scriptable scope, Object[] args) {
+    Scriptable compile(Context cx, VarScope scope, Object[] args) {
         if (args.length >= 1
                 && args[0] instanceof NativeRegExp
                 && (args.length == 1 || args[1] == Undefined.instance)) {
@@ -243,20 +462,24 @@ public class NativeRegExp extends IdScriptableObject {
             buf.append("(?:)");
         }
         buf.append('/');
-        appendFlags(buf);
+        appendFlags(this, buf);
         return buf.toString();
     }
 
-    private void appendFlags(StringBuilder buf) {
-        if ((re.flags & JSREG_GLOB) != 0) buf.append('g');
-        if ((re.flags & JSREG_FOLD) != 0) buf.append('i');
-        if ((re.flags & JSREG_MULTILINE) != 0) buf.append('m');
-        if ((re.flags & JSREG_DOTALL) != 0) buf.append('s');
-        if ((re.flags & JSREG_STICKY) != 0) buf.append('y');
-        if ((re.flags & JSREG_UNICODE) != 0) buf.append('u');
+    private static void appendFlags(Scriptable thisObj, StringBuilder buf) {
+        if (ScriptRuntime.toBoolean(ScriptableObject.getProperty(thisObj, "global")))
+            buf.append('g');
+        if (ScriptRuntime.toBoolean(ScriptableObject.getProperty(thisObj, "ignoreCase")))
+            buf.append('i');
+        if (ScriptRuntime.toBoolean(ScriptableObject.getProperty(thisObj, "multiline")))
+            buf.append('m');
+        if (ScriptRuntime.toBoolean(ScriptableObject.getProperty(thisObj, "dotAll")))
+            buf.append('s');
+        if (ScriptRuntime.toBoolean(ScriptableObject.getProperty(thisObj, "sticky")))
+            buf.append('y');
+        if (ScriptRuntime.toBoolean(ScriptableObject.getProperty(thisObj, "unicode")))
+            buf.append('u');
     }
-
-    NativeRegExp() {}
 
     private static RegExpImpl getImpl(Context cx) {
         return (RegExpImpl) ScriptRuntime.getRegExpProxy(cx);
@@ -286,7 +509,7 @@ public class NativeRegExp extends IdScriptableObject {
         return s;
     }
 
-    Object execSub(Context cx, Scriptable scopeObj, Object[] args, int matchType) {
+    Object execSub(Context cx, VarScope scopeObj, Object[] args, int matchType) {
         RegExpImpl reImpl = getImpl(cx);
         String str;
         if (args.length == 0) {
@@ -299,14 +522,14 @@ public class NativeRegExp extends IdScriptableObject {
         }
 
         boolean globalOrSticky = (re.flags & JSREG_GLOB) != 0 || (re.flags & JSREG_STICKY) != 0;
-        double d = 0;
+        double d = ScriptRuntime.toInteger(lastIndex);
         if (globalOrSticky) {
-            d = ScriptRuntime.toInteger(lastIndex);
-
             if (d < 0 || str.length() < d) {
                 setLastIndex(ScriptRuntime.zeroObj);
                 return null;
             }
+        } else {
+            d = 0;
         }
 
         int[] indexp = {(int) d};
@@ -424,6 +647,17 @@ public class NativeRegExp extends IdScriptableObject {
                             "UCSPFLAT1: "
                                     + Character.toString(
                                             Character.toCodePoint(highSurrogate, lowSurrogate)));
+                    break;
+                case REOP_UCSPFLAT1i:
+                    // high and low surrogates (case-insensitive)
+                    char highSurrogateI = (char) getIndex(regexp.program, pc);
+                    pc += INDEX_LEN;
+                    char lowSurrogateI = (char) getIndex(regexp.program, pc);
+                    pc += INDEX_LEN;
+                    System.out.println(
+                            "UCSPFLAT1i: "
+                                    + Character.toString(
+                                            Character.toCodePoint(highSurrogateI, lowSurrogateI)));
                     break;
                 case REOP_CLASS:
                     int classIndex = getIndex(regexp.program, pc);
@@ -663,11 +897,6 @@ public class NativeRegExp extends IdScriptableObject {
             }
         }
 
-        // We don't support u and i flags together, yet.
-        if ((flags & JSREG_UNICODE) != 0 && (flags & JSREG_FOLD) != 0) {
-            reportError("msg.invalid.re.flag", "u and i");
-        }
-
         // We support unicode mode in ES6 and later.
         if ((flags & JSREG_UNICODE) != 0 && cx.getLanguageVersion() < Context.VERSION_ES6) {
             reportError("msg.invalid.re.flag", "u");
@@ -750,6 +979,13 @@ public class NativeRegExp extends IdScriptableObject {
             case REOP_UCFLAT1i:
                 regexp.anchorCodePoint = (char) getIndex(regexp.program, 1);
                 break;
+            case REOP_UCSPFLAT1:
+            case REOP_UCSPFLAT1i:
+                regexp.anchorCodePoint =
+                        Character.toCodePoint(
+                                (char) getIndex(regexp.program, 1),
+                                (char) getIndex(regexp.program, 1 + INDEX_LEN));
+                break;
             case REOP_FLAT1:
             case REOP_FLAT1i:
                 regexp.anchorCodePoint = (char) (regexp.program[1] & 0xFF);
@@ -784,6 +1020,15 @@ public class NativeRegExp extends IdScriptableObject {
 
     private static boolean isWord(char c) {
         return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || isDigit(c) || c == '_';
+    }
+
+    private static boolean isWord(int codePoint, boolean isCaseInsensitiveUnicode) {
+        if (isCaseInsensitiveUnicode) { // For Unicode case-insensitive, do case folding first
+            int folded = unicodeCaseFold(codePoint);
+            return folded <= Character.MAX_VALUE && isWord((char) folded);
+        } else {
+            return codePoint <= 0xFFFF && isWord((char) codePoint);
+        }
     }
 
     private static boolean isControlLetter(char c) {
@@ -829,6 +1074,165 @@ public class NativeRegExp extends IdScriptableObject {
         }
         char cl = Character.toLowerCase(ch);
         return (cl < 128) ? ch : cl;
+    }
+
+    /**
+     * Unicode simple case folding for case-insensitive matching. This approximates Unicode simple
+     * case folding without full tables.
+     */
+    private static int unicodeCaseFold(int codePoint) {
+        // Fast path for ASCII (0-127): simple case folding is just toUpperCase
+        if (codePoint < 128) {
+            if (codePoint >= 'a' && codePoint <= 'z') {
+                return codePoint - ('a' - 'A');
+            }
+            return codePoint;
+        }
+
+        // Turkish ı (U+0131) has no simple case fold mapping, only Turkish-specific ('T').
+        // Java incorrectly maps it to 'I', so we must handle it explicitly.
+        // Note: İ (U+0130) is handled correctly by the algorithm below (toLowerCase
+        // produces multiple codepoints, so it returns the original).
+        if (codePoint == 0x0131) {
+            return codePoint;
+        }
+
+        // Special lowercase→lowercase mappings from Unicode CaseFolding.txt (status 'S')
+        // that Java's case conversion doesn't handle:
+        if (codePoint == 0x1FD3) return 0x0390; // Greek small iota with dialytika and oxia
+        if (codePoint == 0x1FE3) return 0x03B0; // Greek small upsilon with dialytika and oxia
+        if (codePoint == 0xFB05) return 0xFB06; // Latin small ligature long s t
+
+        // Fast path for BMP characters: try Character methods first to avoid String allocation
+        if (codePoint <= 0xFFFF) {
+            char ch = (char) codePoint;
+            char lower = Character.toLowerCase(ch);
+            char upper = Character.toUpperCase(lower);
+
+            // If conversions are stable (single char -> single char), use the result
+            if (upper == lower && lower == ch) {
+                return codePoint; // No case mapping exists
+            }
+
+            // Check if this character expands to multiple chars when uppercased
+            // (e.g., ß -> SS, ﬀ -> FF). Use String methods only for these cases.
+            if (Character.toUpperCase(ch) != ch) {
+                String upperStr = String.valueOf(ch).toUpperCase(Locale.ROOT);
+                if (upperStr.length() > 1) {
+                    // Has full case folding only - return lowercase if single char
+                    return lower;
+                }
+            }
+            if (lower != ch) {
+                String lowerStr = String.valueOf(ch).toLowerCase(Locale.ROOT);
+                if (lowerStr.length() > 1) {
+                    // toLowerCase expanded (e.g., İ) - no simple fold
+                    return codePoint;
+                }
+            }
+
+            return upper;
+        }
+
+        // Non-BMP characters: must use String methods
+        String s = Character.toString(codePoint);
+        String lower = s.toLowerCase(Locale.ROOT);
+        String upper = lower.toUpperCase(Locale.ROOT);
+
+        // If toUpperCase expanded to multiple characters (e.g., ß -> SS),
+        // then this character has only a full case fold, not a simple one.
+        if (upper.codePointCount(0, upper.length()) > 1) {
+            if (lower.codePointCount(0, lower.length()) == 1) {
+                return lower.codePointAt(0);
+            }
+            return codePoint;
+        }
+
+        return upper.codePointAt(0);
+    }
+
+    /** Check if two code points match case-insensitively in Unicode mode */
+    private static boolean unicodeCaseInsensitiveEquals(int cp1, int cp2) {
+        if (cp1 == cp2) return true;
+
+        // Try case folding both ways
+        int fold1 = unicodeCaseFold(cp1);
+        int fold2 = unicodeCaseFold(cp2);
+
+        return (fold1 == fold2);
+    }
+
+    /**
+     * Checks inverse case fold mappings for codepoints where unicodeCaseFold is lossy. Returns 1 if
+     * a match was found, 0 if no match but the entry exists (authoritative), -1 if no entry (caller
+     * should fall back to Java case conversions).
+     */
+    private static int anyInverseCaseFoldMatches(int folded, IntPredicate predicate) {
+        switch (folded) {
+            case 0x004B: // 'K' - also Kelvin sign U+212A and 'k'
+                return (predicate.test(0x212A) || predicate.test(0x006B)) ? 1 : 0;
+            case 0x0053: // 'S' - also long s U+017F and 's'
+                return (predicate.test(0x017F) || predicate.test(0x0073)) ? 1 : 0;
+            case 0x0049: // 'I' - also 'i'
+                return predicate.test(0x0069) ? 1 : 0;
+            case 0x00DF:
+                return predicate.test(0x1E9E) ? 1 : 0;
+            case 0x0130: // İ - no simple case fold, no equivalents
+            case 0x0131: // ı - no simple case fold, no equivalents
+                return 0;
+            case 0x0390: // Greek small iota with dialytika and tonos - also U+1FD3
+                return predicate.test(0x1FD3) ? 1 : 0;
+            case 0x03B0: // Greek small upsilon with dialytika and tonos - also U+1FE3
+                return predicate.test(0x1FE3) ? 1 : 0;
+            case 0xFB06: // Latin small ligature st - also U+FB05
+                return predicate.test(0xFB05) ? 1 : 0;
+            case 0x0399: // Greek capital iota - U+0390, U+1FD3, U+03B9, U+0345
+                return (predicate.test(0x0390)
+                                || predicate.test(0x1FD3)
+                                || predicate.test(0x03B9)
+                                || predicate.test(0x0345))
+                        ? 1
+                        : 0;
+            case 0x03A5: // Greek capital upsilon - U+03B0, U+1FE3, U+03C5
+                return (predicate.test(0x03B0) || predicate.test(0x1FE3) || predicate.test(0x03C5))
+                        ? 1
+                        : 0;
+            default:
+                return -1;
+        }
+    }
+
+    /**
+     * Checks if any case variant of the codepoint matches the predicate. Prefers unicodeCaseFold +
+     * inverse fold table (ECMAScript-correct). Falls back to Java case conversions only for chars
+     * not in the inverse fold table.
+     */
+    private static boolean anyCaseVariantMatches(int codePoint, IntPredicate predicate) {
+        if (predicate.test(codePoint)) return true;
+
+        int folded = unicodeCaseFold(codePoint);
+        if (folded != codePoint && predicate.test(folded)) return true;
+
+        int inverse = anyInverseCaseFoldMatches(folded, predicate);
+        if (inverse >= 0) return inverse == 1;
+
+        // No inverse fold entry — fall back to Java case conversions
+        int lower = Character.toLowerCase(codePoint);
+        int upper = Character.toUpperCase(codePoint);
+        if (lower != codePoint && predicate.test(lower)) return true;
+        if (upper != codePoint && upper != lower && predicate.test(upper)) return true;
+
+        int title = Character.toTitleCase(codePoint);
+        if (title != codePoint && title != lower && title != upper && title != folded) {
+            if (predicate.test(title)) return true;
+        }
+
+        int lowerOfFolded = Character.toLowerCase(folded);
+        if (lowerOfFolded != codePoint && lowerOfFolded != lower && lowerOfFolded != folded) {
+            if (predicate.test(lowerOfFolded)) return true;
+        }
+
+        return false;
     }
 
     static class ParserParameters {
@@ -928,6 +1332,12 @@ public class NativeRegExp extends IdScriptableObject {
                 headTerm = state.result;
                 tailTerm = headTerm;
             } else tailTerm.next = state.result;
+            // Mark greedy quantifier as atomic if child can't overlap with next
+            if (tailTerm.op == REOP_QUANT && tailTerm.greedy) {
+                if (!couldQuantifierChildOverlap(tailTerm.kid, tailTerm.next, state.flags)) {
+                    tailTerm.atomic = true;
+                }
+            }
             while (tailTerm.next != null) {
                 // concatenate FLATs if possible
                 RENode n = tailTerm.next;
@@ -1677,7 +2087,18 @@ public class NativeRegExp extends IdScriptableObject {
                 }
             } else {
                 if (thisCodePoint > 0xFFFF) {
-                    contents.nonBMPCodepoints.add(thisCodePoint);
+                    // if case-insensitive, then simply store the folded value already
+                    if ((state.flags & JSREG_FOLD) != 0) {
+                        int folded = unicodeCaseFold(thisCodePoint);
+
+                        if (Character.isBmpCodePoint(folded)) {
+                            contents.chars.add((char) folded);
+                        } else {
+                            contents.nonBMPCodepoints.add(folded);
+                        }
+                    } else {
+                        contents.nonBMPCodepoints.add(thisCodePoint);
+                    }
                 } else {
                     contents.chars.add((char) thisCodePoint);
                 }
@@ -1942,24 +2363,24 @@ public class NativeRegExp extends IdScriptableObject {
                 state.result = new RENode(REOP_QUANT);
                 state.result.min = 1;
                 state.result.max = -1;
-                /* <PLUS>, <parencount>, <parenindex>, <next> ... <ENDCHILD> */
-                state.progLength += 8;
+                /* <PLUS>, <parencount>, <parenindex>, <atomic>, <next> ... <ENDCHILD> */
+                state.progLength += 9;
                 hasQ = true;
                 break;
             case '*':
                 state.result = new RENode(REOP_QUANT);
                 state.result.min = 0;
                 state.result.max = -1;
-                /* <STAR>, <parencount>, <parenindex>, <next> ... <ENDCHILD> */
-                state.progLength += 8;
+                /* <STAR>, <parencount>, <parenindex>, <atomic>, <next> ... <ENDCHILD> */
+                state.progLength += 9;
                 hasQ = true;
                 break;
             case '?':
                 state.result = new RENode(REOP_QUANT);
                 state.result.min = 0;
                 state.result.max = 1;
-                /* <OPT>, <parencount>, <parenindex>, <next> ... <ENDCHILD> */
-                state.progLength += 8;
+                /* <OPT>, <parencount>, <parenindex>, <atomic>, <next> ... <ENDCHILD> */
+                state.progLength += 9;
                 hasQ = true;
                 break;
             case '{': /* balance '}' */
@@ -2002,8 +2423,8 @@ public class NativeRegExp extends IdScriptableObject {
                                 state.result.min = min;
                                 state.result.max = max;
                                 // QUANT, <min>, <max>, <parencount>,
-                                // <parenindex>, <next> ... <ENDCHILD>
-                                state.progLength += 12;
+                                // <parenindex>, <atomic>, <next> ... <ENDCHILD>
+                                state.progLength += 13;
                                 hasQ = true;
                             }
                         }
@@ -2114,7 +2535,8 @@ public class NativeRegExp extends IdScriptableObject {
                             else program[pc - 1] = REOP_UCFLAT1;
                             pc = addIndex(program, pc, t.chr);
                         } else {
-                            program[pc - 1] = REOP_UCSPFLAT1;
+                            if ((state.flags & JSREG_FOLD) != 0) program[pc - 1] = REOP_UCSPFLAT1i;
+                            else program[pc - 1] = REOP_UCSPFLAT1;
                             pc = addIndex(program, pc, t.chr);
                             pc = addIndex(program, pc, t.lowSurrogate);
                         }
@@ -2194,6 +2616,7 @@ public class NativeRegExp extends IdScriptableObject {
                     }
                     pc = addIndex(program, pc, t.parenCount);
                     pc = addIndex(program, pc, t.parenIndex);
+                    program[pc++] = (byte) (t.atomic ? 1 : 0);
                     nextTermFixup = pc;
                     pc += INDEX_LEN;
                     pc = emitREBytecode(state, re, pc, t.kid);
@@ -2244,6 +2667,14 @@ public class NativeRegExp extends IdScriptableObject {
         return state;
     }
 
+    /** Update the top of the prog state stack in place (avoids allocation). */
+    private static void updateProgState(REGlobalData gData, int min, int max, int cp) {
+        REProgState state = gData.stateStackTop;
+        state.min = min;
+        state.max = max;
+        state.index = cp;
+    }
+
     private static void pushBackTrackState(REGlobalData gData, byte op, int pc) {
         REProgState state = gData.stateStackTop;
         gData.backTrackStackTop =
@@ -2292,14 +2723,27 @@ public class NativeRegExp extends IdScriptableObject {
             REGlobalData gData, int matchChars, int length, String input, int end) {
         if ((gData.cp + length) > end) return false;
         char[] source = gData.regexp.source;
-        for (int i = 0; i < length; i++) {
-            char c1 = source[matchChars + i];
-            char c2 = input.charAt(gData.cp + i);
-            if (c1 != c2 && upcase(c1) != upcase(c2)) {
-                return false;
+        if ((gData.regexp.flags & JSREG_FOLD) != 0 && (gData.regexp.flags & JSREG_UNICODE) != 0) {
+            int inputPointer = gData.cp;
+            for (int i = 0; i < length && inputPointer < end; i++) {
+                int codepoint1 = input.codePointAt(inputPointer);
+                // source can never contain surrogate pairs - surrogate pairs in regexp source
+                // get their own opcode REOP_UCSPFLAT1(i)
+                int codepoint2 = source[matchChars + i];
+                if (!unicodeCaseInsensitiveEquals(codepoint1, codepoint2)) return false;
+                inputPointer += Character.charCount(codepoint1);
             }
+            gData.cp = inputPointer;
+        } else {
+            for (int i = 0; i < length; i++) {
+                char c1 = source[matchChars + i];
+                char c2 = input.charAt(gData.cp + i);
+                if (c1 != c2 && upcase(c1) != upcase(c2)) {
+                    return false;
+                }
+            }
+            gData.cp += length;
         }
-        gData.cp += length;
         return true;
     }
 
@@ -2307,17 +2751,28 @@ public class NativeRegExp extends IdScriptableObject {
             REGlobalData gData, int matchChars, int length, String input) {
         if ((gData.cp - length) < 0) return false;
 
-        // in the input, start from cp - 1 and go back length chars
-        // in the regex source, do it the other way
-        for (int i = 1; i <= length; i++) {
-            char c1 = gData.regexp.source[matchChars + length - i];
-            char c2 = input.charAt(gData.cp - i);
-            if (c1 != c2 && upcase(c1) != upcase(c2)) {
-                return false;
+        char[] source = gData.regexp.source;
+        if ((gData.regexp.flags & JSREG_FOLD) != 0 && (gData.regexp.flags & JSREG_UNICODE) != 0) {
+            int inputPointer = gData.cp;
+            for (int i = 1; i <= length && inputPointer > 0; i++) {
+                int codepoint1 = input.codePointBefore(inputPointer);
+                int codepoint2 = source[matchChars + length - i];
+                if (!unicodeCaseInsensitiveEquals(codepoint1, codepoint2)) return false;
+                inputPointer -= Character.charCount(codepoint1);
             }
+            gData.cp = inputPointer;
+        } else {
+            // in the input, start from cp - 1 and go back length chars
+            // in the regex source, do it the other way
+            for (int i = 1; i <= length; i++) {
+                char c1 = source[matchChars + length - i];
+                char c2 = input.charAt(gData.cp - i);
+                if (c1 != c2 && upcase(c1) != upcase(c2)) {
+                    return false;
+                }
+            }
+            gData.cp -= length;
         }
-
-        gData.cp -= length;
         return true;
     }
 
@@ -2361,10 +2816,22 @@ public class NativeRegExp extends IdScriptableObject {
 
             if ((gData.regexp.flags & JSREG_FOLD) != 0) {
                 // start from (cp - len) on the left and go to cp - 1 on the right
-                for (i = 0; i < len; i++) {
-                    char c1 = input.charAt(parenContent + i);
-                    char c2 = input.charAt(gData.cp + i - len);
-                    if (c1 != c2 && upcase(c1) != upcase(c2)) return false;
+                if ((gData.regexp.flags & JSREG_UNICODE) != 0) {
+                    int currentInputPointer = gData.cp - len;
+                    for (i = 0; i < len && currentInputPointer < input.length(); ) {
+                        int c1 = input.codePointAt(parenContent + i);
+                        int c2 = input.codePointAt(currentInputPointer);
+                        if (!unicodeCaseInsensitiveEquals(c1, c2)) return false;
+
+                        i += Character.charCount(c1);
+                        currentInputPointer += Character.charCount(c2);
+                    }
+                } else {
+                    for (i = 0; i < len; i++) {
+                        char c1 = input.charAt(parenContent + i);
+                        char c2 = input.charAt(gData.cp + i - len);
+                        if (c1 != c2 && upcase(c1) != upcase(c2)) return false;
+                    }
                 }
             } else if (!input.regionMatches(parenContent, input, gData.cp - len, len)) {
                 return false;
@@ -2374,10 +2841,22 @@ public class NativeRegExp extends IdScriptableObject {
             if ((gData.cp + len) > end) return false;
 
             if ((gData.regexp.flags & JSREG_FOLD) != 0) {
-                for (i = 0; i < len; i++) {
-                    char c1 = input.charAt(parenContent + i);
-                    char c2 = input.charAt(gData.cp + i);
-                    if (c1 != c2 && upcase(c1) != upcase(c2)) return false;
+                if ((gData.regexp.flags & JSREG_UNICODE) != 0) {
+                    int currentInputPointer = gData.cp;
+                    for (i = 0; i < len && currentInputPointer < input.length(); ) {
+                        int c1 = input.codePointAt(parenContent + i);
+                        int c2 = input.codePointAt(currentInputPointer);
+                        if (!unicodeCaseInsensitiveEquals(c1, c2)) return false;
+
+                        i += Character.charCount(c1);
+                        currentInputPointer += Character.charCount(c2);
+                    }
+                } else {
+                    for (i = 0; i < len; i++) {
+                        char c1 = input.charAt(parenContent + i);
+                        char c2 = input.charAt(gData.cp + i);
+                        if (c1 != c2 && upcase(c1) != upcase(c2)) return false;
+                    }
                 }
             } else if (!input.regionMatches(parenContent, input, gData.cp, len)) {
                 return false;
@@ -2430,11 +2909,11 @@ public class NativeRegExp extends IdScriptableObject {
     }
 
     private static void processCharSetImpl(REGlobalData gData, RECharSet charSet) {
-        char thisCh;
         int byteLength;
         int i;
         ClassContents classContents = charSet.classContents;
-
+        boolean isCaseInsensitiveUnicode =
+                (gData.regexp.flags & JSREG_FOLD) != 0 && (gData.regexp.flags & JSREG_UNICODE) != 0;
         byteLength = (charSet.length + 7) / 8;
         charSet.bits = new byte[byteLength];
 
@@ -2463,6 +2942,9 @@ public class NativeRegExp extends IdScriptableObject {
             } else addCharacterRangeToCharSet(charSet, start, end);
         }
 
+        // Non-BMP ranges are stored directly; case-insensitive matching is
+        // handled at match time via anyCaseVariantMatches in classMatcher
+
         for (RENode escape : classContents.escapeNodes) {
             switch (escape.op) {
                 case REOP_DIGIT:
@@ -2483,11 +2965,13 @@ public class NativeRegExp extends IdScriptableObject {
                     break;
                 case REOP_ALNUM:
                     for (i = (charSet.length - 1); i >= 0; i--)
-                        if (isWord((char) i)) addCharacterToCharSet(charSet, (char) i);
+                        if (isWord(i, isCaseInsensitiveUnicode))
+                            addCharacterToCharSet(charSet, (char) i);
                     break;
                 case REOP_NONALNUM:
                     for (i = (charSet.length - 1); i >= 0; i--)
-                        if (!isWord((char) i)) addCharacterToCharSet(charSet, (char) i);
+                        if (!isWord(i, isCaseInsensitiveUnicode))
+                            addCharacterToCharSet(charSet, (char) i);
                     break;
                 case REOP_UPROP:
                     charSet.unicodeProps.add(escape.unicodeProperty);
@@ -2501,6 +2985,45 @@ public class NativeRegExp extends IdScriptableObject {
         }
     }
 
+    /**
+     * Checks raw set membership (no case handling). Returns true if the codepoint is in the set.
+     */
+    private static boolean matchesClassRaw(RECharSet charSet, int codePoint) {
+        if (codePoint <= 0xFFFF) {
+            int byteIndex = codePoint >> 3;
+            if (charSet.length != 0
+                    && codePoint < charSet.length
+                    && (charSet.bits[byteIndex] & (1 << (codePoint & 0x7))) != 0) {
+                return true;
+            }
+        }
+
+        if (charSet.classContents.nonBMPCodepoints.contains(codePoint)) {
+            return true;
+        }
+
+        for (int i = 0; i < charSet.classContents.nonBMPRanges.size(); i += 2) {
+            if (codePoint >= charSet.classContents.nonBMPRanges.get(i)
+                    && codePoint <= charSet.classContents.nonBMPRanges.get(i + 1)) {
+                return true;
+            }
+        }
+
+        for (int encodedProp : charSet.unicodeProps) {
+            if (UnicodeProperties.hasProperty(encodedProp, codePoint)) {
+                return true;
+            }
+        }
+
+        for (int encodedProp : charSet.negUnicodeProps) {
+            if (!UnicodeProperties.hasProperty(encodedProp, codePoint)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /*
      *   Initialize the character set if it is the first call.
      *   Test the bit - if the ^ flag was specified, non-inclusion is a success
@@ -2510,33 +3033,18 @@ public class NativeRegExp extends IdScriptableObject {
             processCharSet(gData, charSet);
         }
 
-        if (codePoint <= 0xFFFF) {
-            int byteIndex = codePoint >> 3;
-            if (!(charSet.length == 0
-                    || codePoint >= charSet.length
-                    || (charSet.bits[byteIndex] & (1 << (codePoint & 0x7))) == 0))
-                return charSet.classContents.sense;
-        }
+        boolean caseInsensitiveUnicode =
+                (gData.regexp.flags & JSREG_UNICODE) != 0 && (gData.regexp.flags & JSREG_FOLD) != 0;
+        boolean sense = charSet.classContents.sense;
 
-        if (charSet.classContents.nonBMPCodepoints.contains(codePoint))
-            return charSet.classContents.sense;
-
-        for (int i = 0; i < charSet.classContents.nonBMPRanges.size(); i += 2) {
-            if (codePoint >= charSet.classContents.nonBMPRanges.get(i)
-                    && codePoint <= charSet.classContents.nonBMPRanges.get(i + 1)) {
-                return charSet.classContents.sense;
+        if (caseInsensitiveUnicode) {
+            if (anyCaseVariantMatches(codePoint, v -> matchesClassRaw(charSet, v))) {
+                return sense;
             }
+            return !sense;
+        } else {
+            return matchesClassRaw(charSet, codePoint) ? sense : !sense;
         }
-
-        for (int encodedProp : charSet.unicodeProps) {
-            if (UnicodeProperties.hasProperty(encodedProp, codePoint))
-                return charSet.classContents.sense;
-        }
-        for (int encodedProp : charSet.negUnicodeProps) {
-            if (!UnicodeProperties.hasProperty(encodedProp, codePoint))
-                return charSet.classContents.sense;
-        }
-        return !charSet.classContents.sense;
     }
 
     private static boolean reopIsSimple(int op) {
@@ -2566,6 +3074,9 @@ public class NativeRegExp extends IdScriptableObject {
         int cpDelta;
         final int cpToMatch;
         final boolean cpInBounds;
+        final boolean isCaseInsensitiveUnicode =
+                (gData.regexp.flags & JSREG_FOLD) != 0 && (gData.regexp.flags & JSREG_UNICODE) != 0;
+        boolean prevIsWord, currIsWord;
 
         if ((gData.regexp.flags & JSREG_UNICODE) != 0 && gData.cp < end) {
             if (matchBackward) {
@@ -2612,14 +3123,28 @@ public class NativeRegExp extends IdScriptableObject {
                 result = true;
                 break;
             case REOP_WBDRY:
-                result =
-                        ((gData.cp == 0 || !isWord(input.charAt(gData.cp - 1)))
-                                ^ !((gData.cp < end) && isWord(input.charAt(gData.cp))));
+                // Note: for non-unicode regexps, doing input.codePointAt(gData.cp) is not the
+                // right thing to do, but since we use it to call isWord, which in the non-unicode
+                // matches only ASCII, it is safe to do so.
+                prevIsWord =
+                        gData.cp != 0
+                                && isWord(
+                                        input.codePointBefore(gData.cp), isCaseInsensitiveUnicode);
+                currIsWord =
+                        gData.cp < end
+                                && isWord(input.codePointAt(gData.cp), isCaseInsensitiveUnicode);
+                result = prevIsWord ^ currIsWord;
                 break;
             case REOP_WNONBDRY:
-                result =
-                        ((gData.cp == 0 || !isWord(input.charAt(gData.cp - 1)))
-                                ^ ((gData.cp < end) && isWord(input.charAt(gData.cp))));
+                // Note: See comment about input.codePointAt in the REOP_WBDRY case
+                prevIsWord =
+                        gData.cp != 0
+                                && isWord(
+                                        input.codePointBefore(gData.cp), isCaseInsensitiveUnicode);
+                currIsWord =
+                        gData.cp < end
+                                && isWord(input.codePointAt(gData.cp), isCaseInsensitiveUnicode);
+                result = prevIsWord == currIsWord;
                 break;
             case REOP_DOT:
                 if (cpInBounds
@@ -2642,15 +3167,25 @@ public class NativeRegExp extends IdScriptableObject {
                 }
                 break;
             case REOP_ALNUM:
-                if (cpInBounds && isWord(input.charAt(cpToMatch))) {
-                    result = true;
-                    gData.cp += cpDelta;
+                // Note: See comment about input.codePointAt in the REOP_WBDRY case
+                if (cpInBounds) {
+                    boolean isWordChar =
+                            isWord(input.codePointAt(cpToMatch), isCaseInsensitiveUnicode);
+                    if (isWordChar) {
+                        result = true;
+                        gData.cp += cpDelta;
+                    }
                 }
                 break;
             case REOP_NONALNUM:
-                if (cpInBounds && !isWord(input.charAt(cpToMatch))) {
-                    result = true;
-                    gData.cp += cpDelta;
+                // Note: See comment about input.codePointAt in the REOP_WBDRY case
+                if (cpInBounds) {
+                    boolean isWordChar =
+                            isWord(input.codePointAt(cpToMatch), isCaseInsensitiveUnicode);
+                    if (!isWordChar) {
+                        result = true;
+                        gData.cp += cpDelta;
+                    }
                 }
                 break;
             case REOP_SPACE:
@@ -2734,13 +3269,20 @@ public class NativeRegExp extends IdScriptableObject {
                 break;
             case REOP_FLAT1i:
                 {
-                    // Note: No support for unicode with REOP_FLAT1i
                     matchCodePoint = (program[pc++] & 0xFF);
                     if (cpInBounds) {
-                        char c = input.charAt(cpToMatch);
-                        if (matchCodePoint == c || upcase((char) matchCodePoint) == upcase(c)) {
-                            result = true;
-                            gData.cp += cpDelta;
+                        if ((gData.regexp.flags & JSREG_UNICODE) != 0) {
+                            int inputCodePoint = input.codePointAt(cpToMatch);
+                            if (unicodeCaseInsensitiveEquals(matchCodePoint, inputCodePoint)) {
+                                result = true;
+                                gData.cp += cpDelta;
+                            }
+                        } else {
+                            char c = input.charAt(cpToMatch);
+                            if (matchCodePoint == c || upcase((char) matchCodePoint) == upcase(c)) {
+                                result = true;
+                                gData.cp += cpDelta;
+                            }
                         }
                     }
                 }
@@ -2765,14 +3307,22 @@ public class NativeRegExp extends IdScriptableObject {
                 break;
             case REOP_UCFLAT1i:
                 {
-                    // Note: No support for unicode with REOP_UCFLAT1i
                     matchCodePoint = getIndex(program, pc);
                     pc += INDEX_LEN;
                     if (cpInBounds) {
-                        char c = input.charAt(cpToMatch);
-                        if (matchCodePoint == c || upcase((char) matchCodePoint) == upcase(c)) {
-                            result = true;
-                            gData.cp += cpDelta;
+                        int inputCodePoint;
+                        if ((gData.regexp.flags & JSREG_UNICODE) != 0) {
+                            inputCodePoint = input.codePointAt(cpToMatch);
+                            if (unicodeCaseInsensitiveEquals(matchCodePoint, inputCodePoint)) {
+                                result = true;
+                                gData.cp += cpDelta;
+                            }
+                        } else {
+                            char c = input.charAt(cpToMatch);
+                            if (matchCodePoint == c || upcase((char) matchCodePoint) == upcase(c)) {
+                                result = true;
+                                gData.cp += cpDelta;
+                            }
                         }
                     }
                 }
@@ -2812,6 +3362,22 @@ public class NativeRegExp extends IdScriptableObject {
                     }
                 }
                 break;
+            case REOP_UCSPFLAT1i:
+                {
+                    char highSurrogate = (char) getIndex(program, pc);
+                    pc += INDEX_LEN;
+                    char lowSurrogate = (char) getIndex(program, pc);
+                    pc += INDEX_LEN;
+                    matchCodePoint = Character.toCodePoint(highSurrogate, lowSurrogate);
+                    if (cpInBounds) {
+                        int inputCodePoint = input.codePointAt(cpToMatch);
+                        if (unicodeCaseInsensitiveEquals(matchCodePoint, inputCodePoint)) {
+                            result = true;
+                            gData.cp += cpDelta;
+                        }
+                    }
+                }
+                break;
 
             case REOP_UPROP:
             case REOP_UPROP_NOT:
@@ -2820,10 +3386,27 @@ public class NativeRegExp extends IdScriptableObject {
                     pc += INDEX_LEN;
                     if (cpInBounds) {
                         boolean sense = (op == REOP_UPROP);
-                        result =
-                                sense
-                                        ^ !UnicodeProperties.hasProperty(
-                                                encodedProp, input.codePointAt(cpToMatch));
+                        int cp = input.codePointAt(cpToMatch);
+
+                        if (isCaseInsensitiveUnicode) {
+                            // For \p{...}: match if any variant has the property
+                            // For \P{...}: match if any variant does NOT have the property
+                            if (sense) {
+                                result =
+                                        anyCaseVariantMatches(
+                                                cp,
+                                                v -> UnicodeProperties.hasProperty(encodedProp, v));
+                            } else {
+                                result =
+                                        anyCaseVariantMatches(
+                                                cp,
+                                                v ->
+                                                        !UnicodeProperties.hasProperty(
+                                                                encodedProp, v));
+                            }
+                        } else {
+                            result = sense ^ !UnicodeProperties.hasProperty(encodedProp, cp);
+                        }
                         gData.cp += cpDelta;
                     }
                     break;
@@ -3190,18 +3773,18 @@ public class NativeRegExp extends IdScriptableObject {
                                 pushBackTrackState(gData, REOP_REPEAT, pc);
                                 continuationOp = REOP_REPEAT;
                                 continuationPc = pc;
-                                /* Step over <parencount>, <parenindex> & <next> */
-                                pc += 3 * INDEX_LEN;
+                                /* Step over <parencount>, <parenindex>, <atomic> & <next> */
+                                pc += 3 * INDEX_LEN + 1;
                             } else {
                                 if (min != 0) {
                                     continuationOp = REOP_MINIMALREPEAT;
                                     continuationPc = pc;
-                                    /* <parencount> <parenindex> & <next> */
-                                    pc += 3 * INDEX_LEN;
+                                    /* <parencount> <parenindex> <atomic> & <next> */
+                                    pc += 3 * INDEX_LEN + 1;
                                 } else {
                                     pushBackTrackState(gData, REOP_MINIMALREPEAT, pc);
                                     popProgState(gData);
-                                    pc += 2 * INDEX_LEN; // <parencount> & <parenindex>
+                                    pc += 2 * INDEX_LEN + 1; // <parencount> <parenindex> <atomic>
                                     pc = pc + getOffset(program, pc);
                                 }
                             }
@@ -3221,14 +3804,21 @@ public class NativeRegExp extends IdScriptableObject {
                     case REOP_REPEAT:
                         {
                             int nextpc, nextop;
+                            boolean atomic = program[pc + 2 * INDEX_LEN] != 0;
                             do {
-                                REProgState state = popProgState(gData);
+                                // For atomic quantifiers, peek at state (update in place later)
+                                // For non-atomic, pop state (will push new one later)
+                                REProgState state =
+                                        atomic ? gData.stateStackTop : popProgState(gData);
                                 if (!result) {
                                     // Failed, see if we have enough children.
                                     if (state.min == 0) result = true;
                                     continuationPc = state.continuationPc;
                                     continuationOp = state.continuationOp;
-                                    pc += 2 * INDEX_LEN; /* <parencount> & <parenindex> */
+                                    if (atomic) popProgState(gData); // clean up
+                                    pc +=
+                                            2 * INDEX_LEN
+                                                    + 1; /* <parencount> <parenindex> <atomic> */
                                     pc += getOffset(program, pc);
                                     break switchStatement;
                                 }
@@ -3238,7 +3828,8 @@ public class NativeRegExp extends IdScriptableObject {
                                     result = false;
                                     continuationPc = state.continuationPc;
                                     continuationOp = state.continuationOp;
-                                    pc += 2 * INDEX_LEN;
+                                    if (atomic) popProgState(gData); // clean up
+                                    pc += 2 * INDEX_LEN + 1;
                                     pc += getOffset(program, pc);
                                     break switchStatement;
                                 }
@@ -3249,11 +3840,12 @@ public class NativeRegExp extends IdScriptableObject {
                                     result = true;
                                     continuationPc = state.continuationPc;
                                     continuationOp = state.continuationOp;
-                                    pc += 2 * INDEX_LEN;
+                                    if (atomic) popProgState(gData); // clean up
+                                    pc += 2 * INDEX_LEN + 1;
                                     pc += getOffset(program, pc);
                                     break switchStatement;
                                 }
-                                nextpc = pc + 3 * INDEX_LEN;
+                                nextpc = pc + 3 * INDEX_LEN + 1;
                                 nextop = program[nextpc];
                                 int startcp = gData.cp;
                                 if (reopIsSimple(nextop)) {
@@ -3272,7 +3864,10 @@ public class NativeRegExp extends IdScriptableObject {
                                         result = (new_min == 0);
                                         continuationPc = state.continuationPc;
                                         continuationOp = state.continuationOp;
-                                        pc += 2 * INDEX_LEN; /* <parencount> & <parenindex> */
+                                        if (atomic) popProgState(gData); // clean up
+                                        pc +=
+                                                2 * INDEX_LEN
+                                                        + 1; /* <parencount> <parenindex> <atomic> */
                                         pc += getOffset(program, pc);
                                         break switchStatement;
                                     }
@@ -3281,23 +3876,28 @@ public class NativeRegExp extends IdScriptableObject {
                                 }
                                 continuationOp = REOP_REPEAT;
                                 continuationPc = pc;
-                                pushProgState(
-                                        gData,
-                                        new_min,
-                                        new_max,
-                                        startcp,
-                                        matchBackward,
-                                        null,
-                                        state.continuationOp,
-                                        state.continuationPc);
-                                if (new_min == 0) {
-                                    pushBackTrackState(
+                                if (atomic) {
+                                    // Update state in place - no allocation
+                                    updateProgState(gData, new_min, new_max, startcp);
+                                } else {
+                                    pushProgState(
                                             gData,
-                                            REOP_REPEAT,
-                                            pc,
+                                            new_min,
+                                            new_max,
                                             startcp,
+                                            matchBackward,
+                                            null,
                                             state.continuationOp,
                                             state.continuationPc);
+                                    if (new_min == 0) {
+                                        pushBackTrackState(
+                                                gData,
+                                                REOP_REPEAT,
+                                                pc,
+                                                startcp,
+                                                state.continuationOp,
+                                                state.continuationPc);
+                                    }
                                 }
                                 int parenCount = getIndex(program, pc);
                                 int parenIndex = getIndex(program, pc + INDEX_LEN);
@@ -3333,7 +3933,7 @@ public class NativeRegExp extends IdScriptableObject {
                                     int parenCount = getIndex(program, pc);
                                     pc += INDEX_LEN;
                                     int parenIndex = getIndex(program, pc);
-                                    pc += 2 * INDEX_LEN;
+                                    pc += 2 * INDEX_LEN + 1; // <parenindex> <atomic>
                                     for (int k = 0; k < parenCount; k++) {
                                         gData.setParens(parenIndex + k, -1, 0);
                                     }
@@ -3370,7 +3970,7 @@ public class NativeRegExp extends IdScriptableObject {
                                 int parenCount = getIndex(program, pc);
                                 pc += INDEX_LEN;
                                 int parenIndex = getIndex(program, pc);
-                                pc += 2 * INDEX_LEN;
+                                pc += 2 * INDEX_LEN + 1; // <parenindex> <atomic>
                                 for (int k = 0; k < parenCount; k++) {
                                     gData.setParens(parenIndex + k, -1, 0);
                                 }
@@ -3379,7 +3979,7 @@ public class NativeRegExp extends IdScriptableObject {
                                 continuationOp = state.continuationOp;
                                 pushBackTrackState(gData, REOP_MINIMALREPEAT, pc);
                                 popProgState(gData);
-                                pc += 2 * INDEX_LEN;
+                                pc += 2 * INDEX_LEN + 1; // <parencount> <parenindex> <atomic>
                                 pc = pc + getOffset(program, pc);
                             }
                             op = program[pc++];
@@ -3460,6 +4060,10 @@ public class NativeRegExp extends IdScriptableObject {
                         if (matchCodePoint == anchorCodePoint) {
                             break;
                         }
+                        if ((gData.regexp.flags & JSREG_FOLD) != 0
+                                && unicodeCaseInsensitiveEquals(matchCodePoint, anchorCodePoint)) {
+                            break;
+                        }
                         charCount = Character.charCount(matchCodePoint);
                     } else {
                         char matchCh = input.charAt(i);
@@ -3504,11 +4108,71 @@ public class NativeRegExp extends IdScriptableObject {
         return false;
     }
 
+    private static class ExecResult {
+        final String match;
+        final ArrayList<String> captures = new ArrayList<>();
+        final LinkedHashMap<String, String> groups = new LinkedHashMap<>();
+        final int index;
+        final String input;
+
+        ExecResult(int index, String input) {
+            this.match = null;
+            this.index = index;
+            this.input = input;
+        }
+
+        ExecResult(int index, String input, String match) {
+            this.match = match;
+            this.index = index;
+            this.input = input;
+        }
+    }
+
+    Object executeRegExp(
+            Context cx, VarScope scope, RegExpImpl res, String str, int[] indexp, int matchType) {
+        var result = executeRegExpInternal(cx, scope, res, str, indexp, matchType);
+
+        if (result == null) {
+            if (matchType != PREFIX) return null;
+            return Undefined.instance;
+        } else if (matchType == TEST) {
+            /*
+             * Testing for a match and updating cx.regExpImpl: don't allocate
+             * an array object, do return true.
+             */
+            return Boolean.TRUE;
+        } else {
+            Object[] captures = result.captures.toArray();
+            Scriptable obj = cx.newArray(scope, captures.length + 1);
+
+            obj.put(0, obj, result.match);
+            for (int i = 0; i < captures.length; i++) {
+                obj.put(i + 1, obj, (captures[i] == null) ? Undefined.instance : captures[i]);
+            }
+
+            obj.put("index", obj, Integer.valueOf(result.index));
+            obj.put("input", obj, str);
+            if (!result.groups.isEmpty()) {
+                var groups = new NativeObject();
+                for (var g : result.groups.entrySet()) {
+                    groups.put(
+                            g.getKey(),
+                            groups,
+                            g.getValue() == null ? Undefined.instance : g.getValue());
+                }
+                obj.put("groups", obj, groups);
+            } else {
+                obj.put("groups", obj, Undefined.instance);
+            }
+            return obj;
+        }
+    }
+
     /*
      * indexp is assumed to be an array of length 1
      */
-    Object executeRegExp(
-            Context cx, Scriptable scope, RegExpImpl res, String str, int[] indexp, int matchType) {
+    ExecResult executeRegExpInternal(
+            Context cx, VarScope scope, RegExpImpl res, String str, int[] indexp, int matchType) {
         REGlobalData gData = new REGlobalData();
 
         int start = indexp[0];
@@ -3518,25 +4182,16 @@ public class NativeRegExp extends IdScriptableObject {
         // Call the recursive matcher to do the real work.
         //
         boolean matches = matchRegExp(cx, gData, re, str, start, end, res.multiline);
-        if (!matches) {
-            if (matchType != PREFIX) return null;
-            return Undefined.instance;
-        }
+        if (!matches) return null;
+
         int index = gData.cp;
         int ep = indexp[0] = index;
         int matchlen = ep - (start + gData.skipped);
         index -= matchlen;
-        Object result;
-        Scriptable obj;
-        Scriptable groups = Undefined.SCRIPTABLE_UNDEFINED;
+        ExecResult result;
 
         if (matchType == TEST) {
-            /*
-             * Testing for a match and updating cx.regExpImpl: don't allocate
-             * an array object, do return true.
-             */
-            result = Boolean.TRUE;
-            obj = null;
+            result = new ExecResult(index, str);
         } else {
             /*
              * The array returned on match has element 0 bound to the matched
@@ -3544,11 +4199,9 @@ public class NativeRegExp extends IdScriptableObject {
              * matches, an index property telling the length of the left context,
              * and an input property referring to the input string.
              */
-            result = cx.newArray(scope, 0);
-            obj = (Scriptable) result;
 
             String matchstr = str.substring(index, index + matchlen);
-            obj.put(0, obj, matchstr);
+            result = new ExecResult(index, str, matchstr);
         }
 
         if (re.parenCount == 0) {
@@ -3562,11 +4215,6 @@ public class NativeRegExp extends IdScriptableObject {
             if (matchType != TEST) {
                 namedCaptureGroups = new String[re.parenCount];
 
-                if (!re.namedCaptureGroups.isEmpty()) {
-                    // We do a new NativeObject() and not cx.newObject(scope)
-                    // since we want the groups to have null as prototype
-                    groups = new NativeObject();
-                }
                 for (Map.Entry<String, List<Integer>> entry : re.namedCaptureGroups.entrySet()) {
                     String key = entry.getKey();
                     List<Integer> indices = entry.getValue();
@@ -3584,32 +4232,22 @@ public class NativeRegExp extends IdScriptableObject {
                     parsub = new SubString(str, cap_index, cap_length);
                     res.parens[num] = parsub;
                     if (matchType != TEST) {
-                        obj.put(num + 1, obj, parsub.toString());
+                        result.captures.add(parsub.toString());
                         if (namedCaptureGroups[num] != null) {
-                            groups.put(namedCaptureGroups[num], groups, parsub.toString());
+                            result.groups.put(namedCaptureGroups[num], parsub.toString());
                         }
                     }
                 } else {
+                    result.captures.add(null);
                     if (matchType != TEST) {
-                        obj.put(num + 1, obj, Undefined.instance);
                         if (namedCaptureGroups[num] != null
-                                && !groups.has(namedCaptureGroups[num], groups)) {
-                            groups.put(namedCaptureGroups[num], groups, Undefined.instance);
+                                && !result.groups.containsKey(namedCaptureGroups[num])) {
+                            result.groups.put(namedCaptureGroups[num], null);
                         }
                     }
                 }
             }
             res.lastParen = parsub;
-        }
-
-        if (!(matchType == TEST)) {
-            /*
-             * Define the index and input properties last for better for/in loop
-             * order (so they come after the elements).
-             */
-            obj.put("index", obj, Integer.valueOf(start + gData.skipped));
-            obj.put("input", obj, str);
-            obj.put("groups", obj, groups);
         }
 
         if (res.lastMatch == null) {
@@ -3622,31 +4260,8 @@ public class NativeRegExp extends IdScriptableObject {
         res.lastMatch.length = matchlen;
 
         res.leftContext.str = str;
-        if (cx.getLanguageVersion() == Context.VERSION_1_2) {
-            /*
-             * JS1.2 emulated Perl4.0.1.8 (patch level 36) for global regexps used
-             * in scalar contexts, and unintentionally for the string.match "list"
-             * psuedo-context.  On "hi there bye", the following would result:
-             *
-             * Language     while(/ /g){print("$`");}   s/ /$`/g
-             * perl4.036    "hi", "there"               "hihitherehi therebye"
-             * perl5        "hi", "hi there"            "hihitherehi therebye"
-             * js1.2        "hi", "there"               "hihitheretherebye"
-             *
-             * Insofar as JS1.2 always defined $` as "left context from the last
-             * match" for global regexps, it was more consistent than perl4.
-             */
-            res.leftContext.index = start;
-            res.leftContext.length = gData.skipped;
-        } else {
-            /*
-             * For JS1.3 and ECMAv2, emulate Perl5 exactly:
-             *
-             * js1.3        "hi", "hi there"            "hihitherehi therebye"
-             */
-            res.leftContext.index = 0;
-            res.leftContext.length = start + gData.skipped;
-        }
+        res.leftContext.index = 0;
+        res.leftContext.length = start + gData.skipped;
 
         res.rightContext.str = str;
         res.rightContext.index = ep;
@@ -3671,143 +4286,14 @@ public class NativeRegExp extends IdScriptableObject {
         throw ScriptRuntime.constructError("SyntaxError", msg);
     }
 
-    private static final int Id_lastIndex = 1,
-            Id_source = 2,
-            Id_flags = 3,
-            Id_global = 4,
-            Id_ignoreCase = 5,
-            Id_multiline = 6,
-            Id_dotAll = 7,
-            Id_sticky = 8,
-            Id_unicode = 9,
-            MAX_INSTANCE_ID = 9;
-
-    @Override
-    protected int getMaxInstanceId() {
-        return MAX_INSTANCE_ID;
-    }
-
-    @Override
-    protected int findInstanceIdInfo(String s) {
-        int id;
-        switch (s) {
-            case "lastIndex":
-                id = Id_lastIndex;
-                break;
-            case "source":
-                id = Id_source;
-                break;
-            case "flags":
-                id = Id_flags;
-                break;
-            case "global":
-                id = Id_global;
-                break;
-            case "ignoreCase":
-                id = Id_ignoreCase;
-                break;
-            case "multiline":
-                id = Id_multiline;
-                break;
-            case "dotAll":
-                id = Id_dotAll;
-                break;
-            case "sticky":
-                id = Id_sticky;
-                break;
-            case "unicode":
-                id = Id_unicode;
-                break;
-            default:
-                id = 0;
-                break;
-        }
-
-        if (id == 0) return super.findInstanceIdInfo(s);
-
-        int attr;
-        switch (id) {
-            case Id_lastIndex:
-                attr = lastIndexAttr;
-                break;
-            case Id_source:
-            case Id_flags:
-            case Id_global:
-            case Id_ignoreCase:
-            case Id_multiline:
-            case Id_dotAll:
-            case Id_sticky:
-            case Id_unicode:
-                attr = PERMANENT | READONLY | DONTENUM;
-                break;
-            default:
-                throw new IllegalStateException();
-        }
-        return instanceIdInfo(attr, id);
-    }
-
-    @Override
-    protected String getInstanceIdName(int id) {
-        switch (id) {
-            case Id_lastIndex:
-                return "lastIndex";
-            case Id_source:
-                return "source";
-            case Id_flags:
-                return "flags";
-            case Id_global:
-                return "global";
-            case Id_ignoreCase:
-                return "ignoreCase";
-            case Id_multiline:
-                return "multiline";
-            case Id_dotAll:
-                return "dotAll";
-            case Id_sticky:
-                return "sticky";
-            case Id_unicode:
-                return "unicode";
-        }
-        return super.getInstanceIdName(id);
-    }
-
-    @Override
-    protected Object getInstanceIdValue(int id) {
-        switch (id) {
-            case Id_lastIndex:
-                return lastIndex;
-            case Id_source:
-                return new String(re.source);
-            case Id_flags:
-                {
-                    StringBuilder buf = new StringBuilder();
-                    appendFlags(buf);
-                    return buf.toString();
-                }
-            case Id_global:
-                return ScriptRuntime.wrapBoolean((re.flags & JSREG_GLOB) != 0);
-            case Id_ignoreCase:
-                return ScriptRuntime.wrapBoolean((re.flags & JSREG_FOLD) != 0);
-            case Id_multiline:
-                return ScriptRuntime.wrapBoolean((re.flags & JSREG_MULTILINE) != 0);
-            case Id_dotAll:
-                return ScriptRuntime.wrapBoolean((re.flags & JSREG_DOTALL) != 0);
-            case Id_sticky:
-                return ScriptRuntime.wrapBoolean((re.flags & JSREG_STICKY) != 0);
-            case Id_unicode:
-                return ScriptRuntime.wrapBoolean((re.flags & JSREG_UNICODE) != 0);
-        }
-        return super.getInstanceIdValue(id);
-    }
-
-    private void setLastIndex(ScriptableObject thisObj, Object value) {
+    private static void setLastIndexOrThrow(ScriptableObject thisObj, Object value) {
         if ((thisObj.getAttributes("lastIndex") & READONLY) != 0) {
             throw ScriptRuntime.typeErrorById("msg.modify.readonly", "lastIndex");
         }
-        setLastIndex((Scriptable) thisObj, value);
+        setLastIndex(thisObj, value);
     }
 
-    private void setLastIndex(Scriptable thisObj, Object value) {
+    private static void setLastIndex(Scriptable thisObj, Object value) {
         ScriptableObject.putProperty(thisObj, "lastIndex", value);
     }
 
@@ -3818,148 +4304,75 @@ public class NativeRegExp extends IdScriptableObject {
         lastIndex = value;
     }
 
-    @Override
-    protected void setInstanceIdValue(int id, Object value) {
-        switch (id) {
-            case Id_lastIndex:
-                setLastIndex(value);
-                return;
-            case Id_source:
-            case Id_flags:
-            case Id_global:
-            case Id_ignoreCase:
-            case Id_multiline:
-            case Id_dotAll:
-            case Id_sticky:
-                return;
-        }
-        super.setInstanceIdValue(id, value);
+    private static Object js_compile(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return realThis(thisObj, f).compile(cx, s, args);
     }
 
-    @Override
-    protected void setInstanceIdAttributes(int id, int attr) {
-        if (id == Id_lastIndex) {
-            lastIndexAttr = attr;
-            return;
+    private static Object js_toString(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        // thisObj != scope is a strange hack but i had no better idea for the moment
+        if (thisObj != s && thisObj instanceof NativeObject) {
+            NativeObject realThis = (NativeObject) thisObj;
+            Object sourceObj = realThis.get("source", realThis);
+            String source = sourceObj.equals(NOT_FOUND) ? "undefined" : escapeRegExp(sourceObj);
+            Object flagsObj = realThis.get("flags", realThis);
+            String flags = flagsObj.equals(NOT_FOUND) ? "undefined" : flagsObj.toString();
+
+            return "/" + source + "/" + flags;
         }
-        super.setInstanceIdAttributes(id, attr);
+        return realThis(thisObj, f).toString();
     }
 
-    @Override
-    protected void initPrototypeId(int id) {
-        if (id == SymbolId_match) {
-            initPrototypeMethod(REGEXP_TAG, id, SymbolKey.MATCH, "[Symbol.match]", 1);
-            return;
-        }
-        if (id == SymbolId_matchAll) {
-            initPrototypeMethod(REGEXP_TAG, id, SymbolKey.MATCH_ALL, "[Symbol.matchAll]", 1);
-            return;
-        }
-        if (id == SymbolId_search) {
-            initPrototypeMethod(REGEXP_TAG, id, SymbolKey.SEARCH, "[Symbol.search]", 1);
-            return;
-        }
-        if (id == SymbolId_replace) {
-            initPrototypeMethod(REGEXP_TAG, id, SymbolKey.REPLACE, "[Symbol.replace]", 2);
-            return;
-        }
-        if (id == SymbolId_split) {
-            initPrototypeMethod(REGEXP_TAG, id, SymbolKey.SPLIT, "[Symbol.split]", 2);
-            return;
-        }
-
-        String s;
-        int arity;
-        switch (id) {
-            case Id_compile:
-                arity = 2;
-                s = "compile";
-                break;
-            case Id_toString:
-                arity = 0;
-                s = "toString";
-                break;
-            case Id_toSource:
-                arity = 0;
-                s = "toSource";
-                break;
-            case Id_exec:
-                arity = 1;
-                s = "exec";
-                break;
-            case Id_test:
-                arity = 1;
-                s = "test";
-                break;
-            case Id_prefix:
-                arity = 1;
-                s = "prefix";
-                break;
-            default:
-                throw new IllegalArgumentException(String.valueOf(id));
-        }
-        initPrototypeMethod(REGEXP_TAG, id, s, arity);
+    private static Object js_toSource(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return realThis(thisObj, f).toString();
     }
 
-    @Override
-    public Object execIdCall(
-            IdFunctionObject f, Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-        if (!f.hasTag(REGEXP_TAG)) {
-            return super.execIdCall(f, cx, scope, thisObj, args);
-        }
-        int id = f.methodId();
-        switch (id) {
-            case Id_compile:
-                return realThis(thisObj, f).compile(cx, scope, args);
-
-            case Id_toString:
-                // thisObj != scope is a strange hack but i had no better idea for the moment
-                if (thisObj != scope && thisObj instanceof NativeObject) {
-                    Object sourceObj = thisObj.get("source", thisObj);
-                    String source =
-                            sourceObj.equals(NOT_FOUND) ? "undefined" : escapeRegExp(sourceObj);
-                    Object flagsObj = thisObj.get("flags", thisObj);
-                    String flags = flagsObj.equals(NOT_FOUND) ? "undefined" : flagsObj.toString();
-
-                    return "/" + source + "/" + flags;
-                }
-                return realThis(thisObj, f).toString();
-
-            case Id_toSource:
-                return realThis(thisObj, f).toString();
-
-            case Id_exec:
-                return js_exec(cx, scope, thisObj, args);
-
-            case Id_test:
-                {
-                    Object x = realThis(thisObj, f).execSub(cx, scope, args, TEST);
-                    return Boolean.TRUE.equals(x) ? Boolean.TRUE : Boolean.FALSE;
-                }
-
-            case Id_prefix:
-                return realThis(thisObj, f).execSub(cx, scope, args, PREFIX);
-
-            case SymbolId_match:
-                return js_SymbolMatch(cx, scope, thisObj, args);
-
-            case SymbolId_matchAll:
-                return js_SymbolMatchAll(cx, scope, thisObj, args);
-
-            case SymbolId_search:
-                return js_SymbolSearch(cx, scope, thisObj, args);
-
-            case SymbolId_replace:
-                return js_SymbolReplace(cx, scope, thisObj, args);
-
-            case SymbolId_split:
-                return js_SymbolSplit(cx, scope, thisObj, args);
-        }
-        throw new IllegalArgumentException(String.valueOf(id));
+    private static Object js_exec(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_exec(cx, s, thisObj, args);
     }
 
-    public static Object regExpExec(
-            Scriptable regexp, String string, Context cx, Scriptable scope) {
+    private static Object js_test(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        {
+            Object x = realThis(thisObj, f).execSub(cx, s, args, TEST);
+            return Boolean.TRUE.equals(x) ? Boolean.TRUE : Boolean.FALSE;
+        }
+    }
+
+    private static Object js_prefix(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return realThis(thisObj, f).execSub(cx, s, args, PREFIX);
+    }
+
+    private static Object js_match(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_SymbolMatch(cx, s, thisObj, args);
+    }
+
+    private static Object js_matchAll(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_SymbolMatchAll(cx, s, thisObj, args);
+    }
+
+    private static Object js_search(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_SymbolSearch(cx, s, thisObj, args);
+    }
+
+    private static Object js_replace(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_SymbolReplace(cx, s, thisObj, args);
+    }
+
+    private static Object js_split(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_SymbolSplit(cx, s, thisObj, args);
+    }
+
+    public static Object regExpExec(Scriptable regexp, String string, Context cx, VarScope scope) {
         // See ECMAScript spec 22.2.7.1
         Object execMethod = ScriptRuntime.getObjectProp(regexp, "exec", cx, scope);
         if (execMethod instanceof Callable) {
@@ -3968,8 +4381,8 @@ public class NativeRegExp extends IdScriptableObject {
         return NativeRegExp.js_exec(cx, scope, regexp, new Object[] {string});
     }
 
-    private Object js_SymbolMatch(
-            Context cx, Scriptable scope, Scriptable thisScriptable, Object[] args) {
+    private static Object js_SymbolMatch(
+            Context cx, VarScope scope, Object thisScriptable, Object[] args) {
         // See ECMAScript spec 22.2.6.8
         var thisObj = ScriptableObject.ensureScriptableObject(thisScriptable);
 
@@ -3979,7 +4392,7 @@ public class NativeRegExp extends IdScriptableObject {
 
         if (flags.indexOf('g') == -1) return regExpExec(thisObj, string, cx, scope);
 
-        setLastIndex(thisObj, ScriptRuntime.zeroObj);
+        setLastIndexOrThrow(thisObj, ScriptRuntime.zeroObj);
         Scriptable result = cx.newArray(scope, 0);
         int i = 0;
         while (true) {
@@ -3996,29 +4409,31 @@ public class NativeRegExp extends IdScriptableObject {
             if (matchStr.isEmpty()) {
                 long thisIndex = getLastIndex(cx, thisObj);
                 long nextIndex = ScriptRuntime.advanceStringIndex(string, thisIndex, fullUnicode);
-                setLastIndex(thisObj, nextIndex);
+                setLastIndexOrThrow(thisObj, nextIndex);
             }
         }
     }
 
-    private Object js_SymbolSearch(
-            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private static Object js_SymbolSearch(
+            Context cx, VarScope scope, Object thisObj, Object[] args) {
         // See ECMAScript spec 22.2.6.12
         if (!ScriptRuntime.isObject(thisObj)) {
             throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.brief(thisObj));
         }
 
+        Scriptable realThis = (Scriptable) thisObj;
+
         String string = ScriptRuntime.toString(args.length > 0 ? args[0] : Undefined.instance);
-        long previousLastIndex = getLastIndex(cx, thisObj);
+        long previousLastIndex = getLastIndex(cx, realThis);
         if (previousLastIndex != 0) {
-            setLastIndex(thisObj, ScriptRuntime.zeroObj);
+            setLastIndex(realThis, ScriptRuntime.zeroObj);
         }
 
-        Object result = regExpExec(thisObj, string, cx, scope);
+        Object result = regExpExec(realThis, string, cx, scope);
 
-        long currentLastIndex = getLastIndex(cx, thisObj);
+        long currentLastIndex = getLastIndex(cx, realThis);
         if (previousLastIndex != currentLastIndex) {
-            setLastIndex(thisObj, previousLastIndex);
+            setLastIndex(realThis, previousLastIndex);
         }
 
         if (result == null) {
@@ -4028,30 +4443,31 @@ public class NativeRegExp extends IdScriptableObject {
         }
     }
 
-    static Object js_exec(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    static Object js_exec(Context cx, VarScope scope, Object thisObj, Object[] args) {
         return realThis(thisObj, "exec").execSub(cx, scope, args, MATCH);
     }
 
-    private Object js_SymbolMatchAll(
-            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private static Object js_SymbolMatchAll(
+            Context cx, VarScope scope, Object thisObj, Object[] args) {
         // See ECMAScript spec 22.2.6.9
         if (!ScriptRuntime.isObject(thisObj)) {
             throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.brief(thisObj));
         }
 
+        Scriptable realThis = (Scriptable) thisObj;
+
         String s = ScriptRuntime.toString(args.length > 0 ? args[0] : Undefined.instance);
 
-        Scriptable topLevelScope = ScriptableObject.getTopLevelScope(scope);
-        Function defaultConstructor =
-                ScriptRuntime.getExistingCtor(cx, topLevelScope, getClassName());
+        TopLevel topLevelScope = ScriptableObject.getTopLevelScope(scope);
+        Function defaultConstructor = ScriptRuntime.getExistingCtor(cx, topLevelScope, "RegExp");
         Constructable c =
-                AbstractEcmaObjectOperations.speciesConstructor(cx, thisObj, defaultConstructor);
+                AbstractEcmaObjectOperations.speciesConstructor(cx, realThis, defaultConstructor);
 
-        String flags = ScriptRuntime.toString(ScriptRuntime.getObjectProp(thisObj, "flags", cx));
+        String flags = ScriptRuntime.toString(ScriptRuntime.getObjectProp(realThis, "flags", cx));
 
         Scriptable matcher = c.construct(cx, scope, new Object[] {thisObj, flags});
 
-        long lastIndex = getLastIndex(cx, thisObj);
+        long lastIndex = getLastIndex(cx, realThis);
         setLastIndex(matcher, lastIndex);
         boolean global = flags.indexOf('g') != -1;
         boolean fullUnicode = flags.indexOf('u') != -1 || flags.indexOf('v') != -1;
@@ -4059,8 +4475,138 @@ public class NativeRegExp extends IdScriptableObject {
         return new NativeRegExpStringIterator(scope, matcher, s, global, fullUnicode);
     }
 
-    private Object js_SymbolReplace(
-            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    private static Object js_SymbolReplace(
+            Context cx, VarScope scope, Object thisObj, Object[] args) {
+        if (thisObj instanceof NativeRegExp) {
+            var regexp = (NativeRegExp) thisObj;
+            var exec = ScriptableObject.getProperty(regexp, "exec");
+            if ((regexp.lastIndexAttr & READONLY) == 0
+                    && exec instanceof JSFunction
+                    && ((JSFunction) exec).getDescriptor() == EXEC_DESCRIPTOR)
+                return regexp.js_SymbolReplaceFast(cx, scope, (NativeRegExp) thisObj, args);
+        }
+        return js_SymbolReplaceSlow(cx, scope, (Scriptable) thisObj, args);
+    }
+
+    private Object js_SymbolReplaceFast(
+            Context cx, VarScope scope, NativeRegExp thisObj, Object[] args) {
+        String s = ScriptRuntime.toString(args.length > 0 ? args[0] : Undefined.instance);
+        int lengthS = s.length();
+        Object replaceValue = args.length > 1 ? args[1] : Undefined.instance;
+        boolean functionalReplace = replaceValue instanceof Callable;
+        List<ReplacementOperation> replaceOps;
+        Function replaceFn;
+        if (!functionalReplace) {
+            replaceFn = null;
+            replaceOps =
+                    AbstractEcmaStringOperations.buildReplacementList(
+                            ScriptRuntime.toString(replaceValue));
+        } else {
+            replaceFn = (Function) replaceValue;
+            replaceOps = List.of();
+        }
+        String flags = ScriptRuntime.toString(ScriptRuntime.getObjectProp(thisObj, "flags", cx));
+        boolean fullUnicode = flags.indexOf('u') != -1 || flags.indexOf('v') != -1;
+
+        List<ExecResult> results = new ArrayList<>();
+        boolean done = false;
+
+        RegExpImpl reImpl = getImpl(cx);
+        boolean sticky = (re.flags & JSREG_STICKY) != 0;
+        boolean global = (re.flags & JSREG_GLOB) != 0;
+
+        int[] indexp = {0};
+        if (sticky) {
+            indexp[0] = (int) getLastIndex(cx, thisObj);
+        }
+        while (!done) {
+            ExecResult result;
+            if (indexp[0] < 0 || indexp[0] > s.length()) {
+                result = null;
+            } else {
+                result = executeRegExpInternal(cx, scope, reImpl, s, indexp, MATCH);
+            }
+            if (result == null) {
+                if (global || sticky) {
+                    indexp[0] = 0;
+                }
+                done = true;
+            } else {
+                results.add(result);
+                if (!global) {
+                    done = true;
+                } else {
+                    String matchStr = result.match;
+                    if (matchStr.isEmpty()) {
+                        indexp[0] =
+                                (int) ScriptRuntime.advanceStringIndex(s, indexp[0], fullUnicode);
+                    }
+                }
+            }
+        }
+        setLastIndexOrThrow(thisObj, indexp[0]);
+
+        StringBuilder accumulatedResult = new StringBuilder();
+        int nextSourcePosition = 0;
+        for (ExecResult result : results) {
+            String matched = result.match;
+            int matchLength = matched.length();
+            double positionDbl = result.index;
+            int position = ScriptRuntime.clamp((int) positionDbl, 0, lengthS);
+
+            List<String> captures = result.captures;
+            Object namedCaptures;
+            if (!result.groups.isEmpty()) {
+                var groups = new NativeObject();
+                for (var g : result.groups.entrySet()) {
+                    groups.put(
+                            g.getKey(),
+                            groups,
+                            g.getValue() == null ? Undefined.instance : g.getValue());
+                }
+                namedCaptures = groups;
+            } else {
+                namedCaptures = Undefined.instance;
+            }
+
+            String replacementString =
+                    functionalReplace
+                            ? makeComplexReplacement(
+                                    cx,
+                                    scope,
+                                    matched,
+                                    captures,
+                                    position,
+                                    s,
+                                    namedCaptures,
+                                    replaceFn)
+                            : makeSimpleReplacement(
+                                    cx,
+                                    scope,
+                                    matched,
+                                    captures,
+                                    position,
+                                    s,
+                                    namedCaptures,
+                                    replaceOps);
+
+            if (position >= nextSourcePosition) {
+                accumulatedResult.append(s, nextSourcePosition, position);
+                accumulatedResult.append(replacementString);
+                nextSourcePosition = position + matchLength;
+            }
+        }
+
+        if (nextSourcePosition >= lengthS) {
+            return accumulatedResult.toString();
+        } else {
+            accumulatedResult.append(s.substring(nextSourcePosition));
+            return accumulatedResult.toString();
+        }
+    }
+
+    private static Object js_SymbolReplaceSlow(
+            Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         // See ECMAScript spec 22.2.6.11
         if (!ScriptRuntime.isObject(thisObj)) {
             throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.brief(thisObj));
@@ -4070,8 +4616,17 @@ public class NativeRegExp extends IdScriptableObject {
         int lengthS = s.length();
         Object replaceValue = args.length > 1 ? args[1] : Undefined.instance;
         boolean functionalReplace = replaceValue instanceof Callable;
+        List<ReplacementOperation> replaceOps;
+        Function replaceFn;
+
         if (!functionalReplace) {
-            replaceValue = ScriptRuntime.toString(replaceValue);
+            replaceFn = null;
+            replaceOps =
+                    AbstractEcmaStringOperations.buildReplacementList(
+                            ScriptRuntime.toString(replaceValue));
+        } else {
+            replaceFn = (Function) replaceValue;
+            replaceOps = List.of();
         }
         String flags = ScriptRuntime.toString(ScriptRuntime.getObjectProp(thisObj, "flags", cx));
         boolean global = flags.indexOf('g') != -1;
@@ -4131,41 +4686,26 @@ public class NativeRegExp extends IdScriptableObject {
             }
 
             Object namedCaptures = ScriptRuntime.getObjectProp(result, "groups", cx, scope);
-            String replacementString;
-
-            if (functionalReplace) {
-                List<Object> replacerArgs = new ArrayList<>();
-                replacerArgs.add(matched);
-                replacerArgs.addAll(captures);
-                replacerArgs.add(position);
-                replacerArgs.add(s);
-                if (!Undefined.isUndefined(namedCaptures)) {
-                    replacerArgs.add(namedCaptures);
-                }
-
-                Scriptable callThis =
-                        ScriptRuntime.getApplyOrCallThis(
-                                cx, scope, null, 0, (Callable) replaceValue);
-                Object replacementValue =
-                        ((Callable) replaceValue).call(cx, scope, callThis, replacerArgs.toArray());
-                replacementString = ScriptRuntime.toString(replacementValue);
-            } else {
-                if (!Undefined.isUndefined(namedCaptures)) {
-                    namedCaptures = ScriptRuntime.toObject(scope, namedCaptures);
-                }
-
-                NativeArray capturesArray = (NativeArray) cx.newArray(scope, captures.toArray());
-                replacementString =
-                        AbstractEcmaStringOperations.getSubstitution(
-                                cx,
-                                scope,
-                                matched,
-                                s,
-                                position,
-                                capturesArray,
-                                namedCaptures,
-                                (String) replaceValue);
-            }
+            String replacementString =
+                    functionalReplace
+                            ? makeComplexReplacement(
+                                    cx,
+                                    scope,
+                                    matched,
+                                    captures,
+                                    position,
+                                    s,
+                                    namedCaptures,
+                                    replaceFn)
+                            : makeSimpleReplacement(
+                                    cx,
+                                    scope,
+                                    matched,
+                                    captures,
+                                    position,
+                                    s,
+                                    namedCaptures,
+                                    replaceOps);
 
             if (position >= nextSourcePosition) {
                 accumulatedResult.append(s, nextSourcePosition, position);
@@ -4182,28 +4722,72 @@ public class NativeRegExp extends IdScriptableObject {
         }
     }
 
-    private Object js_SymbolSplit(Context cx, Scriptable scope, Scriptable rx, Object[] args) {
-        // See ECMAScript spec 22.2.6.14
-        if (!ScriptRuntime.isObject(rx)) {
-            throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.brief(rx));
+    private static String makeComplexReplacement(
+            Context cx,
+            VarScope scope,
+            String matched,
+            List<?> captures,
+            int position,
+            String s,
+            Object namedCaptures,
+            Function replaceFunction) {
+        Object[] replacerArgs =
+                new Object[1 + captures.size() + (Undefined.isUndefined(namedCaptures) ? 2 : 3)];
+        replacerArgs[0] = matched;
+        int i = 1;
+        for (; i <= captures.size(); i++) {
+            var capture = captures.get(i - 1);
+            replacerArgs[i] = capture == null ? Undefined.instance : capture;
         }
+        replacerArgs[i++] = position;
+        replacerArgs[i++] = s;
+        if (!Undefined.isUndefined(namedCaptures)) {
+            replacerArgs[i++] = namedCaptures;
+        }
+
+        Scriptable callThis = ScriptRuntime.getApplyOrCallThis(cx, scope, null, 0, replaceFunction);
+        Object replacementValue = replaceFunction.call(cx, scope, callThis, replacerArgs);
+        return ScriptRuntime.toString(replacementValue);
+    }
+
+    private static String makeSimpleReplacement(
+            Context cx,
+            VarScope scope,
+            String matched,
+            List<?> captures,
+            int position,
+            String s,
+            Object namedCaptures,
+            List<ReplacementOperation> replaceOps) {
+        if (!Undefined.isUndefined(namedCaptures)) {
+            namedCaptures = ScriptRuntime.toObject(scope, namedCaptures);
+        }
+
+        return AbstractEcmaStringOperations.getSubstitution(
+                cx, scope, matched, s, position, captures, namedCaptures, replaceOps);
+    }
+
+    private static Object js_SymbolSplit(
+            Context cx, VarScope scope, Object thisObj, Object[] args) {
+        // See ECMAScript spec 22.2.6.14
+        if (!ScriptRuntime.isObject(thisObj)) {
+            throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.brief(thisObj));
+        }
+
+        Scriptable rx = (Scriptable) thisObj;
 
         String s = ScriptRuntime.toString(args.length > 0 ? args[0] : Undefined.instance);
 
-        Scriptable topLevelScope = ScriptableObject.getTopLevelScope(scope);
-        Function defaultConstructor =
-                ScriptRuntime.getExistingCtor(cx, topLevelScope, getClassName());
+        TopLevel topLevelScope = ScriptableObject.getTopLevelScope(scope);
+        Function defaultConstructor = ScriptRuntime.getExistingCtor(cx, topLevelScope, "RegExp");
         Constructable c =
                 AbstractEcmaObjectOperations.speciesConstructor(cx, rx, defaultConstructor);
 
         String flags = ScriptRuntime.toString(ScriptRuntime.getObjectProp(rx, "flags", cx));
         boolean unicodeMatching = flags.indexOf('u') != -1 || flags.indexOf('v') != -1;
-        String newFlags = flags.indexOf('y') != -1 ? flags : (flags + "y");
-
-        Scriptable splitter = c.construct(cx, scope, new Object[] {rx, newFlags});
-
         NativeArray a = (NativeArray) cx.newArray(scope, 0);
-        int lengthA = 0;
+        String newFlags = flags.indexOf('y') != -1 ? flags : (flags + "y");
+        Scriptable splitter = c.construct(cx, scope, new Object[] {rx, newFlags});
 
         Object limit = args.length > 1 ? args[1] : Undefined.instance;
         long lim;
@@ -4215,6 +4799,29 @@ public class NativeRegExp extends IdScriptableObject {
         if (lim == 0) {
             return a;
         }
+
+        if (splitter instanceof NativeRegExp) {
+            var regexp = (NativeRegExp) splitter;
+            var exec = ScriptableObject.getProperty(regexp, "exec");
+            if ((regexp.lastIndexAttr & READONLY) == 0
+                    && exec instanceof JSFunction
+                    && ((JSFunction) exec).getDescriptor() == EXEC_DESCRIPTOR)
+                return js_SymbolSplitFast(
+                        cx, scope, (NativeRegExp) splitter, s, lim, unicodeMatching, a);
+        }
+
+        return js_SymbolSplitSlow(cx, scope, splitter, s, lim, unicodeMatching, a);
+    }
+
+    private static Object js_SymbolSplitSlow(
+            Context cx,
+            VarScope scope,
+            Scriptable splitter,
+            String s,
+            long lim,
+            boolean unicodeMatching,
+            NativeArray a) {
+        int lengthA = 0;
 
         if (s.isEmpty()) {
             Object z = regExpExec(splitter, s, cx, scope);
@@ -4270,79 +4877,112 @@ public class NativeRegExp extends IdScriptableObject {
         return a;
     }
 
+    private static Object js_SymbolSplitFast(
+            Context cx,
+            VarScope scope,
+            NativeRegExp splitter,
+            String s,
+            long lim,
+            boolean unicodeMatching,
+            NativeArray a) {
+        int lengthA = 0;
+
+        int[] indexp = {0};
+        RegExpImpl reImpl = getImpl(cx);
+        if (s.isEmpty()) {
+            ExecResult result = splitter.executeRegExpInternal(cx, scope, reImpl, s, indexp, MATCH);
+            if (result != null) {
+                return a;
+            }
+            a.put(0, a, s);
+            return a;
+        }
+
+        int size = s.length();
+        long p = 0;
+        long q = p;
+        while (q < size) {
+            indexp[0] = (int) q;
+            ExecResult result = splitter.executeRegExpInternal(cx, scope, reImpl, s, indexp, MATCH);
+
+            if (result == null) {
+                q = ScriptRuntime.advanceStringIndex(s, q, unicodeMatching);
+            } else {
+                long e = indexp[0];
+                e = Math.min(e, size);
+                if (e == p) {
+                    q = ScriptRuntime.advanceStringIndex(s, q, unicodeMatching);
+                } else {
+                    String t = s.substring((int) p, (int) q);
+                    a.put((int) a.getLength(), a, t);
+                    lengthA++;
+                    if (a.getLength() == lim) {
+                        return a;
+                    }
+
+                    p = e;
+                    int i = 0;
+                    while (i < result.captures.size()) {
+                        Object nextCapture = result.captures.get(i);
+                        a.put(
+                                (int) a.getLength(),
+                                a,
+                                nextCapture == null ? Undefined.instance : nextCapture);
+                        i = i + 1;
+                        lengthA++;
+                        if (lengthA == lim) {
+                            return a;
+                        }
+                    }
+                    q = p;
+                }
+            }
+        }
+        String t = s.substring((int) p, size);
+        a.put((int) a.getLength(), a, t);
+        return a;
+    }
+
     private static long getLastIndex(Context cx, Scriptable thisObj) {
         return ScriptRuntime.toLength(ScriptRuntime.getObjectProp(thisObj, "lastIndex", cx));
     }
 
-    private static NativeRegExp realThis(Scriptable thisObj, IdFunctionObject f) {
+    private static NativeRegExp realThis(Object thisObj, JSFunction f) {
         return realThis(thisObj, f.getFunctionName());
     }
 
-    private static NativeRegExp realThis(Scriptable thisObj, String functionName) {
+    private static NativeRegExp realThis(Object thisObj, String functionName) {
         return ensureType(thisObj, NativeRegExp.class, functionName);
     }
 
-    @Override
-    protected int findPrototypeId(Symbol k) {
-        if (SymbolKey.MATCH.equals(k)) {
-            return SymbolId_match;
-        }
-        if (SymbolKey.MATCH_ALL.equals(k)) {
-            return SymbolId_matchAll;
-        }
-        if (SymbolKey.SEARCH.equals(k)) {
-            return SymbolId_search;
-        }
-        if (SymbolKey.REPLACE.equals(k)) {
-            return SymbolId_replace;
-        }
-        if (SymbolKey.SPLIT.equals(k)) {
-            return SymbolId_split;
-        }
-        return 0;
-    }
+    /**
+     * Check if a quantifier's child could overlap with what follows. If not, the quantifier can be
+     * made atomic (no backtracking needed).
+     *
+     * @param child the quantifier's child node
+     * @param next the node following the quantifier
+     * @param flags the regex flags
+     * @return true if they could overlap (conservative), false if definitely no overlap
+     */
+    private static boolean couldQuantifierChildOverlap(RENode child, RENode next, int flags) {
+        if (child == null || next == null) return true;
 
-    @Override
-    protected int findPrototypeId(String s) {
-        int id;
-        switch (s) {
-            case "compile":
-                id = Id_compile;
-                break;
-            case "toString":
-                id = Id_toString;
-                break;
-            case "toSource":
-                id = Id_toSource;
-                break;
-            case "exec":
-                id = Id_exec;
-                break;
-            case "test":
-                id = Id_test;
-                break;
-            case "prefix":
-                id = Id_prefix;
-                break;
-            default:
-                id = 0;
-                break;
+        // In multiline mode, $ matches at line boundaries, so backtracking may be needed
+        // if the child could match \n (we conservatively disable the optimization entirely)
+        if ((flags & JSREG_MULTILINE) != 0) {
+            return true;
         }
-        return id;
-    }
 
-    private static final int Id_compile = 1,
-            Id_toString = 2,
-            Id_toSource = 3,
-            Id_exec = 4,
-            Id_test = 5,
-            Id_prefix = 6,
-            SymbolId_match = 7,
-            SymbolId_matchAll = 8,
-            SymbolId_search = 9,
-            SymbolId_replace = 10,
-            SymbolId_split = 11,
-            MAX_PROTOTYPE_ID = SymbolId_split;
+        if (!reopIsSimple(child.op)) {
+            return true;
+        }
+
+        if (next.op == REOP_EOL) {
+            return false;
+        }
+
+        return true;
+    }
 
     private RECompiled re;
     Object lastIndex = ScriptRuntime.zeroObj; /* index after last match, for //g iterator */
@@ -4350,7 +4990,7 @@ public class NativeRegExp extends IdScriptableObject {
 } // class NativeRegExp
 
 class RECompiled implements Serializable {
-    private static final long serialVersionUID = -6144956577595844213L;
+    @Serial private static final long serialVersionUID = -6144956577595844213L;
 
     final char[] source; /* locked source string, sans // */
     int parenCount; /* number of parenthesized submatches */
@@ -4386,6 +5026,7 @@ class RENode {
     int max;
     int parenCount;
     boolean greedy;
+    boolean atomic; // true if backtracking won't help (child can't overlap with next)
 
     /* or a character class */
     int bmsize; /* bitmap size, based on max char code */
@@ -4465,9 +5106,9 @@ class REProgState {
 
     final REProgState previous; // previous state in stack
 
-    final int min; /* current quantifier min */
-    final int max; /* current quantifier max */
-    final int index; /* progress in text */
+    int min; /* current quantifier min */
+    int max; /* current quantifier max */
+    int index; /* progress in text */
     final int continuationOp;
     final int continuationPc;
     final REBackTrackData backTrack; // used by ASSERT_  to recover state
@@ -4539,7 +5180,7 @@ class REGlobalData {
  *
  */
 final class RECharSet implements Serializable {
-    private static final long serialVersionUID = 7931787979395898394L;
+    @Serial private static final long serialVersionUID = 7931787979395898394L;
     ArrayList<Integer> unicodeProps = new ArrayList<Integer>();
     ArrayList<Integer> negUnicodeProps = new ArrayList<Integer>();
 

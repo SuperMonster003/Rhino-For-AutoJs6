@@ -1,20 +1,24 @@
 package org.mozilla.javascript.tests.commonjs.module;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
-import java.io.InputStreamReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.Reader;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.util.Collections;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.VarScope;
 import org.mozilla.javascript.commonjs.module.Require;
 import org.mozilla.javascript.commonjs.module.provider.StrongCachingModuleScriptProvider;
 import org.mozilla.javascript.commonjs.module.provider.UrlModuleSourceProvider;
+import org.mozilla.javascript.testutils.TestSource;
 
 /**
  * @author Attila Szegedi
@@ -50,9 +54,12 @@ public class RequireJarTest extends RequireTest {
     @Override
     public void nonSandboxed() throws Exception {
         try (Context cx = createContext()) {
-            final Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             final Require require = getSandboxedRequire(cx, scope, false);
-            final String jsFile = getClass().getResource("testNonSandboxed.js").toExternalForm();
+            final String jsFile =
+                    Path.of(TestSource.resolve("testsrc/commonjs/module/testNonSandboxed.js"))
+                            .toUri()
+                            .toString();
             ScriptableObject.putProperty(scope, "moduleUri", jsFile);
             require.requireMain(cx, "testNonSandboxed");
         }
@@ -68,7 +75,7 @@ public class RequireJarTest extends RequireTest {
     @Override
     public void relativeId() throws Exception {
         try (Context cx = createContext()) {
-            final Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             final Require require = getSandboxedRequire(cx, scope, false);
             require.install(scope);
             cx.evaluateReader(scope, getReader("testRelativeId.js"), "testRelativeId.js", 1, null);
@@ -79,7 +86,7 @@ public class RequireJarTest extends RequireTest {
     @Override
     public void setMainForAlreadyLoadedModule() throws Exception {
         try (Context cx = createContext()) {
-            final Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             final Require require = getSandboxedRequire(cx, scope, false);
             require.install(scope);
             cx.evaluateReader(
@@ -98,7 +105,11 @@ public class RequireJarTest extends RequireTest {
     }
 
     private Reader getReader(String name) {
-        return new InputStreamReader(getClass().getResourceAsStream(name));
+        try {
+            return new FileReader(TestSource.resolve("testsrc/commonjs/module/" + name));
+        } catch (IOException ioe) {
+            throw new AssertionError(ioe);
+        }
     }
 
     private void testWithSandboxedRequire(String moduleId) throws Exception {
@@ -111,7 +122,7 @@ public class RequireJarTest extends RequireTest {
         return getSandboxedRequire(cx, cx.initStandardObjects(), true);
     }
 
-    private Require getSandboxedRequire(Context cx, Scriptable scope, boolean sandboxed)
+    private Require getSandboxedRequire(Context cx, VarScope scope, boolean sandboxed)
             throws URISyntaxException {
         return new Require(
                 cx,
@@ -124,8 +135,8 @@ public class RequireJarTest extends RequireTest {
     }
 
     private URI getDirectory() throws URISyntaxException {
-        final String jarFileLoc = getClass().getResource("modules.jar").toURI().toString();
-        String jarParent = "jar:" + jarFileLoc + "!/";
+        String jarFileLoc = TestSource.resolve("testsrc/commonjs/module/modules.jar");
+        String jarParent = "jar:file:./" + jarFileLoc + "!/";
         return new URI(jarParent);
     }
 }

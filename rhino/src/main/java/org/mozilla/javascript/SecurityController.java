@@ -119,8 +119,8 @@ public abstract class SecurityController {
     public abstract Object getDynamicSecurityDomain(Object securityDomain);
 
     /**
-     * Call {@link Callable#call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args)}
-     * of <i>callable</i> under restricted security domain where an action is allowed only if it is
+     * Call {@link Callable#call(Context cx, VarScope scope, Scriptable thisObj, Object[] args)} of
+     * <i>callable</i> under restricted security domain where an action is allowed only if it is
      * allowed according to the Java stack on the moment of the <i>execWithDomain</i> call and
      * <i>securityDomain</i>. Any call to {@link #getDynamicSecurityDomain(Object)} during execution
      * of {@code callable.call(cx, scope, thisObj, args)} should return a domain incorporate
@@ -133,16 +133,16 @@ public abstract class SecurityController {
     public Object callWithDomain(
             Object securityDomain,
             Context cx,
-            final Callable callable,
-            Scriptable scope,
-            final Scriptable thisObj,
-            final Object[] args) {
+            Callable callable,
+            VarScope scope,
+            Scriptable thisObj,
+            Object[] args) {
         return execWithDomain(
                 cx,
                 scope,
                 new Script() {
                     @Override
-                    public Object exec(Context cx, Scriptable scope, Scriptable thisObjIgnored) {
+                    public Object exec(Context cx, VarScope scope, Scriptable thisObjIgnored) {
                         return callable.call(cx, scope, thisObj, args);
                     }
                 },
@@ -152,21 +152,20 @@ public abstract class SecurityController {
     public Object callWithDomain(
             Object securityDomain,
             Context cx,
-            final Script script,
-            Scriptable scope,
-            final Scriptable thisObj,
-            final Object[] args) {
+            Script script,
+            VarScope scope,
+            Scriptable thisObj,
+            Object[] args) {
         return execWithDomain(cx, scope, script, securityDomain);
     }
 
     /**
      * @deprecated The application should not override this method and instead override {@link
-     *     #callWithDomain(Object securityDomain, Context cx, Callable callable, Scriptable scope,
+     *     #callWithDomain(Object securityDomain, Context cx, Callable callable, VarScope scope,
      *     Scriptable thisObj, Object[] args)}.
      */
     @Deprecated
-    public Object execWithDomain(
-            Context cx, Scriptable scope, Script script, Object securityDomain) {
+    public Object execWithDomain(Context cx, VarScope scope, Script script, Object securityDomain) {
         throw new IllegalStateException("callWithDomain should be overridden");
     }
 }

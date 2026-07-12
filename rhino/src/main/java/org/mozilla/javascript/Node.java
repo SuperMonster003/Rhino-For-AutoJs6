@@ -69,7 +69,8 @@ public class Node implements Iterable<Node> {
             OPTIONAL_CHAINING = 30,
             SUPER_PROPERTY_ACCESS = 31,
             NUMBER_OF_SPREAD = 32,
-            LAST_PROP = NUMBER_OF_SPREAD,
+            OBJECT_REST_PROP = 33, // marks a CALL node as object rest operation
+            LAST_PROP = OBJECT_REST_PROP,
             FIRST_PROP = FUNCTION_PROP;
 
     // values of ISNUMBER_PROP to specify
@@ -77,8 +78,7 @@ public class Node implements Iterable<Node> {
     public static final int BOTH = 0, LEFT = 1, RIGHT = 2;
     public static final int // values for SPECIALCALL_PROP
             NON_SPECIALCALL = 0,
-            SPECIALCALL_EVAL = 1,
-            SPECIALCALL_WITH = 2;
+            SPECIALCALL_EVAL = 1;
     public static final int // flags for INCRDECR_PROP
             DECR_FLAG = 0x1,
             POST_FLAG = 0x2;
@@ -457,6 +457,8 @@ public class Node implements Iterable<Node> {
                 return "super_property_access";
             case NUMBER_OF_SPREAD:
                 return "number_of_spread";
+            case OBJECT_REST_PROP:
+                return "object_rest_prop";
 
             default:
                 Kit.codeBug();
@@ -1182,9 +1184,6 @@ public class Node implements Iterable<Node> {
                         switch (x.intValue) {
                             case SPECIALCALL_EVAL:
                                 sb.append("eval");
-                                break;
-                            case SPECIALCALL_WITH:
-                                sb.append("with");
                                 break;
                             default:
                                 // NON_SPECIALCALL should not be stored

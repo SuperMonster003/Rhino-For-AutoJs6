@@ -5,14 +5,14 @@
 /** */
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.ClassShutter;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.RhinoException;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.TopLevel;
 
 /**
  * @author Norris Boyd
@@ -32,7 +32,7 @@ public class ClassShutterExceptionTest {
         try (Context cx = Context.enter()) {
             Context.ClassShutterSetter setter = cx.getClassShutterSetter();
             try {
-                Scriptable globalScope = cx.initStandardObjects();
+                TopLevel globalScope = cx.initStandardObjects();
                 if (setter == null) {
                     setter = classShutterSetter;
                 } else {

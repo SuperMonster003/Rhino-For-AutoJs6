@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.testutils.Utils;
 
 class SuperTest {
@@ -372,7 +373,10 @@ class SuperTest {
                                             int line,
                                             String lineSource,
                                             int lineOffset) {
-                                        fail("should not have been called");
+                                        fail(
+                                                String.format(
+                                                        "should not have been called but was with %s",
+                                                        message));
                                     }
 
                                     @Override
@@ -382,7 +386,10 @@ class SuperTest {
                                             int line,
                                             String lineSource,
                                             int lineOffset) {
-                                        fail("should not have been called");
+                                        fail(
+                                                String.format(
+                                                        "should not have been called but was with %s",
+                                                        message));
                                         return null;
                                     }
                                 });
@@ -1154,12 +1161,12 @@ class SuperTest {
 
             try (Context cx = Context.enter()) {
                 cx.setLanguageVersion(Context.VERSION_ES6);
-                ScriptableObject scope = cx.initStandardObjects();
+                TopLevel scope = cx.initStandardObjects();
 
-                cx.setInterpretedMode(true);
+                cx.setEvaluationMethod(EvaluationMethod.Interpreter);
                 cx.evaluateString(scope, script, "test", 1, null);
 
-                cx.setInterpretedMode(false);
+                cx.setEvaluationMethod(EvaluationMethod.Compiler);
                 Object res = cx.evaluateString(scope, script2, "test", 1, null);
                 assertEquals("object", res);
             }

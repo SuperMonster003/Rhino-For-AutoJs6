@@ -6,8 +6,10 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.lang.reflect.Modifier;
 import java.util.Map;
+import org.mozilla.javascript.lc.member.ExecutableBox;
 import org.mozilla.javascript.lc.type.TypeInfo;
 
 /**
@@ -23,18 +25,18 @@ import org.mozilla.javascript.lc.type.TypeInfo;
  * @see NativeJavaPackage
  */
 public class NativeJavaClass extends NativeJavaObject implements Function {
-    private static final long serialVersionUID = -6460763940409461664L;
+    @Serial private static final long serialVersionUID = -6460763940409461664L;
 
     // Special property for getting the underlying Java class object.
     static final String javaClassPropertyName = "__javaObject__";
 
     public NativeJavaClass() {}
 
-    public NativeJavaClass(Scriptable scope, Class<?> cl) {
+    public NativeJavaClass(VarScope scope, Class<?> cl) {
         this(scope, cl, false);
     }
 
-    public NativeJavaClass(Scriptable scope, Class<?> cl, boolean isAdapter) {
+    public NativeJavaClass(VarScope scope, Class<?> cl, boolean isAdapter) {
         super(scope, cl, TypeInfo.NONE, isAdapter);
     }
 
@@ -42,7 +44,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
     protected void initMembers() {
         Class<?> cl = (Class<?>) javaObject;
         members = JavaMembers.lookupClass(parent, cl, cl, isAdapter);
-        staticFieldAndMethods = members.getFieldAndMethodsObjects(this, cl, true);
+        staticFieldAndMethods = members.getFieldAndMethodsObjects(parent, cl, true);
     }
 
     @Override
@@ -63,19 +65,23 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
         // one constructed out of whole cloth, so we return null.
         if ("prototype".equals(name)) return null;
 
-        if (name.equals("class")) return javaObject instanceof Class<?> ? javaObject : javaObject.getClass();
+        if (name.equals("class")) {
+            return javaObject instanceof Class<?> ? javaObject : javaObject.getClass();
+        }
 
         if (staticFieldAndMethods != null) {
-            Object result = staticFieldAndMethods.get(name);
-            if (result != null) return result;
+            var staticFieldAndMethod = staticFieldAndMethods.get(name);
+            if (staticFieldAndMethod != null) {
+                return staticFieldAndMethod;
+            }
         }
 
         if (members.has(name, true)) {
-            return members.get(this, name, javaObject, true);
+            return members.get(this, parent, name, javaObject, true);
         }
 
         Context cx = Context.getContext();
-        Scriptable scope = ScriptableObject.getTopLevelScope(start);
+        VarScope scope = ScriptableObject.getTopLevelScope(parent);
         WrapFactory wrapFactory = cx.getWrapFactory();
 
         if (javaClassPropertyName.equals(name)) {
@@ -87,7 +93,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
         Class<?> nestedClass = findNestedClass(getClassObject(), name);
         if (nestedClass != null) {
             Scriptable nestedValue = wrapFactory.wrapJavaClass(cx, scope, nestedClass);
-            nestedValue.setParentScope(this);
+            nestedValue.setParentScope(parent);
             return nestedValue;
         }
 
@@ -96,7 +102,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
 
     @Override
     public void put(String name, Scriptable start, Object value) {
-        members.put(this, name, javaObject, value, true);
+        members.put(this, parent, name, javaObject, value, true);
     }
 
     @Override
@@ -117,7 +123,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         // If it looks like a "cast" of an object to this class type,
         // walk the prototype chain to see if there's a wrapper of a
         // object that's an instanceof this class.
@@ -136,7 +142,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
     }
 
     @Override
-    public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+    public Scriptable construct(Context cx, VarScope scope, Object[] args) {
         Class<?> classObject = getClassObject();
         int modifiers = classObject.getModifiers();
         if (!(Modifier.isInterface(modifiers) || Modifier.isAbstract(modifiers))) {
@@ -154,7 +160,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
         if (args.length == 0) {
             throw Context.reportRuntimeErrorById("msg.adapter.zero.args");
         }
-        Scriptable topLevel = ScriptableObject.getTopLevelScope(this);
+        VarScope topLevel = ScriptableObject.getTopLevelScope(parent);
         String msg = "";
         try {
             // When running on Android create an InterfaceAdapter since our
@@ -182,15 +188,15 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
     }
 
     static Scriptable constructSpecific(
-            Context cx, Scriptable scope, Object[] args, MemberBox ctor) {
+            Context cx, VarScope scope, Object[] args, ExecutableBox ctor) {
         Object instance = constructInternal(args, ctor);
         // we need to force this to be wrapped, because construct _has_
         // to return a scriptable
-        Scriptable topLevel = ScriptableObject.getTopLevelScope(scope);
+        VarScope topLevel = ScriptableObject.getTopLevelScope(scope);
         return cx.getWrapFactory().wrapNewObject(cx, topLevel, instance);
     }
 
-    static Object constructInternal(Object[] args, MemberBox ctor) {
+    static Object constructInternal(Object[] args, ExecutableBox ctor) {
         args = ctor.wrapArgsInternal(args, Map.of());
 
         return ctor.newInstance(args);

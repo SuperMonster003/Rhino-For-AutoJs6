@@ -7,7 +7,9 @@
 package org.mozilla.javascript;
 
 import java.util.Set;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ast.ErrorCollector;
+import org.mozilla.javascript.sourcemap.SourceMapper;
 
 public class CompilerEnvirons {
     public CompilerEnvirons() {
@@ -17,7 +19,7 @@ public class CompilerEnvirons {
         reservedKeywordAsIdentifier = true;
         allowMemberExprAsFunctionName = false;
         xmlAvailable = true;
-        interpretedMode = false;
+        evaluationMethod = EvaluationMethod.Compiler;
         generatingSource = true;
         strictMode = false;
         warningAsError = false;
@@ -35,7 +37,7 @@ public class CompilerEnvirons {
         warningAsError = cx.hasFeature(Context.FEATURE_WARNING_AS_ERROR);
         xmlAvailable = cx.hasFeature(Context.FEATURE_E4X);
 
-        interpretedMode = cx.isInterpretedMode();
+        evaluationMethod = cx.getEvaluationMethod();
 
         generatingSource = cx.isGeneratingSource();
         activationNames = cx.activationNames;
@@ -104,11 +106,11 @@ public class CompilerEnvirons {
      */
     @Deprecated
     public final int getOptimizationLevel() {
-        return interpretedMode ? -1 : 9;
+        return evaluationMethod.level();
     }
 
     public final boolean isInterpretedMode() {
-        return interpretedMode;
+        return evaluationMethod.isInterpreted();
     }
 
     /**
@@ -117,12 +119,16 @@ public class CompilerEnvirons {
     @Deprecated
     @SuppressWarnings("deprecation")
     public void setOptimizationLevel(int level) {
-        Context.checkOptimizationLevel(level);
-        interpretedMode = (level < 0);
+        this.evaluationMethod = EvaluationMethod.forLevel(level);
+    }
+
+    public void setEvaluationMethod(EvaluationMethod method) {
+        this.evaluationMethod = method;
     }
 
     public void setInterpretedMode(boolean interpretedMode) {
-        this.interpretedMode = interpretedMode;
+        this.evaluationMethod =
+                interpretedMode ? EvaluationMethod.Interpreter : EvaluationMethod.Compiler;
     }
 
     public final boolean isGeneratingSource() {
@@ -276,6 +282,14 @@ public class CompilerEnvirons {
         return securityDomain;
     }
 
+    public void setSourceMapper(SourceMapper sourceMapper) {
+        this.sourceMapper = sourceMapper;
+    }
+
+    public SourceMapper getSourceMapper() {
+        return sourceMapper;
+    }
+
     /**
      * Returns a {@code CompilerEnvirons} suitable for using Rhino in an IDE environment. Most
      * features are enabled by default. The {@link ErrorReporter} is set to an {@link
@@ -301,7 +315,7 @@ public class CompilerEnvirons {
     private boolean reservedKeywordAsIdentifier;
     private boolean allowMemberExprAsFunctionName;
     private boolean xmlAvailable;
-    private boolean interpretedMode;
+    private EvaluationMethod evaluationMethod;
     private boolean generatingSource;
     private boolean strictMode;
     private boolean warningAsError;
@@ -318,4 +332,5 @@ public class CompilerEnvirons {
     private Scriptable homeObjecgt;
     private SecurityController securityController;
     private Object securityDomain;
+    private SourceMapper sourceMapper;
 }

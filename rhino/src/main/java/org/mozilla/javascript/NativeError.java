@@ -6,26 +6,28 @@
 
 package org.mozilla.javascript;
 
+import static org.mozilla.javascript.ClassDescriptor.Builder.value;
+import static org.mozilla.javascript.ClassDescriptor.Destination.CTOR;
+import static org.mozilla.javascript.ClassDescriptor.Destination.PROTO;
+import static org.mozilla.javascript.RhinoException.SHOULD_OVERRIDE_PRINT_STARTED;
+
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.mozilla.javascript.RhinoException.SHOULD_OVERRIDE_PRINT_STARTED;
 
 /**
  * The class of error objects
  *
  * <p>ECMA 15.11
  */
-public final class NativeError extends IdScriptableObject {
-    private static final long serialVersionUID = -5338413581437645187L;
+public final class NativeError extends ScriptableObject {
+    @Serial private static final long serialVersionUID = -5338413581437645187L;
 
     public static final String ERROR_TAG = "Error";
     public static final String STACK_TAG = "stack";
 
-    /**
-     * Default stack limit is set to "Infinity", here represented as a negative int
-     */
+    /** Default stack limit is set to "Infinity", here represented as a negative int */
     public static final int DEFAULT_STACK_LIMIT = -1;
 
     // This is used by "captureStackTrace"
@@ -34,19 +36,72 @@ public final class NativeError extends IdScriptableObject {
     private RhinoException stackProvider;
     private Object stack;
 
-    static void init(Scriptable scope, boolean sealed) {
-        NativeError obj = new NativeError();
-        ScriptableObject.putProperty(obj, "name", "Error");
-        ScriptableObject.putProperty(obj, "message", "");
-        ScriptableObject.putProperty(obj, "fileName", "");
-        ScriptableObject.putProperty(obj, "lineNumber", 0);
-        obj.setAttributes("name", DONTENUM);
-        obj.setAttributes("message", DONTENUM);
-        obj.exportAsJSClass(MAX_PROTOTYPE_ID, scope, sealed);
-        NativeCallSite.init(scope, sealed);
+    private static final ClassDescriptor DESCRIPTOR;
+
+    static {
+        DESCRIPTOR =
+                new ClassDescriptor.Builder(
+                                ERROR_TAG,
+                                1,
+                                NativeError::js_constructor,
+                                NativeError::js_constructor)
+                        .withMethod(CTOR, "captureStackTrace", 0, NativeError::js_captureStackTrace)
+                        .withMethod(CTOR, "isError", 1, NativeError::js_isError)
+                        .withMethod(PROTO, "toString", 0, NativeError::js_toString)
+                        .withMethod(PROTO, "toSource", 0, NativeError::js_toSource)
+                        .withProp(PROTO, "name", value("Error", DONTENUM))
+                        .withProp(PROTO, "message", value("", DONTENUM))
+                        .withProp(PROTO, "fileName", value("", DONTENUM))
+                        .withProp(PROTO, "lineNumber", value(0, DONTENUM))
+                        .build();
     }
 
-    static NativeError makeProto(Scriptable scope, Function ctorObj) {
+    static Object js_constructor(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return make(cx, f, nt, s, thisObj, args, TopLevel.NativeErrors.Error);
+    }
+
+    private static Object js_toString(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_toString((Scriptable) thisObj);
+    }
+
+    private static Object js_toSource(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_toSource(cx, s, (Scriptable) thisObj);
+    }
+
+    private static Object js_captureStackTrace(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        js_captureStackTrace(cx, f.getDeclarationScope(), thisObj, args, false);
+        return Undefined.instance;
+    }
+
+    private static Object js_isError(
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        return js_isError(args);
+    }
+
+    static void init(Context cx, VarScope scope, boolean sealed) {
+        var ctor = DESCRIPTOR.buildConstructor(cx, scope, new NativeObject(), sealed);
+        NativeCallSite.init(cx, scope, sealed);
+
+        ProtoProps protoProps = new ProtoProps();
+        ((ScriptableObject) ctor.getPrototypeProperty()).associateValue(ProtoProps.KEY, protoProps);
+
+        ctor.defineProperty(
+                "stackTraceLimit",
+                protoProps::getStackTraceLimit,
+                protoProps::setStackTraceLimit,
+                0);
+        ctor.defineProperty(
+                "prepareStackTrace",
+                protoProps::getPrepareStackTrace,
+                protoProps::setPrepareStackTrace,
+                0);
+    }
+
+    static NativeError makeProto(VarScope scope, Function ctorObj) {
         Scriptable proto = (Scriptable) ctorObj.get("prototype", ctorObj);
 
         NativeError obj = new NativeError();
@@ -55,9 +110,16 @@ public final class NativeError extends IdScriptableObject {
         return obj;
     }
 
-    static NativeError make(Context cx, Scriptable scope, Function ctorObj, Object[] args) {
-        NativeError obj = makeProto(scope, ctorObj);
-
+    public static NativeError make(
+            Context cx,
+            JSFunction f,
+            Object nt,
+            VarScope s,
+            Object thisObj,
+            Object[] args,
+            TopLevel.NativeErrors type) {
+        NativeError obj = new NativeError();
+        ScriptRuntime.setBuiltinProtoAndParent(obj, f, nt, s, type);
         int arglen = args.length;
         if (arglen >= 1) {
             if (!Undefined.isUndefined(args[0])) {
@@ -83,8 +145,9 @@ public final class NativeError extends IdScriptableObject {
     }
 
     static NativeError makeAggregate(
-            Context cx, Scriptable scope, Function ctorObj, Object[] args) {
-        NativeError obj = makeProto(scope, ctorObj);
+            Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        NativeError obj = new NativeError();
+        ScriptRuntime.setBuiltinProtoAndParent(obj, f, nt, s, TopLevel.NativeErrors.AggregateError);
 
         int arglen = args.length;
         if (arglen >= 1) {
@@ -108,14 +171,14 @@ public final class NativeError extends IdScriptableObject {
                 }
             }
 
-            final Object iterator = ScriptRuntime.callIterator(args[0], cx, scope);
-            try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, iterator)) {
+            final Object iterator = ScriptRuntime.callIterator(args[0], cx, s);
+            try (IteratorLikeIterable it = new IteratorLikeIterable(cx, s, iterator)) {
                 List<Object> errors = new ArrayList<>();
                 for (Object o : it) {
                     errors.add(o);
                 }
 
-                Scriptable newArray = cx.newArray(scope, errors.toArray());
+                Scriptable newArray = cx.newArray(s, errors.toArray());
                 obj.defineProperty("errors", newArray, DONTENUM);
             }
         } else {
@@ -136,32 +199,6 @@ public final class NativeError extends IdScriptableObject {
     }
 
     @Override
-    protected void fillConstructorProperties(IdFunctionObject ctor) {
-        addIdFunctionProperty(
-                ctor, ERROR_TAG, ConstructorId_captureStackTrace, "captureStackTrace", 2);
-        addIdFunctionProperty(ctor, ERROR_TAG, ConstructorId_isError, "isError", 1);
-
-        // This is running on the global "Error" object. Associate an object there that can store
-        // default stack trace, etc.
-        // This prevents us from having to add two additional fields to every Error object.
-        ProtoProps protoProps = new ProtoProps();
-        associateValue(ProtoProps.KEY, protoProps);
-
-        ctor.defineProperty(
-                "stackTraceLimit",
-                protoProps::getStackTraceLimit,
-                protoProps::setStackTraceLimit,
-                0);
-        ctor.defineProperty(
-                "prepareStackTrace",
-                protoProps::getPrepareStackTrace,
-                protoProps::setPrepareStackTrace,
-                0);
-
-        super.fillConstructorProperties(ctor);
-    }
-
-    @Override
     public String getClassName() {
         return "Error";
     }
@@ -171,63 +208,6 @@ public final class NativeError extends IdScriptableObject {
         // According to spec, Error.prototype.toString() may return undefined.
         Object toString = js_toString(this);
         return toString instanceof String ? (String) toString : super.toString();
-    }
-
-    private static NativeError realThis(Scriptable thisObj, IdFunctionObject f) {
-        return ensureType(thisObj, NativeError.class, f);
-    }
-
-    @Override
-    protected void initPrototypeId(int id) {
-        String s;
-        int arity;
-        switch (id) {
-            case Id_constructor:
-                arity = 1;
-                s = "constructor";
-                break;
-            case Id_toString:
-                arity = 0;
-                s = "toString";
-                break;
-            case Id_toSource:
-                arity = 0;
-                s = "toSource";
-                break;
-            default:
-                throw new IllegalArgumentException(String.valueOf(id));
-        }
-        initPrototypeMethod(ERROR_TAG, id, s, arity);
-    }
-
-    @Override
-    public Object execIdCall(
-            IdFunctionObject f, Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-        if (!f.hasTag(ERROR_TAG)) {
-            return super.execIdCall(f, cx, scope, thisObj, args);
-        }
-        int id = f.methodId();
-        switch (id) {
-            case Id_constructor:
-                return make(cx, scope, f, args);
-
-            case Id_toString:
-                if (thisObj != scope && thisObj instanceof NativeObject) {
-                    return js_toString(thisObj);
-                }
-                return js_toString(realThis(thisObj, f));
-
-            case Id_toSource:
-                return js_toSource(cx, scope, thisObj);
-
-            case ConstructorId_captureStackTrace:
-                js_captureStackTrace(cx, scope, thisObj, args);
-                return Undefined.instance;
-
-            case ConstructorId_isError:
-                return js_isError(args);
-        }
-        throw new IllegalArgumentException(String.valueOf(id));
     }
 
     public void setStackProvider(RhinoException re) {
@@ -252,7 +232,7 @@ public final class NativeError extends IdScriptableObject {
         // Get the object where prototype stuff is stored.
         int limit = DEFAULT_STACK_LIMIT;
         Function prepare = null;
-        NativeError cons = (NativeError) getPrototype();
+        ScriptableObject cons = (ScriptableObject) getPrototype();
         ProtoProps pp = (ProtoProps) cons.getAssociatedValue(ProtoProps.KEY);
 
         if (pp != null) {
@@ -286,16 +266,24 @@ public final class NativeError extends IdScriptableObject {
 
         // The "prepareStackTrace" function takes an array of CallSite objects.
         for (int i = 0; i < stack.length; i++) {
-            NativeCallSite site = (NativeCallSite) cx.newObject(this, "CallSite");
+            NativeCallSite site =
+                    (NativeCallSite) cx.newObject(prepare.getDeclarationScope(), "CallSite");
             site.setElement(stack[i]);
             elts[i] = site;
         }
 
-        Scriptable eltArray = cx.newArray(this, elts);
-        return prepare.call(cx, prepare, this, new Object[]{this, eltArray});
+        Scriptable eltArray = cx.newArray(prepare.getDeclarationScope(), elts);
+        return prepare.call(cx, prepare.getDeclarationScope(), this, new Object[] {this, eltArray});
     }
 
     private static Object js_toString(Scriptable thisObj) {
+        // This isn't really correct, is the best we can do while
+        // `this` is being passed through as a `Scriptable`.
+        if (thisObj == null
+                || !(thisObj instanceof NativeObject || thisObj instanceof NativeError)) {
+            throw ScriptRuntime.typeErrorById("msg.this.not.instance", "Object");
+        }
+
         Object nameObj = ScriptableObject.getProperty(thisObj, "name");
         String name;
         if (nameObj == NOT_FOUND || Undefined.isUndefined(nameObj)) {
@@ -319,7 +307,8 @@ public final class NativeError extends IdScriptableObject {
         }
     }
 
-    private static String js_toSource(Context cx, Scriptable scope, Scriptable thisObj) {
+    private static String js_toSource(Context cx, VarScope scope, Object thisThing) {
+        var thisObj = (Scriptable) thisThing;
         // Emulation of SpiderMonkey behavior
         Object name = ScriptableObject.getProperty(thisObj, "name");
         Object message = ScriptableObject.getProperty(thisObj, "message");
@@ -357,13 +346,34 @@ public final class NativeError extends IdScriptableObject {
         return sb.toString();
     }
 
-    public static void js_captureStackTrace(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-        js_captureStackTrace(cx, scope, thisObj, args, false);
+    public static void js_captureStackTrace(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        js_captureStackTrace(cx, toVarScope(scope), thisObj, args, false);
     }
 
     public static void js_captureStackTrace(
-            Context cx, Scriptable scope, Scriptable thisObj, Object[] args, Boolean shouldOverridePrintStarted
-    ) {
+            Context cx,
+            Scriptable scope,
+            Scriptable thisObj,
+            Object[] args,
+            boolean shouldOverridePrintStarted) {
+        js_captureStackTrace(cx, toVarScope(scope), thisObj, args, shouldOverridePrintStarted);
+    }
+
+    private static VarScope toVarScope(Scriptable scope) {
+        VarScope parentScope = scope.getParentScope();
+        if (parentScope == null) {
+            throw new IllegalArgumentException("Scriptable scope has no parent VarScope");
+        }
+        return parentScope;
+    }
+
+    private static void js_captureStackTrace(
+            Context cx,
+            VarScope scope,
+            Object thisObj,
+            Object[] args,
+            boolean shouldOverridePrintStarted) {
         ScriptableObject obj = (ScriptableObject) ScriptRuntime.toObject(cx, scope, args[0]);
         Function func = null;
         if (args.length > 1) {
@@ -371,7 +381,7 @@ public final class NativeError extends IdScriptableObject {
         }
 
         // Create a new error that will have the correct prototype so we can re-use "getStackTrace"
-        NativeError err = (NativeError) cx.newObject(thisObj, "Error");
+        NativeError err = (NativeError) cx.newObject(scope, "Error");
         // Wire it up so that it will have an actual exception with a stack trace
         err.setStackProvider(new EvaluatorException("[object Object]"));
 
@@ -399,33 +409,6 @@ public final class NativeError extends IdScriptableObject {
         return Boolean.valueOf(arg instanceof NativeError);
     }
 
-    @Override
-    protected int findPrototypeId(String s) {
-        int id;
-        switch (s) {
-            case "constructor":
-                id = Id_constructor;
-                break;
-            case "toString":
-                id = Id_toString;
-                break;
-            case "toSource":
-                id = Id_toSource;
-                break;
-            default:
-                id = 0;
-                break;
-        }
-        return id;
-    }
-
-    private static final int Id_constructor = 1,
-            Id_toString = 2,
-            Id_toSource = 3,
-            ConstructorId_captureStackTrace = -1,
-            ConstructorId_isError = -2,
-            MAX_PROTOTYPE_ID = 3;
-
     /**
      * We will attch this object to the constructor and use it solely to store the constructor
      * properties that are "global." We can't make them static because there can be many contexts in
@@ -434,7 +417,7 @@ public final class NativeError extends IdScriptableObject {
     private static final class ProtoProps implements Serializable {
         static final String KEY = "_ErrorPrototypeProps";
 
-        private static final long serialVersionUID = 1907180507775337939L;
+        @Serial private static final long serialVersionUID = 1907180507775337939L;
 
         int stackTraceLimit = DEFAULT_STACK_LIMIT;
         Function prepareStackTrace;

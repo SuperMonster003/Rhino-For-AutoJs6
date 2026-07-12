@@ -4,14 +4,14 @@
 
 package org.mozilla.javascript;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class EqualObjectGraphsTest {
 
@@ -82,7 +82,7 @@ public class EqualObjectGraphsTest {
     public void heterogenousScriptables() {
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_DEFAULT);
-            ScriptableObject top = cx.initStandardObjects();
+            TopLevel top = cx.initStandardObjects();
             ScriptRuntime.doTopCall(
                     (Callable)
                             (c, scope, thisObj, args) -> {
@@ -98,14 +98,14 @@ public class EqualObjectGraphsTest {
                             },
                     cx,
                     top,
-                    top,
+                    top.getGlobalThis(),
                     null,
                     false);
         }
     }
 
     private static Object makeHeterogenousScriptable(Context cx, String discriminator) {
-        ScriptableObject global = cx.initStandardObjects();
+        TopLevel global = cx.initStandardObjects();
         ScriptableObject s = (ScriptableObject) cx.newObject(global);
         s.put(0, s, "i0");
         s.put(1, s, "i1");

@@ -1,41 +1,41 @@
 package org.mozilla.javascript.tests.commonjs.module;
 
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.File;
-import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import junit.framework.AssertionFailedError;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.VarScope;
 import org.mozilla.javascript.commonjs.module.Require;
 import org.mozilla.javascript.commonjs.module.provider.StrongCachingModuleScriptProvider;
 import org.mozilla.javascript.commonjs.module.provider.UrlModuleSourceProvider;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.testutils.Utils;
+import org.opentest4j.AssertionFailedError;
 
-@RunWith(Parameterized.class)
 public class ComplianceTest {
 
     private File testDir;
 
-    public ComplianceTest(String name, File testDir) {
+    public void initComplianceTest(String name, File testDir) {
         this.testDir = testDir;
     }
 
-    @Parameterized.Parameters(name = "/{0}")
     public static Collection<Object[]> data() {
         List<Object[]> retval = new ArrayList<Object[]>(16);
         final File[] files =
-                new File("src/test/resources/org/mozilla/javascript/tests/commonjs/module/1.0")
+                new File(TestSource.resolveDirectory("testsrc/commonjs/module/1.0/README"))
                         .listFiles();
         for (File file : files) {
             if (file.isDirectory()) {
@@ -45,30 +45,28 @@ public class ComplianceTest {
         return retval;
     }
 
-    private static Require createRequire(File dir, Context cx, Scriptable scope)
+    private static Require createRequire(File dir, Context cx, TopLevel scope)
             throws URISyntaxException {
+        var base = Path.of(TestSource.resolve("testsrc/commonjs")).toUri();
         return new Require(
                 cx,
                 scope,
                 new StrongCachingModuleScriptProvider(
                         new UrlModuleSourceProvider(
                                 Collections.singleton(dir.getAbsoluteFile().toURI()),
-                                Collections.singleton(
-                                        new URI(
-                                                ComplianceTest.class
-                                                                .getResource(".")
-                                                                .toExternalForm()
-                                                        + "/")))),
+                                Collections.singleton(base))),
                 null,
                 null,
                 false);
     }
 
-    @Test
-    public void require() throws Throwable {
+    @MethodSource("data")
+    @ParameterizedTest(name = "/{0}")
+    public void require(String name, File testDir) throws Throwable {
+        initComplianceTest(name, testDir);
         Utils.runWithAllModes(
                 cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
+                    final TopLevel scope = cx.initStandardObjects();
                     ScriptableObject.putProperty(scope, "print", new Print(scope));
                     try {
                         createRequire(testDir, cx, scope).requireMain(cx, "program");
@@ -81,12 +79,12 @@ public class ComplianceTest {
     }
 
     private static class Print extends ScriptableObject implements Function {
-        Print(Scriptable scope) {
+        Print(VarScope scope) {
             setPrototype(ScriptableObject.getFunctionPrototype(scope));
         }
 
         @Override
-        public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
             if (args.length > 1 && "fail".equals(args[1])) {
                 throw new AssertionFailedError(String.valueOf(args[0]));
             }
@@ -94,7 +92,7 @@ public class ComplianceTest {
         }
 
         @Override
-        public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+        public Scriptable construct(Context cx, VarScope scope, Object[] args) {
             throw new AssertionFailedError("Shouldn't be invoked as constructor");
         }
 

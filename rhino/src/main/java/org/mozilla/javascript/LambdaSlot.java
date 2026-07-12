@@ -1,5 +1,6 @@
 package org.mozilla.javascript;
 
+import java.io.Serial;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
@@ -12,14 +13,14 @@ import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
  * implementing properties that behave like any other JavaScript property but which are implemented
  * using some native functionality without using reflection.
  */
-public class LambdaSlot extends Slot {
-    private static final long serialVersionUID = -3046681698806493052L;
+public class LambdaSlot extends Slot<Scriptable> {
+    @Serial private static final long serialVersionUID = -3046681698806493052L;
 
     LambdaSlot(Object name, int index) {
         super(name, index, 0);
     }
 
-    LambdaSlot(Slot oldSlot) {
+    LambdaSlot(Slot<Scriptable> oldSlot) {
         super(oldSlot);
     }
 

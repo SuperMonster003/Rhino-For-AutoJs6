@@ -4,27 +4,22 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 public class NativeArrayTest {
     private NativeArray array;
 
-    @Before
+    @BeforeEach
     public void init() {
         array = new NativeArray(1);
     }
@@ -136,9 +131,9 @@ public class NativeArrayTest {
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_ES6);
 
-            Scriptable scope = cx.initStandardObjects();
+            TopLevel scope = cx.initStandardObjects();
             String result = cx.evaluateString(scope, source, "source", 1, null).toString();
-            Assert.assertEquals("0,1,0,1", result);
+            Assertions.assertEquals("0,1,0,1", result);
         }
     }
 
@@ -161,7 +156,7 @@ public class NativeArrayTest {
         var contextFactory = Utils.contextFactoryWithFeatures(Context.FEATURE_THREAD_SAFE_OBJECTS);
         try (Context cx = contextFactory.enterContext()) {
             cx.setLanguageVersion(Context.VERSION_ECMASCRIPT);
-            Scriptable scope = cx.initSafeStandardObjects(new TopLevel());
+            TopLevel scope = cx.initSafeStandardObjects(new TopLevel());
 
             assertNotNull(cx.evaluateString(scope, script, "test", 1, null));
         }

@@ -4,10 +4,10 @@
 
 package org.mozilla.javascript.tests;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.RhinoException;
-import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
 
 /**
@@ -30,7 +30,7 @@ public class ErrorPropertiesTest {
         try {
             Utils.executeScript(script, interpreted);
         } catch (final RhinoException e) {
-            Assert.assertEquals(expectedStackTrace, e.getScriptStackTrace());
+            Assertions.assertEquals(expectedStackTrace, e.getScriptStackTrace());
         }
     }
 
@@ -51,37 +51,47 @@ public class ErrorPropertiesTest {
 
     @Test
     public void defaultStack() {
-        RhinoException.useMozillaStackStyle(false);
-        testScriptStackTrace("null.method()", "\tat myScript.js:1" + LS);
-        final String script = "function f() \n{\n  null.method();\n}\nf();\n";
-        testScriptStackTrace(script, "\tat myScript.js:3 (f)" + LS + "\tat myScript.js:5" + LS);
-        testIt("try { null.method() } catch (e) { e.stack }", "\tat myScript.js:1" + LS);
-        final String expectedStack = "\tat myScript.js:2 (f)" + LS + "\tat myScript.js:4" + LS;
-        testIt(
-                "function f() {\n null.method(); \n}\n try { f() } catch (e) { e.stack }",
-                expectedStack);
+        var errorStyle = RhinoException.getStackStyle();
+        try {
+            RhinoException.useMozillaStackStyle(false);
+            testScriptStackTrace("null.method()", "\tat myScript.js:1" + LS);
+            final String script = "function f() \n{\n  null.method();\n}\nf();\n";
+            testScriptStackTrace(script, "\tat myScript.js:3 (f)" + LS + "\tat myScript.js:5" + LS);
+            testIt("try { null.method() } catch (e) { e.stack }", "\tat myScript.js:1" + LS);
+            final String expectedStack = "\tat myScript.js:2 (f)" + LS + "\tat myScript.js:4" + LS;
+            testIt(
+                    "function f() {\n null.method(); \n}\n try { f() } catch (e) { e.stack }",
+                    expectedStack);
+        } finally {
+            RhinoException.setStackStyle(errorStyle);
+        }
     }
 
     @Test
     public void mozillaStack() {
-        RhinoException.useMozillaStackStyle(true);
-        testScriptStackTrace("null.method()", "@myScript.js:1" + LS);
-        final String script = "function f() \n{\n  null.method();\n}\nf();\n";
-        testScriptStackTrace(script, "f()@myScript.js:3" + LS + "@myScript.js:5" + LS);
-        testIt("try { null.method() } catch (e) { e.stack }", "@myScript.js:1" + LS);
-        final String expectedStack = "f()@myScript.js:2" + LS + "@myScript.js:4" + LS;
-        testIt(
-                "function f() {\n null.method(); \n}\n try { f() } catch (e) { e.stack }",
-                expectedStack);
+        var errorStyle = RhinoException.getStackStyle();
+        try {
+            RhinoException.useMozillaStackStyle(true);
+            testScriptStackTrace("null.method()", "@myScript.js:1" + LS);
+            final String script = "function f() \n{\n  null.method();\n}\nf();\n";
+            testScriptStackTrace(script, "f()@myScript.js:3" + LS + "@myScript.js:5" + LS);
+            testIt("try { null.method() } catch (e) { e.stack }", "@myScript.js:1" + LS);
+            final String expectedStack = "f()@myScript.js:2" + LS + "@myScript.js:4" + LS;
+            testIt(
+                    "function f() {\n null.method(); \n}\n try { f() } catch (e) { e.stack }",
+                    expectedStack);
+        } finally {
+            RhinoException.setStackStyle(errorStyle);
+        }
     }
 
     private void testIt(final String script, final Object expected) {
         Utils.runWithAllModes(
                 cx -> {
                     try {
-                        final ScriptableObject scope = cx.initStandardObjects();
+                        TopLevel scope = cx.initStandardObjects();
                         final Object o = cx.evaluateString(scope, script, "myScript.js", 1, null);
-                        Assert.assertEquals(expected, o);
+                        Assertions.assertEquals(expected, o);
                         return o;
                     } catch (final RuntimeException e) {
                         throw e;

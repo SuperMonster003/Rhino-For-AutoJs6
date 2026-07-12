@@ -3,8 +3,9 @@ package org.mozilla.javascript;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.debug.DebugFrame;
 import org.mozilla.javascript.debug.DebuggableScript;
 import org.mozilla.javascript.debug.Debugger;
@@ -25,14 +26,28 @@ public class DebuggerTest {
                     + "\n"
                     + "new ScriptDebuggerTest().debug()";
 
+    private static final String GENERATOR_SCRIPT =
+            """
+                function *f() {
+                    for (var i = 0; i < 2; i++) {
+                        yield i;
+                    }
+                }
+
+                var iter = f.apply('hello');
+                var n = iter.next();
+                while (!n.done) {
+                    n = iter.next();
+                }""";
+
     static final int NUM_BREAKPOINTS = 10;
     static final int NUM_FRAMES = 3;
 
     private static class MockDebugger implements Debugger {
 
-        private static MockDebugFrame frame;
+        private MockDebugFrame frame;
 
-        public static synchronized MockDebugFrame getFrame() {
+        public synchronized MockDebugFrame getFrame() {
             if (frame == null) frame = new MockDebugFrame();
             return frame;
         }
@@ -47,6 +62,8 @@ public class DebuggerTest {
 
         private int breakPointsHit = 0;
         private ArrayList<Set<String>> frameIds = new ArrayList<>();
+
+        private ArrayList<String> events = new ArrayList<>();
 
         public int getBreakPointsHit() {
             return breakPointsHit;
@@ -66,50 +83,88 @@ public class DebuggerTest {
         }
 
         @Override
-        public void onEnter(Context cx, Scriptable activation, Scriptable thisObj, Object[] args) {
+        public void onEnter(Context cx, VarScope activation, Scriptable thisObj, Object[] args) {
             var names = new HashSet<String>();
             for (var id : activation.getIds()) {
                 names.add(id.toString());
             }
             frameIds.add(names);
+            events.add(String.format("Enter %s", thisObj));
+        }
+
+        @Override
+        public void onExit(Context cx, boolean byThrow, Object resultOrException) {
+            events.add("Exit");
         }
     }
 
     @Test
     public void testThis() {
         MockDebugger debugger = new MockDebugger();
-        MockDebugFrame frame = MockDebugger.getFrame();
+        MockDebugFrame frame = debugger.getFrame();
         Context cx = Context.enter();
-        Scriptable scope = cx.initSafeStandardObjects();
+        TopLevel scope = cx.initSafeStandardObjects();
         try {
             cx.setDebugger(debugger, cx);
             cx.setGeneratingSource(true);
             cx.setGeneratingDebug(true);
-            cx.setInterpretedMode(true);
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter);
             Script script = cx.compileString(TEST_SCRIPT, "this-klass", 0, null);
-            Object res = script.exec(cx, scope, scope);
-            Assert.assertNotNull(res);
+            Object res = script.exec(cx, scope, scope.getGlobalThis());
+            Assertions.assertNotNull(res);
             System.err.println(res.toString());
-            Assert.assertEquals(
-                    "The expected number of breakpoints were not hit",
+            Assertions.assertEquals(
                     NUM_BREAKPOINTS,
-                    frame.getBreakPointsHit());
-            Assert.assertEquals(
-                    "The expected number of frames were not entered",
+                    frame.getBreakPointsHit(),
+                    "The expected number of breakpoints were not hit");
+            Assertions.assertEquals(
                     NUM_FRAMES,
-                    frame.getFrameIds().size());
-            Assert.assertEquals(
-                    "The top frame to be {`ScriptDebuggerTest`}",
+                    frame.getFrameIds().size(),
+                    "The expected number of frames were not entered");
+            Assertions.assertEquals(
                     Set.of("ScriptDebuggerTest"),
-                    frame.getFrameIds().get(0));
-            Assert.assertEquals(
-                    "The second frame to be {`a`, 'b'}",
+                    frame.getFrameIds().get(0),
+                    "The top frame to be {`ScriptDebuggerTest`}");
+            Assertions.assertEquals(
                     Set.of("a", "b"),
-                    frame.getFrameIds().get(1));
-            Assert.assertEquals(
-                    "The second frame to be {`x`, 'y'}",
+                    frame.getFrameIds().get(1),
+                    "The second frame to be {`a`, 'b'}");
+            Assertions.assertEquals(
                     Set.of("x", "y"),
-                    frame.getFrameIds().get(2));
+                    frame.getFrameIds().get(2),
+                    "The second frame to be {`x`, 'y'}");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            Context.exit();
+        }
+    }
+
+    @Test
+    public void testGenerator() {
+        MockDebugger debugger = new MockDebugger();
+        MockDebugFrame frame = debugger.getFrame();
+        Context cx = Context.enter();
+        cx.setLanguageVersion(Context.VERSION_ES6);
+        TopLevel scope = cx.initSafeStandardObjects();
+        try {
+            cx.setDebugger(debugger, cx);
+            cx.setGeneratingSource(true);
+            cx.setGeneratingDebug(true);
+            cx.setEvaluationMethod(EvaluationMethod.Interpreter);
+            Script script = cx.compileString(GENERATOR_SCRIPT, "this-klass", 0, null);
+            script.exec(cx, scope, scope.getGlobalThis());
+            Assertions.assertEquals(10, frame.events.size());
+            Assertions.assertEquals("Enter", frame.events.get(0).substring(0, 5));
+            Assertions.assertEquals("Enter hello", frame.events.get(1));
+            Assertions.assertEquals("Exit", frame.events.get(2));
+            Assertions.assertEquals("Enter hello", frame.events.get(3));
+            Assertions.assertEquals("Exit", frame.events.get(4));
+            Assertions.assertEquals("Enter hello", frame.events.get(5));
+            Assertions.assertEquals("Exit", frame.events.get(6));
+            Assertions.assertEquals("Enter hello", frame.events.get(7));
+            Assertions.assertEquals("Exit", frame.events.get(8));
+            Assertions.assertEquals("Exit", frame.events.get(9));
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {

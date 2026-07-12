@@ -6,6 +6,9 @@
 
 package org.mozilla.javascript;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashSet;
@@ -28,7 +31,7 @@ public class InterfaceAdapter {
     static Object create(Context cx, Class<?> cl, ScriptableObject object) {
         if (!cl.isInterface()) throw new IllegalArgumentException();
 
-        Scriptable topScope = ScriptRuntime.getTopCallScope(cx);
+        VarScope topScope = ScriptRuntime.getTopCallScope(cx);
         ClassCache cache = ClassCache.get(topScope);
         InterfaceAdapter adapter;
         adapter = (InterfaceAdapter) cache.getInterfaceAdapter(cl);
@@ -73,8 +76,54 @@ public class InterfaceAdapter {
             adapter = new InterfaceAdapter(cf, cl);
             cache.cacheInterfaceAdapter(cl, adapter);
         }
-        return VMBridge.instance.newInterfaceProxy(
-                adapter.proxyHelper, cf, adapter, object, topScope);
+        return newInterfaceProxy(adapter.proxyHelper, cf, adapter, object, topScope);
+    }
+
+    private static Object newInterfaceProxy(
+            Object proxyHelper,
+            final ContextFactory cf,
+            final InterfaceAdapter adapter,
+            final Object target,
+            VarScope topScope) {
+        Constructor<?> c = (Constructor<?>) proxyHelper;
+
+        InvocationHandler handler =
+                new InvocationHandler() {
+                    @Override
+                    public Object invoke(Object proxy, Method method, Object[] args) {
+                        // In addition to methods declared in the interface, proxies
+                        // also route some java.lang.Object methods through the
+                        // invocation handler.
+                        if (method.getDeclaringClass() == Object.class) {
+                            String methodName = method.getName();
+                            if ("equals".equals(methodName)) {
+                                Object other = args[0];
+                                // Note: we could compare a proxy and its wrapped function
+                                // as equal here but that would break symmetry of equal().
+                                // The reason == suffices here is that proxies are cached
+                                // in ScriptableObject (see NativeJavaObject.coerceType())
+                                return Boolean.valueOf(proxy == other);
+                            }
+                            if ("hashCode".equals(methodName)) {
+                                return Integer.valueOf(target.hashCode());
+                            }
+                            if ("toString".equals(methodName)) {
+                                return "Proxy[" + target.toString() + "]";
+                            }
+                        }
+                        return adapter.invoke(cf, target, topScope, proxy, method, args);
+                    }
+                };
+        Object proxy;
+        try {
+            proxy = c.newInstance(handler);
+        } catch (InvocationTargetException ex) {
+            throw Context.throwAsScriptRuntimeEx(ex);
+        } catch (IllegalAccessException | InstantiationException ex) {
+            // Should not happen
+            throw new IllegalStateException(ex);
+        }
+        return proxy;
     }
 
     /**
@@ -102,7 +151,7 @@ public class InterfaceAdapter {
     public Object invoke(
             ContextFactory cf,
             final Object target,
-            final Scriptable topScope,
+            final VarScope topScope,
             final Object thisObject,
             final Method method,
             final Object[] args) {
@@ -112,7 +161,7 @@ public class InterfaceAdapter {
     Object invokeImpl(
             Context cx,
             Object target,
-            Scriptable topScope,
+            VarScope topScope,
             Object thisObject,
             Method method,
             Object[] args) {

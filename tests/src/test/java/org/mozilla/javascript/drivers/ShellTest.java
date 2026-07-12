@@ -20,8 +20,9 @@ import org.mozilla.javascript.ErrorReporter;
 import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Script;
-import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.testutils.TestSource;
 import org.mozilla.javascript.tools.shell.Global;
 import org.mozilla.javascript.tools.shell.Main;
 import org.mozilla.javascript.tools.shell.ShellContextFactory;
@@ -34,7 +35,7 @@ public class ShellTest {
     private static Script frameworkScript;
 
     public static void cacheFramework() {
-        frameworkFile = new File("testsrc/tests/shell.js");
+        frameworkFile = new File(TestSource.resolve("testsrc/tests/shell.js"));
         if (!frameworkFile.exists()) {
             throw new AssertionError("Can't find test framework file " + frameworkFile);
         }
@@ -62,10 +63,10 @@ public class ShellTest {
         return bytes.toString();
     }
 
-    private static void runFileIfExists(Context cx, Scriptable global, File f) {
+    private static void runFileIfExists(Context cx, TopLevel global, File f) {
         if (frameworkFile.equals(f)) {
             try {
-                frameworkScript.exec(cx, global, global);
+                frameworkScript.exec(cx, global, global.getGlobalThis());
             } catch (RhinoException re) {
                 // Error in test framework means that the whole world is broken.
                 throw new AssertionError(re);
@@ -320,6 +321,7 @@ public class ShellTest {
                                 // invoke after init(...) to make sure ClassCache is available for
                                 // FunctionObject
                                 global.defineFunctionProperties(
+                                        global,
                                         new String[] {"options"},
                                         ShellTest.class,
                                         ScriptableObject.DONTENUM
@@ -429,6 +431,7 @@ public class ShellTest {
 
             // invoke after init(...) to make sure ClassCache is available for FunctionObject
             global.defineFunctionProperties(
+                    global,
                     new String[] {"options"},
                     ShellTest.class,
                     ScriptableObject.DONTENUM

@@ -6,26 +6,28 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
+
 /**
  * Exception thrown by {@link org.mozilla.javascript.Context#executeScriptWithContinuations(Script,
- * Scriptable)} and {@link org.mozilla.javascript.Context#callFunctionWithContinuations(Callable,
- * Scriptable, Object[])} when execution encounters a continuation captured by {@link
+ * VarScope)} and {@link org.mozilla.javascript.Context#callFunctionWithContinuations(Callable,
+ * VarScope, Object[])} when execution encounters a continuation captured by {@link
  * org.mozilla.javascript.Context#captureContinuation()}. Exception will contain the captured state
  * needed to restart the continuation with {@link
- * org.mozilla.javascript.Context#resumeContinuation(Object, Scriptable, Object)}.
+ * org.mozilla.javascript.Context#resumeContinuation(Object, VarScope, Object)}.
  *
  * @author Norris Boyd
  */
 public class ContinuationPending extends RuntimeException {
-    private static final long serialVersionUID = 4956008116771118856L;
+    @Serial private static final long serialVersionUID = 4956008116771118856L;
     private NativeContinuation continuationState;
     private Object applicationState;
 
     /**
      * Construct a ContinuationPending exception. Internal call only; users of the API should get
      * continuations created on their behalf by calling {@link
-     * org.mozilla.javascript.Context#executeScriptWithContinuations(Script, Scriptable)} and {@link
-     * org.mozilla.javascript.Context#callFunctionWithContinuations(Callable, Scriptable, Object[])}
+     * org.mozilla.javascript.Context#executeScriptWithContinuations(Script, VarScope)} and {@link
+     * org.mozilla.javascript.Context#callFunctionWithContinuations(Callable, VarScope, Object[])}
      * Creating subclasses allowed.
      *
      * @param continuationState Internal Continuation object
@@ -36,7 +38,7 @@ public class ContinuationPending extends RuntimeException {
 
     /**
      * Get continuation object. The only use for this object is to be passed to {@link
-     * org.mozilla.javascript.Context#resumeContinuation(Object, Scriptable, Object)}.
+     * org.mozilla.javascript.Context#resumeContinuation(Object, VarScope, Object)}.
      *
      * @return continuation object
      */

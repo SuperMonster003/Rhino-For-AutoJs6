@@ -4,18 +4,20 @@
 
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Context.EvaluationMethod;
 import org.mozilla.javascript.ContinuationPending;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.TopLevel;
 
 /**
  * @author André Bargull
@@ -23,16 +25,16 @@ import org.mozilla.javascript.ScriptableObject;
 public class Bug685403Test {
 
     private Context cx;
-    private ScriptableObject scope;
+    private TopLevel scope;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         cx = Context.enter();
-        cx.setInterpretedMode(true);
+        cx.setEvaluationMethod(EvaluationMethod.Interpreter);
         scope = cx.initStandardObjects();
     }
 
-    @After
+    @AfterEach
     public void tearDown() {
         Context.exit();
     }
@@ -53,7 +55,8 @@ public class Bug685403Test {
         source += "state";
 
         String[] functions = new String[] {"continuation"};
-        scope.defineFunctionProperties(functions, Bug685403Test.class, ScriptableObject.DONTENUM);
+        scope.defineFunctionProperties(
+                scope, functions, Bug685403Test.class, ScriptableObject.DONTENUM);
 
         Object state = null;
         Script script = cx.compileString(source, "", 1, null);
