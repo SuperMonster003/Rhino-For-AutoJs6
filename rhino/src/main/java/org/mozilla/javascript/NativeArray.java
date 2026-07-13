@@ -1134,6 +1134,18 @@ public class NativeArray extends ScriptableObject implements List {
         return sort(cx, o, comparator);
     }
 
+    /**
+     * @deprecated Use the built-in Array.prototype.sort function instead.
+     */
+    @Deprecated
+    public static Scriptable js_sort(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        VarScope varScope = ScriptableObject.getVarScope(scope);
+        Comparator<Object> comparator =
+                ArrayLikeAbstractOperations.getSortComparator(cx, varScope, args);
+        return sort(cx, thisObj, comparator);
+    }
+
     private static Scriptable sort(Context cx, Scriptable o, Comparator<Object> comparator) {
         long llength = getLengthProperty(cx, o);
         final int length = (int) llength;

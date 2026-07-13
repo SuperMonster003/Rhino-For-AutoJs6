@@ -131,7 +131,7 @@ public final class NativeDate extends ScriptableObject {
         return super.getDefaultValue(typeHint);
     }
 
-    double getJSTimeValue() {
+    public double getJSTimeValue() {
         return date;
     }
 
@@ -1338,7 +1338,7 @@ public final class NativeDate extends ScriptableObject {
         return ScriptRuntime.NaN;
     }
 
-    private static double date_parseString(Context cx, String s) {
+    public static double date_parseString(Context cx, String s) {
         double d = parseISOString(cx, s);
         if (!Double.isNaN(d)) {
             return d;
@@ -2080,5 +2080,5 @@ public final class NativeDate extends ScriptableObject {
     private static final DateTimeFormatter localeTimeFormatter =
             DateTimeFormatter.ofPattern("h:mm:ss a z");
 
-    private double date;
+    public double date;
 }

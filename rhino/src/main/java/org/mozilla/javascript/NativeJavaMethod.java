@@ -33,7 +33,7 @@ public class NativeJavaMethod extends BaseFunction {
     @Serial private static final long serialVersionUID = -3440381785576412928L;
 
     // TODO: serialization support by read/write class and method name
-    final ExecutableBox[] methods;
+    public final ExecutableBox[] methods;
     private final String functionName;
     private final transient CopyOnWriteArrayList<ResolvedOverload> overloadCache =
             new CopyOnWriteArrayList<>();
