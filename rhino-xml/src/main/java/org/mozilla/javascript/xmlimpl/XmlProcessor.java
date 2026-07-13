@@ -52,11 +52,12 @@ class XmlProcessor implements Serializable {
         // create TF and set settings to secure it from XSLT attacks if given a malicious node in
         // toXMLString
         this.xform = javax.xml.transform.TransformerFactory.newInstance();
-        Context ctx = Context.getCurrentContext();
-        if (ctx == null || ctx.hasFeature(Context.FEATURE_ENABLE_XML_SECURE_PARSING)) {
-            configureSecureDBF(this.dom);
-            configureSecureTF(this.xform);
-        }
+        // Context ctx = Context.getCurrentContext();
+        // if (ctx == null || ctx.hasFeature(Context.FEATURE_ENABLE_XML_SECURE_PARSING)) {
+        // @Commented by SuperMonster003 at Nov 27, 2021
+        // configureSecureDBF(this.dom);
+        // configureSecureTF(this.xform);
+        // }
         int poolSize = Runtime.getRuntime().availableProcessors() * 2;
         this.documentBuilderPool = new LinkedBlockingDeque<DocumentBuilder>(poolSize);
     }
@@ -158,11 +159,12 @@ class XmlProcessor implements Serializable {
         // create TF and set settings to secure it from XSLT attacks if given a malicious node in
         // toXMLString
         this.xform = javax.xml.transform.TransformerFactory.newInstance();
-        Context ctx = Context.getCurrentContext();
-        if (ctx == null || ctx.hasFeature(Context.FEATURE_ENABLE_XML_SECURE_PARSING)) {
-            configureSecureDBF(this.dom);
-            configureSecureTF(this.xform);
-        }
+        // Context ctx = Context.getCurrentContext();
+        // if (ctx == null || ctx.hasFeature(Context.FEATURE_ENABLE_XML_SECURE_PARSING)) {
+        // @Commented by SuperMonster003 at Nov 27, 2021
+        // configureSecureDBF(this.dom);
+        // configureSecureTF(this.xform);
+        // }
         int poolSize = Runtime.getRuntime().availableProcessors() * 2;
         this.documentBuilderPool = new LinkedBlockingDeque<DocumentBuilder>(poolSize);
     }
@@ -314,13 +316,9 @@ class XmlProcessor implements Serializable {
 
             // @Hint by SuperMonster003 on May 20, 2023.
             //  ! To support single-name attributes.
-            xml =
-                    xml.replaceAll(
-                            "(?<=\\s)(\\d*[a-zA-Z]\\w*)\\b(?=(\\s*/?>|(?:\\s+\\w+(=\"[\\s\\S]+?\")?)*\\s*/?>))",
-                            "$1=\"true\"");
+            xml = xml.replaceAll("(?<=\\s)(\\d*[a-zA-Z]\\w*)\\b(?=(\\s*/?>|(?:\\s+\\w+(=\"[\\s\\S]+?\")?)*\\s*/?>))", "$1=\"true\"");
 
-            String syntheticXml =
-                    "<parent xmlns=\"" + defaultNamespaceUri + "\">" + xml + "</parent>";
+            String syntheticXml = "<parent xmlns=\"" + defaultNamespaceUri + "\">" + xml + "</parent>";
             builder = getDocumentBuilderFromPool();
             Document document =
                     builder.parse(
