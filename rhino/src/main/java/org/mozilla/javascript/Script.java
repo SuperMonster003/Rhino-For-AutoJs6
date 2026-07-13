@@ -27,6 +27,15 @@ public interface Script {
         return exec(cx, scope, Undefined.SCRIPTABLE_UNDEFINED);
     }
 
+    @Deprecated(since = "1.8.1")
+    default Object exec(Context cx, Scriptable scope) {
+        return exec(cx, ScriptableObject.getVarScope(scope), Undefined.SCRIPTABLE_UNDEFINED);
+    }
+
+    default Object exec(Context cx, Scriptable scope, Scriptable thisObj) {
+        return exec(cx, ScriptableObject.getVarScope(scope), thisObj);
+    }
+
     /**
      * Execute the script.
      *

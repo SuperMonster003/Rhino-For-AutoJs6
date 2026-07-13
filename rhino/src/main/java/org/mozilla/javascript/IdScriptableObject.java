@@ -742,6 +742,11 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         return mCtor = ctor;
     }
 
+    public final IdFunctionObject exportAsJSClass(
+            int maxPrototypeId, Scriptable scope, boolean sealed) {
+        return exportAsJSClass(maxPrototypeId, ScriptableObject.getVarScope(scope), sealed);
+    }
+
     public final Object getCtorProperty(String name) {
         return mCtor == null ? null : ScriptableObject.getProperty(mCtor, name);
     }

@@ -1360,6 +1360,10 @@ public class ScriptRuntime {
         return toObject(Context.getContext(), scope, val);
     }
 
+    public static Scriptable toObject(Scriptable scope, Object val) {
+        return toObject(ScriptableObject.getVarScope(scope), val);
+    }
+
     /**
      * <strong>Warning</strong>: This doesn't allow to resolve primitive prototype properly when
      * many top scopes are involved
@@ -1388,6 +1392,10 @@ public class ScriptRuntime {
         return null;
     }
 
+    public static Scriptable toObjectOrNull(Context cx, Object obj, Scriptable scope) {
+        return toObjectOrNull(cx, obj, ScriptableObject.getVarScope(scope));
+    }
+
     /**
      * @deprecated Use {@link #toObject(VarScope, Object)} instead.
      */
@@ -1397,6 +1405,11 @@ public class ScriptRuntime {
             return (Scriptable) val;
         }
         return toObject(Context.getContext(), scope, val);
+    }
+
+    @Deprecated
+    public static Scriptable toObject(Scriptable scope, Object val, Class<?> staticClass) {
+        return toObject(ScriptableObject.getVarScope(scope), val, staticClass);
     }
 
     /**
@@ -1448,6 +1461,10 @@ public class ScriptRuntime {
         throw errorWithClassName("msg.invalid.type", val);
     }
 
+    public static Scriptable toObject(Context cx, Scriptable scope, Object val) {
+        return toObject(cx, ScriptableObject.getVarScope(scope), val);
+    }
+
     /**
      * @deprecated Use {@link #toObject(Context, VarScope, Object)} instead.
      */
@@ -1455,6 +1472,12 @@ public class ScriptRuntime {
     public static Scriptable toObject(
             Context cx, VarScope scope, Object val, Class<?> staticClass) {
         return toObject(cx, scope, val);
+    }
+
+    @Deprecated
+    public static Scriptable toObject(
+            Context cx, Scriptable scope, Object val, Class<?> staticClass) {
+        return toObject(cx, ScriptableObject.getVarScope(scope), val, staticClass);
     }
 
     /**
@@ -3887,6 +3910,17 @@ public class ScriptRuntime {
         }
     }
 
+    public static Object evalSpecial(
+            Context cx,
+            Scriptable scope,
+            Object thisArg,
+            Object[] args,
+            String filename,
+            int lineNumber) {
+        return evalSpecial(
+                cx, ScriptableObject.getVarScope(scope), thisArg, args, filename, lineNumber);
+    }
+
     public static Number multiply(Number val1, Number val2) {
         if (val1 instanceof BigInteger && val2 instanceof BigInteger) {
             return ((BigInteger) val1).multiply((BigInteger) val2);
@@ -4382,7 +4416,7 @@ public class ScriptRuntime {
         //        iii. Else,
         //            1. Assert: preferredType is number.
         //            2. Let hint be "number".
-        //        iv. Let result be ? Call(exoticToPrim, input, « hint »).
+        //        iv. Let result be ? Call(exoticToPrim, input, 芦 hint 禄).
         //        v.  If result is not an Object, return result.
         //        vi. Throw a TypeError exception.
         //    c. If preferredType is not present, let preferredType be number.
@@ -4784,7 +4818,7 @@ public class ScriptRuntime {
 
         // @Dubious by SuperMonster003 on Aug 15. 2024.
         //  ! I'm not sure if handling it this way has potential issues.
-        //  ! zh-CN: 我不确定这样处理是否存在潜在的问题.
+        //  ! See the English note above.
         //  # if (!(a instanceof Scriptable)) return false;
         if (!(a instanceof Scriptable)) {
             // for primitive values on LHS, return false
@@ -4985,8 +5019,20 @@ public class ScriptRuntime {
     }
 
     @Deprecated
+    public static Object doTopCall(
+            Callable callable, Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        return doTopCall(
+                callable, cx, ScriptableObject.getVarScope(scope), thisObj, args, cx.isStrictMode());
+    }
+
+    @Deprecated
     public static Object doTopCall(Script script, Context cx, VarScope scope, Scriptable thisObj) {
         return doTopCall(script, cx, scope, thisObj, cx.isStrictMode());
+    }
+
+    @Deprecated
+    public static Object doTopCall(Script script, Context cx, Scriptable scope, Scriptable thisObj) {
+        return doTopCall(script, cx, ScriptableObject.getVarScope(scope), thisObj, cx.isStrictMode());
     }
 
     public static Object doTopCall(
@@ -5020,6 +5066,17 @@ public class ScriptRuntime {
     }
 
     public static Object doTopCall(
+            Callable callable,
+            Context cx,
+            Scriptable scope,
+            Scriptable thisObj,
+            Object[] args,
+            boolean isTopLevelStrict) {
+        return doTopCall(
+                callable, cx, ScriptableObject.getVarScope(scope), thisObj, args, isTopLevelStrict);
+    }
+
+    public static Object doTopCall(
             Script script,
             Context cx,
             VarScope scope,
@@ -5046,6 +5103,16 @@ public class ScriptRuntime {
             assert (cx.currentActivationCall == null);
         }
         return result;
+    }
+
+    public static Object doTopCall(
+            Script script,
+            Context cx,
+            Scriptable scope,
+            Scriptable thisObj,
+            boolean isTopLevelStrict) {
+        return doTopCall(
+                script, cx, ScriptableObject.getVarScope(scope), thisObj, isTopLevelStrict);
     }
 
     /**
@@ -5492,6 +5559,11 @@ public class ScriptRuntime {
         TopLevel top = ScriptableObject.getTopLevelScope(scope);
         object.setParentScope(top);
         object.setPrototype(TopLevel.getBuiltinPrototype(top, type));
+    }
+
+    public static void setBuiltinProtoAndParent(
+            ScriptableObject object, Scriptable scope, TopLevel.Builtins type) {
+        setBuiltinProtoAndParent(object, ScriptableObject.getVarScope(scope), type);
     }
 
     public static void setBuiltinProtoAndParent(

@@ -2166,6 +2166,10 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         }
     }
 
+    public void defineFunctionProperties(String[] names, Class<?> clazz, int attributes) {
+        defineFunctionProperties(getVarScope(this), names, clazz, attributes);
+    }
+
     /**
      * Get the Object.prototype property. See ECMA 15.2.4.
      *
@@ -2173,6 +2177,10 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
      */
     public static Scriptable getObjectPrototype(VarScope scope) {
         return TopLevel.getBuiltinPrototype(getTopLevelScope(scope), TopLevel.Builtins.Object);
+    }
+
+    public static Scriptable getObjectPrototype(Scriptable scope) {
+        return getObjectPrototype(getVarScope(scope));
     }
 
     /**
@@ -2184,13 +2192,25 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         return TopLevel.getBuiltinPrototype(getTopLevelScope(scope), TopLevel.Builtins.Function);
     }
 
+    public static Scriptable getFunctionPrototype(Scriptable scope) {
+        return getFunctionPrototype(getVarScope(scope));
+    }
+
     public static Scriptable getGeneratorFunctionPrototype(VarScope scope) {
         return TopLevel.getBuiltinPrototype(
                 getTopLevelScope(scope), TopLevel.Builtins.GeneratorFunction);
     }
 
+    public static Scriptable getGeneratorFunctionPrototype(Scriptable scope) {
+        return getGeneratorFunctionPrototype(getVarScope(scope));
+    }
+
     public static Scriptable getArrayPrototype(VarScope scope) {
         return TopLevel.getBuiltinPrototype(getTopLevelScope(scope), TopLevel.Builtins.Array);
+    }
+
+    public static Scriptable getArrayPrototype(Scriptable scope) {
+        return getArrayPrototype(getVarScope(scope));
     }
 
     /**
@@ -2223,6 +2243,10 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         return null;
     }
 
+    public static Scriptable getClassPrototype(Scriptable scope, String className) {
+        return getClassPrototype(getVarScope(scope), className);
+    }
+
     public static Scriptable getClassPrototype(VarScope scope, Symbol className) {
         scope = getTopLevelScope(scope);
         Object ctor = getProperty(scope, className);
@@ -2239,6 +2263,10 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
             return (Scriptable) proto;
         }
         return null;
+    }
+
+    public static Scriptable getClassPrototype(Scriptable scope, Symbol className) {
+        return getClassPrototype(getVarScope(scope), className);
     }
 
     /**
@@ -2261,6 +2289,26 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
             }
             obj = parent;
         }
+    }
+
+    public static TopLevel getTopLevelScope(Scriptable obj) {
+        return getTopLevelScope(getVarScope(obj));
+    }
+
+    static VarScope getVarScope(Scriptable scope) {
+        VarScope parentScope = scope.getParentScope();
+        if (parentScope != null) {
+            return parentScope;
+        }
+        for (Scriptable prototype = scope.getPrototype();
+                prototype != null;
+                prototype = prototype.getPrototype()) {
+            parentScope = prototype.getParentScope();
+            if (parentScope != null) {
+                return parentScope;
+            }
+        }
+        throw new IllegalArgumentException("Scriptable scope has no parent VarScope");
     }
 
     public boolean isExtensible() {

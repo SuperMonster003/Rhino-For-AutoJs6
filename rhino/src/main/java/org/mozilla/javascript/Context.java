@@ -1231,6 +1231,12 @@ public class Context implements Closeable {
                 scope);
     }
 
+    public final Object evaluateString(
+            Scriptable scope, String source, String sourceName, int lineno, Object securityDomain) {
+        return evaluateString(
+                ScriptableObject.getVarScope(scope), source, sourceName, lineno, securityDomain);
+    }
+
     /**
      * Evaluate a reader as JavaScript source.
      *
@@ -1258,6 +1264,13 @@ public class Context implements Closeable {
                 scope);
     }
 
+    public final Object evaluateReader(
+            Scriptable scope, Reader in, String sourceName, int lineno, Object securityDomain)
+            throws IOException {
+        return evaluateReader(
+                ScriptableObject.getVarScope(scope), in, sourceName, lineno, securityDomain);
+    }
+
     /**
      * Execute script that may pause execution by capturing a continuation. Caller must be prepared
      * to catch a ContinuationPending exception and resume execution by calling {@link
@@ -1282,6 +1295,11 @@ public class Context implements Closeable {
         return callFunctionWithContinuations((JSScript) script, scope);
     }
 
+    public Object executeScriptWithContinuations(Script script, Scriptable scope)
+            throws ContinuationPending {
+        return executeScriptWithContinuations(script, ScriptableObject.getVarScope(scope));
+    }
+
     public Object executeScriptWithContinuations(Callable callable, VarScope scope)
             throws ContinuationPending {
         if (!(callable instanceof JSFunction)
@@ -1292,6 +1310,11 @@ public class Context implements Closeable {
                             + " a script or was not created by interpreted mode ");
         }
         return callFunctionWithContinuations((JSFunction) callable, scope, ScriptRuntime.emptyArgs);
+    }
+
+    public Object executeScriptWithContinuations(Callable callable, Scriptable scope)
+            throws ContinuationPending {
+        return executeScriptWithContinuations(callable, ScriptableObject.getVarScope(scope));
     }
 
     /**
@@ -1380,6 +1403,11 @@ public class Context implements Closeable {
         Object[] args = {functionResult};
         return Interpreter.restartContinuation(
                 (org.mozilla.javascript.NativeContinuation) continuation, this, scope, args);
+    }
+
+    public Object resumeContinuation(Object continuation, Scriptable scope, Object functionResult)
+            throws ContinuationPending {
+        return resumeContinuation(continuation, ScriptableObject.getVarScope(scope), functionResult);
     }
 
     /**
@@ -1630,6 +1658,10 @@ public class Context implements Closeable {
         return result;
     }
 
+    public Scriptable newObject(Scriptable scope) {
+        return newObject(ScriptableObject.getVarScope(scope));
+    }
+
     public VarScope newVarEnv(VarScope parent) {
         return new DeclarationScope(parent);
     }
@@ -1645,6 +1677,10 @@ public class Context implements Closeable {
      */
     public Scriptable newObject(VarScope scope, String constructorName) {
         return newObject(scope, constructorName, ScriptRuntime.emptyArgs);
+    }
+
+    public Scriptable newObject(Scriptable scope, String constructorName) {
+        return newObject(ScriptableObject.getVarScope(scope), constructorName);
     }
 
     /**
@@ -1671,6 +1707,10 @@ public class Context implements Closeable {
         return ScriptRuntime.newObject(this, scope, constructorName, args);
     }
 
+    public Scriptable newObject(Scriptable scope, String constructorName, Object[] args) {
+        return newObject(ScriptableObject.getVarScope(scope), constructorName, args);
+    }
+
     /**
      * Create an array with a specified initial length.
      *
@@ -1683,6 +1723,10 @@ public class Context implements Closeable {
         NativeArray result = new NativeArray(length);
         ScriptRuntime.setBuiltinProtoAndParent(result, scope, TopLevel.Builtins.Array);
         return result;
+    }
+
+    public Scriptable newArray(Scriptable scope, int length) {
+        return newArray(ScriptableObject.getVarScope(scope), length);
     }
 
     /**
@@ -1699,6 +1743,10 @@ public class Context implements Closeable {
         NativeArray result = new NativeArray(elements);
         ScriptRuntime.setBuiltinProtoAndParent(result, scope, TopLevel.Builtins.Array);
         return result;
+    }
+
+    public Scriptable newArray(Scriptable scope, Object[] elements) {
+        return newArray(ScriptableObject.getVarScope(scope), elements);
     }
 
     /**
@@ -1776,6 +1824,10 @@ public class Context implements Closeable {
         return ScriptRuntime.toObject(scope, value);
     }
 
+    public static Scriptable toObject(Object value, Scriptable scope) {
+        return toObject(value, ScriptableObject.getVarScope(scope));
+    }
+
     /**
      * @deprecated
      * @see #toObject(Object, VarScope)
@@ -1783,6 +1835,11 @@ public class Context implements Closeable {
     @Deprecated
     public static Scriptable toObject(Object value, VarScope scope, Class<?> staticType) {
         return ScriptRuntime.toObject(scope, value);
+    }
+
+    @Deprecated
+    public static Scriptable toObject(Object value, Scriptable scope, Class<?> staticType) {
+        return toObject(value, ScriptableObject.getVarScope(scope), staticType);
     }
 
     /**
@@ -1813,6 +1870,10 @@ public class Context implements Closeable {
      */
     public static Object javaToJS(Object value, VarScope scope) {
         return javaToJS(value, scope, null);
+    }
+
+    public static Object javaToJS(Object value, Scriptable scope) {
+        return javaToJS(value, ScriptableObject.getVarScope(scope), null);
     }
 
     /**

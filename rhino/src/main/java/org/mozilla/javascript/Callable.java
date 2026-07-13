@@ -21,4 +21,8 @@ public interface Callable {
      * @return the result of the call
      */
     public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args);
+
+    public default Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        return call(cx, ScriptableObject.getVarScope(scope), thisObj, args);
+    }
 }

@@ -24,6 +24,15 @@ public class BoundFunction extends BaseFunction {
 
     public BoundFunction(
             Context cx,
+            Scriptable scope,
+            Callable targetFunction,
+            Scriptable boundThis,
+            Object[] boundArgs) {
+        this(cx, ScriptableObject.getVarScope(scope), targetFunction, boundThis, boundArgs);
+    }
+
+    public BoundFunction(
+            Context cx,
             VarScope scope,
             Callable targetFunction,
             Scriptable boundThis,

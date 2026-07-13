@@ -16,4 +16,8 @@ public interface Constructable {
      * @return the allocated object
      */
     Scriptable construct(Context cx, VarScope scope, Object[] args);
+
+    default Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+        return construct(cx, ScriptableObject.getVarScope(scope), args);
+    }
 }

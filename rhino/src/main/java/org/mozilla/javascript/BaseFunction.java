@@ -148,6 +148,10 @@ public class BaseFunction extends ScriptableObject implements Function {
         ScriptRuntime.setBuiltinProtoAndParent(this, scope, TopLevel.Builtins.Function);
     }
 
+    public BaseFunction(Scriptable scope, Scriptable prototype) {
+        this(ScriptableObject.getVarScope(scope), prototype);
+    }
+
     protected void createProperties() {
         ScriptableObject.defineBuiltInProperty(
                 this, "length", DONTENUM | READONLY, BaseFunction::lengthGetter);
@@ -527,6 +531,11 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        return call(cx, ScriptableObject.getVarScope(scope), thisObj, args);
+    }
+
+    @Override
     public Scriptable construct(Context cx, VarScope scope, Object[] args) {
         if (cx.getLanguageVersion() >= Context.VERSION_ES6 && this.getHomeObject() != null) {
             // Only methods have home objects associated with them
@@ -563,6 +572,11 @@ public class BaseFunction extends ScriptableObject implements Function {
             }
         }
         return result;
+    }
+
+    @Override
+    public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+        return construct(cx, ScriptableObject.getVarScope(scope), args);
     }
 
     /**

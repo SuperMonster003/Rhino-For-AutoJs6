@@ -200,6 +200,10 @@ public class FunctionObject extends BaseFunction {
         }
     }
 
+    public FunctionObject(String name, Member methodOrConstructor, Scriptable scope) {
+        this(name, methodOrConstructor, ScriptableObject.getVarScope(scope));
+    }
+
     /**
      * Return the value defined by the method used to construct the object (number of parameters of
      * the method, or 1 if the method is a "varargs" form).
