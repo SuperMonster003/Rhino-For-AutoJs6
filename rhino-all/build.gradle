@@ -10,7 +10,7 @@ dependencies {
     // Include JLine so that the stand-alone JAR gets a nice terminal
     runtimeOnly libs.jline.terminal
     runtimeOnly libs.jline.reader
-    runtimeOnly libs.bundles.jline.runtime
+    runtimeOnly libs.jline.jni
 }
 
 shadowJar {
