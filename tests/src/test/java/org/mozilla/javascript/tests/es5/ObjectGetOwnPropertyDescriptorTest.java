@@ -13,6 +13,7 @@ import static org.mozilla.javascript.tests.Evaluator.eval;
 import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeObject;
+import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.annotations.JSConstructor;
@@ -62,6 +63,44 @@ public class ObjectGetOwnPropertyDescriptorTest {
                             + "result;\n";
             String result = (String) cx.evaluateString(scope, script, "<testsrc>", 0, null);
             assertEquals("abc", result);
+        }
+    }
+
+    @Test
+    public void descriptorToScriptableObjectAcceptsVarScope() {
+        try (Context cx = Context.enter()) {
+            TopLevel scope = cx.initStandardObjects();
+            NativeObject object = new NativeObject();
+            object.defineProperty("value", 91, ScriptableObject.EMPTY);
+
+            NativeObject descriptor =
+                    (NativeObject)
+                            object.getOwnPropertyDescriptor(cx, "value")
+                                    .toScriptableObject(scope);
+
+            assertEquals(91, descriptor.get("value", descriptor));
+            assertEquals(scope, descriptor.getParentScope());
+        }
+    }
+
+    @Test
+    public void descriptorToScriptableObjectResolvesScopeFromPrototypeChain() {
+        try (Context cx = Context.enter()) {
+            TopLevel scope = cx.initStandardObjects();
+            NativeObject object = new NativeObject();
+            object.defineProperty("value", 91, ScriptableObject.EMPTY);
+            Scriptable prototypeWithScope = new NativeObject();
+            prototypeWithScope.setParentScope(scope);
+            NativeObject detachedScope = new NativeObject();
+            detachedScope.setPrototype(prototypeWithScope);
+
+            NativeObject descriptor =
+                    (NativeObject)
+                            object.getOwnPropertyDescriptor(cx, "value")
+                                    .toScriptableObject(detachedScope);
+
+            assertEquals(91, descriptor.get("value", descriptor));
+            assertEquals(scope, descriptor.getParentScope());
         }
     }
 

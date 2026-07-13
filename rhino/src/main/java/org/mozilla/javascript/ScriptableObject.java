@@ -1610,12 +1610,12 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
             return desc;
         }
 
+        public ScriptableObject toScriptableObject(VarScope scope) {
+            return ((ScriptableObject) toObject(scope));
+        }
+
         public ScriptableObject toScriptableObject(Scriptable scope) {
-            VarScope parentScope = scope.getParentScope();
-            if (parentScope == null) {
-                throw new IllegalArgumentException("Scriptable scope has no parent VarScope");
-            }
-            return ((ScriptableObject) toObject(parentScope));
+            return toScriptableObject(getVarScope(scope));
         }
 
         public boolean isWritable() {
