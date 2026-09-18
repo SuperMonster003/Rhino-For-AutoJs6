@@ -352,7 +352,9 @@ class JavaMembers {
                                     Method registered = registerMethod(map, method);
                                     // We don't want to replace the deprecated method here
                                     // because it is not available on Android.
-                                    if (includePrivate && !registered.isAccessible()) {
+                                    if (registered != null
+                                            && includePrivate
+                                            && !registered.isAccessible()) {
                                         registered.setAccessible(true);
                                     }
                                 }
@@ -405,10 +407,21 @@ class JavaMembers {
     }
 
     static Method registerMethod(Map<MethodSignature, Method> map, Method method) {
-        MethodSignature sig = new MethodSignature(method);
-        // Array may contain methods with same parameter signature but different return value!
-        // (which is allowed in bytecode, but not in JLS) we will take the best method
-        return map.merge(sig, method, JavaMembers::getMoreConcreteMethod);
+        try {
+            MethodSignature sig = new MethodSignature(method);
+            // Array may contain methods with same parameter signature but different return value!
+            // (which is allowed in bytecode, but not in JLS) we will take the best method
+            return map.merge(sig, method, JavaMembers::getMoreConcreteMethod);
+        } catch (NoClassDefFoundError | TypeNotPresentException e) {
+            // @Hint by SuperMonster003 on Sep 18, 2026.
+            //  ! A parameter (or, for a duplicate signature, return) type of this method does not
+            //  ! exist on the running platform, e.g. android.view.textclassifier.TextClassifier
+            //  ! (API 26+) referenced by androidx.appcompat.widget.AppCompatTextView on Android 7.x.
+            //  ! Such a method can never be invoked here, so it is skipped instead of failing the
+            //  ! reflection of the whole class (which made any AppCompatTextView unusable from
+            //  ! scripts on Android 7.x).
+            return null;
+        }
     }
 
     private static Method getMoreConcreteMethod(Method oldValue, Method newValue) {
