@@ -23,6 +23,7 @@ import org.mozilla.javascript.JSDescriptor;
 import org.mozilla.javascript.JavaAdapter;
 import org.mozilla.javascript.Parser;
 import org.mozilla.javascript.ScriptRuntime;
+import org.mozilla.javascript.SourceCodeProvider;
 import org.mozilla.javascript.ast.AstRoot;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.ScriptNode;
@@ -128,6 +129,7 @@ public class ClassCompiler {
         if (compilerEnv.isGeneratingSource()) {
             tree.setRawSource(source);
             tree.setRawSourceBounds(0, source.length());
+            compilerEnv.setSourceCodeProvider(SourceCodeProvider.make(true, null, source));
         }
 
         // release reference to original parse tree & parser
@@ -147,8 +149,8 @@ public class ClassCompiler {
 
         Codegen codegen = new Codegen();
         codegen.setMainMethodClass(mainMethodClassName);
-        JSDescriptor.Builder builder = new JSDescriptor.Builder();
-        OptJSCode.BuilderEnv builderEnv = new OptJSCode.BuilderEnv(scriptClassName);
+        JSDescriptor.Builder<?> builder = new JSDescriptor.Builder<>();
+        MHJSCode.BuilderEnv builderEnv = new MHJSCode.BuilderEnv(scriptClassName);
         byte[] scriptClassBytes =
                 codegen.compileToClassFile(
                         compilerEnv, builder, builderEnv, scriptClassName, tree, source, false);
@@ -190,19 +192,20 @@ public class ClassCompiler {
      * class descriptors, and the main method will create a {@link JSDescriptor} object based on the
      * first descriptor and pass that to the main method in the runtime.
      */
-    private Object[] buildDescriptorsAndMain(String mainClassName, JSDescriptor.Builder builder) {
+    private Object[] buildDescriptorsAndMain(
+            String mainClassName, JSDescriptor.Builder<?> builder) {
         var classes = new HashMap<String, byte[]>();
         var mainName = mainClassName + "Main";
 
         var cfw = new ClassFileWriter(mainName, "java.lang.Object", "");
         var builders = new ArrayList<JSDescriptor.Builder<?>>();
-        buildDescriptor(cfw, builder, classes, builders);
+        buildDescriptor(cfw, builder, builder, classes, builders, mainClassName);
         cfw.startMethod("<clinit>", "()V", ACC_STATIC);
         cfw.addLoadConstant(builders.size());
         cfw.add(ByteCode.ANEWARRAY, "org/mozilla/javascript/JSDescriptor");
         for (var b : builders) {
-            int index = ((OptJSCode.Builder) b.code).index;
-            int parent = b.parent == null ? 0 : ((OptJSCode.Builder) b.parent.code).index;
+            int index = ((MHJSCode.Builder<?>) b.code).index;
+            int parent = b.parent == null ? 0 : ((MHJSCode.Builder<?>) b.parent.code).index;
             populateDescriptorEntry(cfw, index, parent);
         }
         cfw.add(
@@ -257,9 +260,11 @@ public class ClassCompiler {
      */
     private void buildDescriptor(
             ClassFileWriter cfw,
-            JSDescriptor.Builder builder,
+            JSDescriptor.Builder<?> builder,
+            JSDescriptor.Builder<?> root,
             Map<String, byte[]> classes,
-            List<JSDescriptor.Builder<?>> builders) {
+            List<JSDescriptor.Builder<?>> builders,
+            String mainClassName) {
         builders.add(builder);
         cfw.startMethod(
                 "init" + functionId(builder),
@@ -268,8 +273,8 @@ public class ClassCompiler {
 
         cfw.add(ByteCode.NEW, "org.mozilla.javascript.JSDescriptor");
         cfw.add(ByteCode.DUP);
-        buildCode(cfw, builder.code, classes);
-        buildCode(cfw, builder.constructor, classes);
+        buildCode(cfw, builder.code, classes, mainClassName);
+        buildCode(cfw, builder.constructor, classes, mainClassName);
         cfw.addALoad(0);
         cfw.addLoadConstant(builder.paramAndVarNames.length);
         cfw.add(ByteCode.ANEWARRAY, "java/lang/String");
@@ -307,9 +312,20 @@ public class ClassCompiler {
         cfw.add(builder.isEvalFunction ? ByteCode.ICONST_1 : ByteCode.ICONST_0);
         cfw.add(builder.hasRestArg ? ByteCode.ICONST_1 : ByteCode.ICONST_0);
         cfw.addLoadConstant(builder.sourceFile);
-        cfw.addLoadConstant(builder.rawSource);
-        cfw.addLoadConstant(builder.rawSourceStart);
-        cfw.addLoadConstant(builder.rawSourceEnd);
+        if (compilerEnv.isGeneratingSource()) {
+            cfw.add(ByteCode.NEW, "org.mozilla.javascript.EagerSourceCodeProvider");
+            cfw.add(ByteCode.DUP);
+            cfw.addLoadConstant(root.sourceCodeProvider.getRawSource());
+            cfw.addInvoke(
+                    ByteCode.INVOKESPECIAL,
+                    "org.mozilla.javascript.EagerSourceCodeProvider",
+                    "<init>",
+                    "(Ljava/lang/String;)V");
+        } else {
+            cfw.add(ByteCode.ACONST_NULL);
+        }
+        cfw.addLoadConstant(builder.sourceStart);
+        cfw.addLoadConstant(builder.sourceEnd);
         if (builder.name == null) {
             cfw.add(ByteCode.ACONST_NULL);
         } else {
@@ -323,6 +339,7 @@ public class ClassCompiler {
         cfw.add(builder.requiresActivationFrame ? ByteCode.ICONST_1 : ByteCode.ICONST_0);
         cfw.add(builder.requiresArgumentObject ? ByteCode.ICONST_1 : ByteCode.ICONST_0);
         cfw.add(builder.declaredAsFunctionExpression ? ByteCode.ICONST_1 : ByteCode.ICONST_0);
+        cfw.add(ByteCode.ICONST_0);
         cfw.add(ByteCode.ACONST_NULL);
         cfw.add(ByteCode.ACONST_NULL);
         cfw.addLoadConstant(builder.functionType);
@@ -350,7 +367,7 @@ public class ClassCompiler {
                 cfw.addInvoke(
                         ByteCode.INVOKESTATIC,
                         cfw.getClassName(),
-                        "init" + functionId((JSDescriptor.Builder) child),
+                        "init" + functionId((JSDescriptor.Builder<?>) child),
                         "(Lorg/mozilla/javascript/JSDescriptor;)Lorg/mozilla/javascript/JSDescriptor;");
                 cfw.add(ByteCode.AASTORE);
                 cfw.add(ByteCode.IINC, 2, 1);
@@ -370,7 +387,8 @@ public class ClassCompiler {
         cfw.add(ByteCode.ARETURN);
         cfw.stopMethod(3);
         for (var child : builder.nestedFunctions) {
-            buildDescriptor(cfw, (JSDescriptor.Builder) child, classes, builders);
+            buildDescriptor(
+                    cfw, (JSDescriptor.Builder<?>) child, root, classes, builders, mainClassName);
         }
     }
 
@@ -379,13 +397,14 @@ public class ClassCompiler {
      * instantiate that class.
      */
     private void buildCode(
-            ClassFileWriter cfw, JSCode.Builder builder, Map<String, byte[]> classes) {
+            ClassFileWriter cfw,
+            JSCode.Builder<?> builder,
+            Map<String, byte[]> classes,
+            String mainClassName) {
         if (builder instanceof JSCode.NullBuilder<?>) {
             cfw.add(ByteCode.ACONST_NULL);
         } else {
-            var code = (OptJSCode.Builder<?>) builder;
-            code.buildByteCode(cfw);
-            classes.put(code.getClassName(), code.getClassBytes());
+            ((MHJSCode.Builder<?>) builder).buildByteCode(cfw, mainClassName);
         }
     }
 
@@ -405,8 +424,8 @@ public class ClassCompiler {
         cfw.add(ByteCode.AASTORE);
     }
 
-    private int functionId(JSDescriptor.Builder builder) {
-        var code = (OptJSCode.Builder) builder.code;
+    private int functionId(JSDescriptor.Builder<?> builder) {
+        var code = (MHJSCode.Builder<?>) builder.code;
         return code.index;
     }
 

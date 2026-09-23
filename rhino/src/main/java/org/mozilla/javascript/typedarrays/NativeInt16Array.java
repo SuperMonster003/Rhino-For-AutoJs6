@@ -16,6 +16,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -71,7 +72,15 @@ public class NativeInt16Array extends NativeTypedArrayView<Short> {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return NativeTypedArrayView.js_constructor(
-                cx, f, nt, s, thisObj, args, NativeInt16Array::new, 2);
+                cx,
+                f,
+                nt,
+                s,
+                thisObj,
+                args,
+                NativeInt16Array::new,
+                2,
+                TopLevel.Builtins.Int16Array);
     }
 
     @Override
@@ -79,18 +88,16 @@ public class NativeInt16Array extends NativeTypedArrayView<Short> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        return ByteIo.readInt16(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, useLittleEndian());
+        return arrayBuffer.buffer.getShort((index * BYTES_PER_ELEMENT) + offset);
     }
 
     @Override
     protected Object js_set(int index, Object c) {
-        int val = Conversions.toInt16(c);
+        short val = Conversions.toInt16(c);
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        ByteIo.writeInt16(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, val, useLittleEndian());
+        arrayBuffer.buffer.putShort((index * BYTES_PER_ELEMENT) + offset, val);
         return null;
     }
 

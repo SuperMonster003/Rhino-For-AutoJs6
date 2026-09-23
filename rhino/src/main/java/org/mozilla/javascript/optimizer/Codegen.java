@@ -27,6 +27,8 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Evaluator;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.GeneratedClassLoader;
+import org.mozilla.javascript.InstrumentEmitter;
+import org.mozilla.javascript.InstrumentEmitter.Type;
 import org.mozilla.javascript.JSDescriptor;
 import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.JSScript;
@@ -40,6 +42,7 @@ import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.Name;
 import org.mozilla.javascript.ast.ScriptNode;
 import org.mozilla.javascript.ast.TemplateCharacters;
+import org.mozilla.javascript.config.RhinoConfig;
 import org.mozilla.javascript.debug.DebuggableScript;
 
 /**
@@ -74,13 +77,13 @@ public class Codegen implements Evaluator {
         final JSDescriptor.Builder<T> builder;
         final String className;
         final byte[] bytecode;
-        final OptJSCode.BuilderEnv builderEnv;
+        final MHJSCode.BuilderEnv builderEnv;
 
         CodegenCompilationResult(
                 JSDescriptor.Builder<T> builder,
                 String className,
                 byte[] bytecode,
-                OptJSCode.BuilderEnv builderEnv) {
+                MHJSCode.BuilderEnv builderEnv) {
             this.builder = builder;
             this.className = className;
             this.bytecode = bytecode;
@@ -111,6 +114,19 @@ public class Codegen implements Evaluator {
             ScriptNode tree,
             String rawSource,
             boolean returnFunction) {
+        var event = InstrumentEmitter.emitter.startEvent(Type.COMPILE_CLASSFILE);
+        try {
+            return doCompileInt(compilerEnv, tree, rawSource, returnFunction);
+        } finally {
+            InstrumentEmitter.emitter.endEvent(event, tree.getSourceName());
+        }
+    }
+
+    private <T extends ScriptOrFn<T>> CodegenCompilationResult<T> doCompileInt(
+            CompilerEnvirons compilerEnv,
+            ScriptNode tree,
+            String rawSource,
+            boolean returnFunction) {
         int serial;
         synchronized (globalLock) {
             serial = ++globalSerialClassCounter;
@@ -127,7 +143,7 @@ public class Codegen implements Evaluator {
         String mainClassName = "org.mozilla.javascript.gen." + baseName + "_" + serial;
 
         JSDescriptor.Builder<T> builder = new JSDescriptor.Builder<>();
-        OptJSCode.BuilderEnv builderEnv = new OptJSCode.BuilderEnv(mainClassName);
+        MHJSCode.BuilderEnv builderEnv = new MHJSCode.BuilderEnv(mainClassName);
         byte[] mainClassBytes =
                 compileToClassFile(
                         compilerEnv,
@@ -202,7 +218,7 @@ public class Codegen implements Evaluator {
     public byte[] compileToClassFile(
             CompilerEnvirons compilerEnv,
             JSDescriptor.Builder<?> builder,
-            OptJSCode.BuilderEnv builderEnv,
+            MHJSCode.BuilderEnv builderEnv,
             String mainClassName,
             ScriptNode scriptOrFn,
             String rawSource,
@@ -281,7 +297,7 @@ public class Codegen implements Evaluator {
     private <U extends ScriptOrFn<U>> void initScriptNodesData(
             ScriptNode scriptOrFn,
             JSDescriptor.Builder<U> builder,
-            OptJSCode.BuilderEnv builderEnv) {
+            MHJSCode.BuilderEnv builderEnv) {
         ArrayList<ScriptNode> x = new ArrayList<>();
         ArrayList<JSDescriptor.Builder<?>> b = new ArrayList<>();
         collectScriptNodes_r(scriptOrFn, builder, builderEnv, x, b);
@@ -301,16 +317,16 @@ public class Codegen implements Evaluator {
     private <U extends ScriptOrFn<U>> void collectScriptNodes_r(
             ScriptNode n,
             JSDescriptor.Builder<U> builder,
-            OptJSCode.BuilderEnv builderEnv,
+            MHJSCode.BuilderEnv builderEnv,
             List<ScriptNode> x,
             List<JSDescriptor.Builder<?>> b) {
 
         @SuppressWarnings("unchecked")
-        OptJSCode.Builder<U> code =
-                (OptJSCode.Builder<U>)
+        MHJSCode.Builder<U> code =
+                (MHJSCode.Builder<U>)
                         ((n instanceof FunctionNode)
-                                ? new OptJSFunctionCode.Builder(builderEnv)
-                                : new OptJSScriptCode.Builder(builderEnv));
+                                ? new MHJSFunctionCode.Builder(builderEnv)
+                                : new MHJSScriptCode.Builder(builderEnv));
         code.index = x.size();
         code.methodName = getBodyMethodName(n, x.size());
         code.methodType = getNonDirectBodyMethodSIgnature(n);
@@ -530,6 +546,8 @@ public class Codegen implements Evaluator {
         int argCount = ofn.fnode.getParamCount();
         int firstLocal = (5 + argCount * 3) + 1;
 
+        emitTrace(cfw, "TRACE emitDirectConstructor body: " + cleanName(ofn.fnode));
+
         cfw.addALoad(1); // this
         cfw.add(ByteCode.CHECKCAST, Codegen.JSFUNCTION_CLASS_NAME);
         cfw.addALoad(0); // cx
@@ -543,11 +561,11 @@ public class Codegen implements Evaluator {
                         + ")Lorg/mozilla/javascript/Scriptable;");
         cfw.addAStore(firstLocal);
 
-        cfw.addALoad(0);
-        cfw.addALoad(1);
-        cfw.add(ByteCode.ACONST_NULL);
-        cfw.addALoad(2);
-        cfw.addALoad(firstLocal);
+        cfw.addALoad(0); // context
+        cfw.addALoad(1); // this function
+        cfw.addALoad(2); // new.target will be this function
+        cfw.addALoad(3); // Scope
+        cfw.addALoad(firstLocal); // thisObj - object created above.
         for (int i = 0; i < argCount; i++) {
             cfw.addALoad(5 + (i * 3));
             cfw.addDLoad(6 + (i * 3));
@@ -561,16 +579,28 @@ public class Codegen implements Evaluator {
         int exitLabel = cfw.acquireLabel();
         cfw.add(ByteCode.DUP); // make a copy of direct call result
         cfw.add(ByteCode.INSTANCEOF, "org/mozilla/javascript/Scriptable");
-        cfw.add(ByteCode.IFEQ, exitLabel);
-        // cast direct call result
-        cfw.add(ByteCode.CHECKCAST, "org/mozilla/javascript/Scriptable");
-        cfw.add(ByteCode.ARETURN);
-        cfw.markLabel(exitLabel);
-
+        cfw.add(ByteCode.IFNE, exitLabel);
+        // If the constructor did not return a Scriptable we pass back the `this` we passed in.
+        cfw.add(ByteCode.POP);
         cfw.addALoad(firstLocal);
+        cfw.markLabel(exitLabel);
         cfw.add(ByteCode.ARETURN);
 
         cfw.stopMethod((short) (firstLocal + 1));
+    }
+
+    static final boolean DEBUG_DIRECT_CALLS = RhinoConfig.get("rhino.debugDirectCalls", false);
+
+    /**
+     * Emits code that prints the given message when the surrounding generated code is reached. Only
+     * used to check which of the direct call paths a script actually takes.
+     */
+    static void emitTrace(ClassFileWriter cfw, String message) {
+        if (!DEBUG_DIRECT_CALLS) return;
+        cfw.add(ByteCode.GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;");
+        cfw.addPush(message);
+        cfw.addInvoke(
+                ByteCode.INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V");
     }
 
     static boolean isGenerator(ScriptNode node) {
@@ -985,7 +1015,8 @@ public class Codegen implements Evaluator {
                     + "Lorg/mozilla/javascript/Context;"
                     + "Lorg/mozilla/javascript/VarScope;"
                     + "Lorg/mozilla/javascript/JSDescriptor;"
-                    + "Lorg/mozilla/javascript/Scriptable;"
+                    + "Ljava/lang/Object;"
+                    + "Ljava/lang/Object;"
                     + "Lorg/mozilla/javascript/Scriptable;"
                     + ")V";
 

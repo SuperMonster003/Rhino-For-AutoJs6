@@ -75,8 +75,7 @@ public class ObjectGetOwnPropertyDescriptorTest {
 
             NativeObject descriptor =
                     (NativeObject)
-                            object.getOwnPropertyDescriptor(cx, "value")
-                                    .toScriptableObject(scope);
+                            object.getOwnPropertyDescriptor(cx, "value").toScriptableObject(scope);
 
             assertEquals(91, descriptor.get("value", descriptor));
             assertEquals(scope, descriptor.getParentScope());

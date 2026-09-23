@@ -17,6 +17,7 @@ import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -72,7 +73,15 @@ public class NativeFloat64Array extends NativeTypedArrayView<Double> {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return NativeTypedArrayView.js_constructor(
-                cx, f, nt, s, thisObj, args, NativeFloat64Array::new, 8);
+                cx,
+                f,
+                nt,
+                s,
+                thisObj,
+                args,
+                NativeFloat64Array::new,
+                8,
+                TopLevel.Builtins.Float64Array);
     }
 
     @Override
@@ -80,12 +89,7 @@ public class NativeFloat64Array extends NativeTypedArrayView<Double> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        long base =
-                ByteIo.readUint64Primitive(
-                        arrayBuffer.buffer,
-                        (index * BYTES_PER_ELEMENT) + offset,
-                        useLittleEndian());
-        return Double.valueOf(Double.longBitsToDouble(base));
+        return arrayBuffer.buffer.getDouble((index * BYTES_PER_ELEMENT) + offset);
     }
 
     @Override
@@ -94,9 +98,7 @@ public class NativeFloat64Array extends NativeTypedArrayView<Double> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        long base = Double.doubleToLongBits(val);
-        ByteIo.writeUint64(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, base, useLittleEndian());
+        arrayBuffer.buffer.putDouble((index * BYTES_PER_ELEMENT) + offset, val);
         return null;
     }
 

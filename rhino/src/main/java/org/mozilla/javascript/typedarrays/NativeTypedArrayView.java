@@ -416,10 +416,10 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
             Object thisObj,
             Object[] args,
             TypedArrayConstructable constructable,
-            int bytesPerElement) {
+            int bytesPerElement,
+            TopLevel.Builtins type) {
         var array = js_constructor(cx, s, args, constructable, bytesPerElement);
-        array.setParentScope(f.getDeclarationScope());
-        array.setPrototype((Scriptable) f.getPrototypeProperty());
+        ScriptRuntime.setBuiltinProtoAndParent(array, f, nt, s, type);
         return array;
     }
 
@@ -540,7 +540,8 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
 
                     if (ScriptRuntime.isArrayObject(arg0)) {
                         // Copy elements of the array and convert them to the correct type
-                        Object[] arrayElements = ScriptRuntime.getArrayElements((Scriptable) arg0);
+                        Object[] arrayElements =
+                                ScriptRuntime.getArrayElements(cx, (Scriptable) arg0);
 
                         NativeArrayBuffer na =
                                 makeArrayBuffer(cx, scope, arrayElements.length, bytesPerElement);
@@ -567,10 +568,10 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
                     }
                     arrayElements = elems.toArray();
                 } else {
-                    arrayElements = ScriptRuntime.getArrayElements(obj);
+                    arrayElements = ScriptRuntime.getArrayElements(cx, obj);
                 }
             } else {
-                arrayElements = ScriptRuntime.getArrayElements(obj);
+                arrayElements = ScriptRuntime.getArrayElements(cx, obj);
             }
 
             NativeArrayBuffer na =
@@ -1374,7 +1375,7 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
         long relativeIndex = args.length > 0 ? (int) ScriptRuntime.toInteger(args[0]) : 0;
         long actualIndex = relativeIndex >= 0 ? relativeIndex : self.length + relativeIndex;
 
-        Object argsValue = args.length > 1 ? ScriptRuntime.toNumber(args[1]) : 0.0;
+        Object argsValue = args.length > 1 ? ScriptRuntime.toNumeric(args[1]) : 0.0;
         int len = self.getLength();
 
         if (actualIndex < 0 || actualIndex >= len) {

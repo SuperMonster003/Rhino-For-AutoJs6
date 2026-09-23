@@ -16,6 +16,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -70,7 +71,15 @@ public class NativeUint8Array extends NativeTypedArrayView<Integer> {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return NativeTypedArrayView.js_constructor(
-                cx, f, nt, s, thisObj, args, NativeUint8Array::new, 1);
+                cx,
+                f,
+                nt,
+                s,
+                thisObj,
+                args,
+                NativeUint8Array::new,
+                1,
+                TopLevel.Builtins.Uint8Array);
     }
 
     @Override
@@ -78,7 +87,8 @@ public class NativeUint8Array extends NativeTypedArrayView<Integer> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        return ByteIo.readUint8(arrayBuffer.buffer, index + offset);
+        int byteBits = arrayBuffer.buffer.get(index + offset);
+        return Conversions.byteBitsToUint(byteBits);
     }
 
     @Override
@@ -87,7 +97,7 @@ public class NativeUint8Array extends NativeTypedArrayView<Integer> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        ByteIo.writeUint8(arrayBuffer.buffer, index + offset, val);
+        arrayBuffer.buffer.put(index + offset, (byte) val);
         return null;
     }
 

@@ -23,6 +23,7 @@ bin/
 
 # local
 local.properties
+/AGENTS.md
 docs
 examples
 

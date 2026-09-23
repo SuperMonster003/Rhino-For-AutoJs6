@@ -18,6 +18,7 @@ import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -73,7 +74,15 @@ public class NativeBigInt64Array extends NativeBigIntArrayView {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return NativeTypedArrayView.js_constructor(
-                cx, f, nt, s, thisObj, args, NativeBigInt64Array::new, 8);
+                cx,
+                f,
+                nt,
+                s,
+                thisObj,
+                args,
+                NativeBigInt64Array::new,
+                8,
+                TopLevel.Builtins.BigInt64Array);
     }
 
     @Override
@@ -81,11 +90,7 @@ public class NativeBigInt64Array extends NativeBigIntArrayView {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        long base =
-                ByteIo.readUint64Primitive(
-                        arrayBuffer.buffer,
-                        (index * BYTES_PER_ELEMENT) + offset,
-                        useLittleEndian());
+        long base = arrayBuffer.buffer.getLong((index * BYTES_PER_ELEMENT) + offset);
         return BigInteger.valueOf(base);
     }
 
@@ -97,9 +102,7 @@ public class NativeBigInt64Array extends NativeBigIntArrayView {
         }
 
         long base = val.longValue();
-
-        ByteIo.writeUint64(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, base, useLittleEndian());
+        arrayBuffer.buffer.putLong((index * BYTES_PER_ELEMENT) + offset, base);
         return null;
     }
 

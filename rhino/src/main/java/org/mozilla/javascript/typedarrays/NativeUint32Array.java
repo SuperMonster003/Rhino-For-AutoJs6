@@ -16,6 +16,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -71,7 +72,15 @@ public class NativeUint32Array extends NativeTypedArrayView<Long> {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return NativeTypedArrayView.js_constructor(
-                cx, f, nt, s, thisObj, args, NativeUint32Array::new, 4);
+                cx,
+                f,
+                nt,
+                s,
+                thisObj,
+                args,
+                NativeUint32Array::new,
+                4,
+                TopLevel.Builtins.Uint32Array);
     }
 
     @Override
@@ -79,18 +88,17 @@ public class NativeUint32Array extends NativeTypedArrayView<Long> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        return ByteIo.readUint32(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, useLittleEndian());
+        int intBits = arrayBuffer.buffer.getInt((index * BYTES_PER_ELEMENT) + offset);
+        return Conversions.intBitsToUint(intBits);
     }
 
     @Override
     protected Object js_set(int index, Object c) {
-        long val = Conversions.toUint32(c);
+        int val = Conversions.toUint32(c);
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        ByteIo.writeUint32(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, val, useLittleEndian());
+        arrayBuffer.buffer.putInt((index * BYTES_PER_ELEMENT) + offset, val);
         return null;
     }
 

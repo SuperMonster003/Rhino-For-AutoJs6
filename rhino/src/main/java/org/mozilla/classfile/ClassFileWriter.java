@@ -66,6 +66,9 @@ public class ClassFileWriter {
         // class flag. This is specified in the first JVM spec, so it should
         // be old enough that it's okay to always set it.
         itsFlags = ACC_PUBLIC | ACC_SUPER;
+        if (DEBUGMETHODS) {
+            System.err.printf("Class start %s (%s).\n", generatedClassName, superClassName);
+        }
     }
 
     public final String getClassName() {
@@ -687,6 +690,24 @@ public class ClassFileWriter {
      */
     public void addLoadConstant(String k) {
         add(ByteCode.LDC, itsConstantPool.addConstant(k));
+    }
+
+    /**
+     * Generate the load constant bytecode for the given class.
+     *
+     * @param k the constant
+     */
+    public void addLoadConstant(Class<?> k) {
+        add(ByteCode.LDC, itsConstantPool.addClass(k.getName()));
+    }
+
+    /**
+     * Generate the load constant bytecode for the given class.
+     *
+     * @param k the constant
+     */
+    public void addLoadConstantClass(String k) {
+        add(ByteCode.LDC, itsConstantPool.addClass(k));
     }
 
     /**
@@ -1418,7 +1439,21 @@ public class ClassFileWriter {
         itsExceptionTableTop = N + 1;
     }
 
+    /**
+     * @deprecated the field is unsigned, so a signed short cannot express half of it. Call {@link
+     *     #addLineNumberEntry(int)} instead. Kept so that code compiled against the old signature
+     *     still links.
+     */
+    @Deprecated
     public void addLineNumberEntry(short lineNumber) {
+        addLineNumberEntry(lineNumber & 0xFFFF);
+    }
+
+    /**
+     * @param lineNumber the {@code line_number} of a LineNumberTable entry, an unsigned 16-bit
+     *     value per JVMS 4.7.12. Values outside that range are truncated to it.
+     */
+    public void addLineNumberEntry(int lineNumber) {
         if (DEBUGCODE) {
             if (DEBUGCODEORIGINS) {
                 printOrigin();
@@ -1434,7 +1469,9 @@ public class ClassFileWriter {
             System.arraycopy(itsLineNumberTable, 0, tmp, 0, N);
             itsLineNumberTable = tmp;
         }
-        itsLineNumberTable[N] = (itsCodeBufferTop << 16) + lineNumber;
+        // Masked rather than added: a line number above Short.MAX_VALUE used to sign-extend and
+        // borrow into the start_pc half of the packed entry.
+        itsLineNumberTable[N] = (itsCodeBufferTop << 16) | (lineNumber & 0xFFFF);
         itsLineNumberTableTop = N + 1;
     }
 
@@ -2172,6 +2209,9 @@ public class ClassFileWriter {
                         case ConstantPool.CONSTANT_String:
                             push(TypeInfo.OBJECT("java/lang/String", itsConstantPool));
                             break;
+                        case ConstantPool.CONSTANT_Class:
+                            push(TypeInfo.OBJECT("java/lang/Class", itsConstantPool));
+                            break;
                         default:
                             throw new IllegalArgumentException("bad const type " + constType);
                     }
@@ -2865,6 +2905,9 @@ public class ClassFileWriter {
             throw new RuntimeException();
         }
 
+        if (DEBUGCODE) {
+            System.err.println("Class end.");
+        }
         return data;
     }
 

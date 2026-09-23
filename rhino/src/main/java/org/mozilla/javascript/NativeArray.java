@@ -75,6 +75,14 @@ public class NativeArray extends ScriptableObject implements List {
 
     private static final ClassDescriptor DESCRIPTOR;
     public static final JSDescriptor<JSFunction> ITERATOR_DESCRIPTOR;
+    private static final BuiltInSlot.Descriptor<NativeArray> LENGTH_DESCRIPTOR =
+            new BuiltInSlot.Descriptor<>(
+                    "length",
+                    0,
+                    NativeArray::lengthGetter,
+                    NativeArray::lengthSetter,
+                    NativeArray::lengthAttrSetter,
+                    NativeArray::arraySetLength);
 
     static {
         DESCRIPTOR =
@@ -517,14 +525,7 @@ public class NativeArray extends ScriptableObject implements List {
     }
 
     private void createLengthProp() {
-        ScriptableObject.defineBuiltInProperty(
-                this,
-                "length",
-                DONTENUM | PERMANENT,
-                NativeArray::lengthGetter,
-                NativeArray::lengthSetter,
-                NativeArray::lengthAttrSetter,
-                NativeArray::arraySetLength);
+        ScriptableObject.defineBuiltInProperty(this, DONTENUM | PERMANENT, LENGTH_DESCRIPTOR);
     }
 
     private static Object lengthGetter(NativeArray array, Scriptable start) {
@@ -648,7 +649,7 @@ public class NativeArray extends ScriptableObject implements List {
         final Scriptable items =
                 ScriptRuntime.toObject(s, (args.length >= 1) ? args[0] : Undefined.instance);
         Object mapArg = (args.length >= 2) ? args[1] : Undefined.instance;
-        Scriptable thisArg = null;
+        Object thisArg = null;
         final boolean mapping = !Undefined.isUndefined(mapArg);
         Function mapFn = null;
 

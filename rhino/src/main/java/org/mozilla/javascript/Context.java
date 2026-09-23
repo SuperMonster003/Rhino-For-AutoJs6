@@ -16,6 +16,8 @@ import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -30,6 +32,7 @@ import java.util.TimeZone;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import org.mozilla.classfile.ClassFileWriter.ClassSizeException;
+import org.mozilla.javascript.InstrumentEmitter.Type;
 import org.mozilla.javascript.ast.AstRoot;
 import org.mozilla.javascript.ast.ScriptNode;
 import org.mozilla.javascript.debug.DebuggableScript;
@@ -502,8 +505,7 @@ public class Context implements Closeable {
         }
         if (cx.enterCount < 1) Kit.codeBug();
         if (--cx.enterCount == 0) {
-            VMBridge.instance.setContext(helper, null);
-            cx.factory.onContextReleased(cx);
+            cx.releaseContext();
         }
     }
 
@@ -511,10 +513,18 @@ public class Context implements Closeable {
     public void close() {
         if (enterCount < 1) Kit.codeBug();
         if (--enterCount == 0) {
-            Object helper = VMBridge.instance.getThreadContextHelper();
-            VMBridge.instance.setContext(helper, null);
-            factory.onContextReleased(this);
+            assert (getCurrentContext() == this)
+                    : "currentContext: " + getCurrentContext() + ", this: " + this;
+            releaseContext();
         }
+    }
+
+    private void releaseContext() {
+        // Drain the reference queue to prevent memory leaks
+        cleanUpReferences();
+        Object helper = VMBridge.instance.getThreadContextHelper();
+        VMBridge.instance.setContext(helper, null);
+        factory.onContextReleased(this);
     }
 
     /**
@@ -1407,7 +1417,8 @@ public class Context implements Closeable {
 
     public Object resumeContinuation(Object continuation, Scriptable scope, Object functionResult)
             throws ContinuationPending {
-        return resumeContinuation(continuation, ScriptableObject.getVarScope(scope), functionResult);
+        return resumeContinuation(
+                continuation, ScriptableObject.getVarScope(scope), functionResult);
     }
 
     /**
@@ -1602,7 +1613,7 @@ public class Context implements Closeable {
      * @return a string representing the script source
      */
     public final String decompileScript(Script script, int indent) {
-        return ((JSScript) script).getDescriptor().getRawSource();
+        return ((JSScript) script).getDescriptor().getSource();
     }
 
     /**
@@ -1764,7 +1775,7 @@ public class Context implements Closeable {
      * @since 1.4 release 2
      */
     public final Object[] getElements(Scriptable object) {
-        return ScriptRuntime.getArrayElements(object);
+        return ScriptRuntime.getArrayElements(this, object);
     }
 
     /**
@@ -2579,16 +2590,39 @@ public class Context implements Closeable {
      * Run all the microtasks for the current context to completion. This is called by the various
      * "evaluate" functions. Frameworks that call Function objects directly should call this
      * function to ensure that everything completes if they want all Promises to eventually resolve.
-     * This function is idempotent, but the microtask queue is not thread-safe.
+     * This function is idempotent, but the microtask queue is not thread-safe. If references are
+     * registered using a FinalizationRegistry, finalization callbacks will be called in this method
+     * as well.
      *
      * <p>Nothing will happen if suspendMicrotaskProcessing was called.
      *
      * @see #suspendMicrotaskProcessing()
      */
     public void processMicrotasks() {
+        if (microtaskSuspendCount > 0) {
+            return;
+        }
+        // Clean up references in a microtask in case a finalization call
+        // registers a microtask
+        microtasks.add(this::cleanUpReferences);
         Runnable head;
-        while (microtaskSuspendCount == 0 && (head = microtasks.poll()) != null) {
+        while ((head = microtasks.poll()) != null) {
             head.run();
+        }
+    }
+
+    /**
+     * Clean up an item that has been removed from the reference queue and check if there are more.
+     */
+    private void cleanUpReferences() {
+        Reference<?> ref;
+        while ((ref = referenceQueue.poll()) != null) {
+            if (ref instanceof NativeFinalizationRegistry.Registration registration) {
+                var registry = registration.getRegistry();
+                if (registry != null) {
+                    registry.cleanup(this, registration);
+                }
+            }
         }
     }
 
@@ -2620,6 +2654,10 @@ public class Context implements Closeable {
         }
     }
 
+    ReferenceQueue<Object> getReferenceQueue() {
+        return referenceQueue;
+    }
+
     /**
      * Control whether to track unhandled promise rejections. If "track" is set to true, then the
      * tracker returned by "getUnhandledPromiseTracker" must be periodically used to process the
@@ -2640,6 +2678,23 @@ public class Context implements Closeable {
         return unhandledPromises;
     }
 
+    /**
+     * Control whether finalization callbacks are dispatched when registered targets are garbage
+     * collected. Defaults to false. If set to true, then "processMicrotasks" must periodically be
+     * called to ensure that finalization callbacks are fired, or a memory leak may result.
+     * (Microtasks are always processed before scripts exit and as a normal part of handling
+     * Promises.) It set to false (the default) then the FinalizationRegistry API will still work as
+     * the spec describes but callbacks will never fire.
+     */
+    public void setFinalizationEnabled(boolean enabled) {
+        finalizationEnabled = enabled;
+    }
+
+    /** Returns whether cleanup callbacks will be dispatched at microtask checkpoints. */
+    public boolean isFinalizationEnabled() {
+        return finalizationEnabled;
+    }
+
     /* ******** end of API ********* */
 
     /** Internal method that reports an error for missing calls to enter(). */
@@ -2652,42 +2707,14 @@ public class Context implements Closeable {
     }
 
     protected Script compileScriptImpl(ScriptCompileSpec spec) {
-        Compiled<JSScript> compiled =
-                compileImpl(
-                        spec.getSource(),
-                        spec.getSourceName(),
-                        spec.getLineno(),
-                        spec.getSecurityDomain(),
-                        spec.getCompiler(),
-                        spec.getCompilationErrorReporter(),
-                        spec.getCompilerEnvironsProcessor(),
-                        spec.getSourceMapper(),
-                        false,
-                        Evaluator::compileScript);
+        Compiled<JSScript> compiled = compileImpl(spec);
         return compiled.evaluator.createScriptObject(compiled.result, spec.getSecurityDomain());
     }
 
     protected Function compileFunctionImpl(FunctionCompileSpec spec) {
-        Compiled<JSFunction> compiled =
-                compileImpl(
-                        spec.getSource(),
-                        spec.getSourceName(),
-                        spec.getLineno(),
-                        spec.getSecurityDomain(),
-                        spec.getCompiler(),
-                        spec.getCompilationErrorReporter(),
-                        spec.getCompilerEnvironsProcessor(),
-                        spec.getSourceMapper(),
-                        true,
-                        Evaluator::compileFunction);
+        Compiled<JSFunction> compiled = compileImpl(spec);
         return compiled.evaluator.createFunctionObject(
                 this, spec.getScope(), compiled.result, spec.getSecurityDomain());
-    }
-
-    @FunctionalInterface
-    private interface CompileFn<T extends ScriptOrFn<T>> {
-        CompilationResult<T> compile(
-                Evaluator evaluator, CompilerEnvirons env, ScriptNode tree, String rawSource);
     }
 
     private static final class Compiled<T extends ScriptOrFn<T>> {
@@ -2700,40 +2727,45 @@ public class Context implements Closeable {
         }
     }
 
-    private <T extends ScriptOrFn<T>> Compiled<T> compileImpl(
-            String sourceString,
-            String sourceName,
-            int lineno,
-            Object securityDomain,
-            Evaluator compiler,
-            ErrorReporter compilationErrorReporter,
-            Consumer<CompilerEnvirons> compilerEnvironProcessor,
-            SourceMapper sourceMapper,
-            boolean returnFunction,
-            CompileFn<T> compileFn) {
+    private <T extends ScriptOrFn<T>> Compiled<T> compileImpl(CompileSpec<T> spec) {
+        String sourceString = spec.getSource();
+
+        String sourceName = spec.getSourceName();
         if (sourceName == null) {
             sourceName = "unnamed script";
         }
 
+        var securityDomain = spec.getSecurityDomain();
         if (securityDomain != null && getSecurityController() == null) {
             throw new IllegalArgumentException(
                     "securityDomain should be null if setSecurityController() was never called");
         }
 
+        SourceCodeProvider sourceCodeProvider =
+                SourceCodeProvider.make(
+                        generatingSource, spec.getSourceCodeSupplier(), sourceString);
+
+        VarScope scope = spec.getScope();
+        boolean returnFunction = spec.returnFunction();
+
         CompilerEnvirons compilerEnv = new CompilerEnvirons();
         compilerEnv.initFromContext(this);
         compilerEnv.setSecurityDomain(securityDomain);
-        if (sourceMapper != null) {
-            compilerEnv.setSourceMapper(sourceMapper);
-        }
+        compilerEnv.setSourceMapper(spec.getSourceMapper());
+        compilerEnv.setSourceCodeProvider(sourceCodeProvider);
 
+        ErrorReporter compilationErrorReporter = spec.getCompilationErrorReporter();
         if (compilationErrorReporter == null) {
             compilationErrorReporter = compilerEnv.getErrorReporter();
         }
 
+        Consumer<CompilerEnvirons> compilerEnvironProcessor = spec.getCompilerEnvironsProcessor();
         if (compilerEnvironProcessor != null) {
             compilerEnvironProcessor.accept(compilerEnv);
         }
+
+        int lineno = spec.getLineno();
+        SourceMapper sourceMapper = spec.getSourceMapper();
 
         ScriptNode tree =
                 parse(
@@ -2744,13 +2776,14 @@ public class Context implements Closeable {
                         compilationErrorReporter,
                         returnFunction);
 
+        Evaluator compiler = spec.getCompiler();
         CompilationResult<T> result;
         try {
             if (compiler == null) {
                 compiler = createCompiler();
             }
 
-            result = compileFn.compile(compiler, compilerEnv, tree, sourceString);
+            result = spec.compilationFunction().compile(compiler, compilerEnv, tree, sourceString);
         } catch (ClassSizeException e) {
             // we hit some class file limit, fall back to interpreter or report
 
@@ -2766,7 +2799,7 @@ public class Context implements Closeable {
                             returnFunction);
 
             compiler = createInterpreter();
-            result = compileFn.compile(compiler, compilerEnv, tree, sourceString);
+            result = spec.compilationFunction().compile(compiler, compilerEnv, tree, sourceString);
         }
 
         if (debugger != null) {
@@ -2791,6 +2824,27 @@ public class Context implements Closeable {
     }
 
     private ScriptNode parse(
+            String sourceString,
+            String sourceName,
+            int lineno,
+            CompilerEnvirons compilerEnv,
+            ErrorReporter compilationErrorReporter,
+            boolean returnFunction) {
+        var event = InstrumentEmitter.emitter.startEvent(Type.PARSE);
+        try {
+            return parseInt(
+                    sourceString,
+                    sourceName,
+                    lineno,
+                    compilerEnv,
+                    compilationErrorReporter,
+                    returnFunction);
+        } finally {
+            InstrumentEmitter.emitter.endEvent(event, sourceName, sourceString.length());
+        }
+    }
+
+    private ScriptNode parseInt(
             String sourceString,
             String sourceName,
             int lineno,
@@ -3073,8 +3127,10 @@ public class Context implements Closeable {
     private ClassLoader applicationClassLoader;
     private UnaryOperator<Object> javaToJSONConverter;
     private final ArrayDeque<Runnable> microtasks = new ArrayDeque<>();
+    private final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
     private int microtaskSuspendCount;
     private final UnhandledRejectionTracker unhandledPromises = new UnhandledRejectionTracker();
+    private boolean finalizationEnabled = false;
 
     /** This is the list of names of objects forcing the creation of function activation records. */
     Set<String> activationNames;

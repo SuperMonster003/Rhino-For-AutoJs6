@@ -115,17 +115,30 @@ public class ClassDescriptor {
     }
 
     private static class BuiltInPropDesc<T extends ScriptableObject> extends PropDesc {
-        private final BuiltInSlot.Getter<T> getter;
-        private final BuiltInSlot.Setter<T> setter;
-        private final BuiltInSlot.AttributeSetter<T> attrUpdater;
-        private final BuiltInSlot.PropDescriptionSetter<T> propDescSetter;
+        private final BuiltInSlot.Descriptor<T> desc;
+
+        BuiltInPropDesc(Object name, BuiltInSlot.Getter<T> getter, int attributes) {
+            super(name, attributes);
+            desc = new BuiltInSlot.Descriptor<>(name, getter);
+        }
 
         BuiltInPropDesc(
                 Object name,
                 BuiltInSlot.Getter<T> getter,
                 BuiltInSlot.Setter<T> setter,
                 int attributes) {
-            this(name, getter, setter, null, null, attributes);
+            super(name, attributes);
+            desc = new BuiltInSlot.Descriptor<>(name, getter, setter);
+        }
+
+        BuiltInPropDesc(
+                Object name,
+                BuiltInSlot.Getter<T> getter,
+                BuiltInSlot.Setter<T> setter,
+                BuiltInSlot.AttributeSetter<T> attrUpdater,
+                int attributes) {
+            super(name, attributes);
+            desc = new BuiltInSlot.Descriptor<>(name, getter, setter, attrUpdater);
         }
 
         BuiltInPropDesc(
@@ -136,24 +149,13 @@ public class ClassDescriptor {
                 BuiltInSlot.PropDescriptionSetter<T> propDescSetter,
                 int attributes) {
             super(name, attributes);
-            this.getter = getter;
-            this.setter = setter;
-            this.attrUpdater = attrUpdater;
-            this.propDescSetter = propDescSetter;
+            desc = new BuiltInSlot.Descriptor<>(name, getter, setter, attrUpdater, propDescSetter);
         }
 
         @Override
         @SuppressWarnings("unchecked")
         void makeProp(Context cx, VarScope scope, ScriptableObject obj) {
-            if (attrUpdater == null && propDescSetter == null) {
-                ScriptableObject.defineBuiltInProperty((T) obj, name, attributes, getter, setter);
-            } else if (propDescSetter == null) {
-                ScriptableObject.defineBuiltInProperty(
-                        (T) obj, obj, attributes, getter, setter, attrUpdater);
-            } else {
-                ScriptableObject.defineBuiltInProperty(
-                        (T) obj, name, attributes, getter, setter, attrUpdater, propDescSetter);
-            }
+            obj.getMap().add(obj, desc.createSlot((T) obj, attributes));
         }
     }
 
@@ -211,7 +213,7 @@ public class ClassDescriptor {
         ScriptableObject.defineProperty(
                 scope, ctorDesc.name.toString(), global, ctorDesc.attributes);
         for (var e : ctorDescs) {
-            var f = new JSFunction(scope, e.funcDesc, null, null);
+            var f = new JSFunction(scope, e.funcDesc, null, Undefined.instance, null);
             f.setStandardPropertyAttributes(e.stdAttrs);
             if (e.name instanceof String) {
                 global.put((String) e.name, global, f);
@@ -241,7 +243,7 @@ public class ClassDescriptor {
             ScriptableObject proto,
             boolean sealed,
             BiConsumer<Context, JSFunction> customStep) {
-        var ctor = new JSFunction(scope, ctorDesc.funcDesc, null, null);
+        var ctor = new JSFunction(scope, ctorDesc.funcDesc, null, Undefined.instance, null);
 
         if (proto != null) {
             ctor.setPrototypeProperty(proto);
@@ -258,7 +260,7 @@ public class ClassDescriptor {
         }
 
         for (var e : ctorDescs) {
-            var f = new JSFunction(scope, e.funcDesc, null, null);
+            var f = new JSFunction(scope, e.funcDesc, null, Undefined.instance, null);
             f.setStandardPropertyAttributes(e.stdAttrs);
             if (e.name instanceof String) {
                 ctor.put((String) e.name, ctor, f);
@@ -280,7 +282,7 @@ public class ClassDescriptor {
             }
             proto.setAttributes("constructor", DONTENUM);
             for (var e : protoDescs) {
-                var f = new JSFunction(scope, e.funcDesc, null, null);
+                var f = new JSFunction(scope, e.funcDesc, null, Undefined.instance, null);
                 f.setStandardPropertyAttributes(e.stdAttrs);
                 if (e.name instanceof String) {
                     proto.put((String) e.name, proto, f);
@@ -762,9 +764,9 @@ public class ClassDescriptor {
             builder.paramAndVarNames = paramNames;
             builder.paramIsConst = new boolean[length];
             builder.paramAndVarCount = length;
-            builder.rawSource = String.format("function %s() {\n\t[native code]\n}", name);
-            builder.rawSourceStart = 0;
-            builder.rawSourceEnd = builder.rawSource.length();
+            builder.sourceCodeProvider = BuiltInSourceCodeProvider.INSTANCE;
+            builder.sourceStart = 0;
+            builder.sourceEnd = 0;
 
             builder.hasPrototype = true;
             return builder.build(desc -> {});

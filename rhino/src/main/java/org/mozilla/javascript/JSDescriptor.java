@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.debug.DebuggableScript;
 
 /**
@@ -15,7 +16,7 @@ import org.mozilla.javascript.debug.DebuggableScript;
  * function objects represented by {@link JSFunction}s become more lightweight in their creation.
  */
 public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable, DebuggableScript {
-    private static final long seria_ersio_ID = 5067677351589230234L;
+    private static final long serialVersionUID = 5067677351589230234L;
 
     private static final int IS_STRICT_FLAG = 1;
     private static final int IS_SCRIPT_FLAG = 1 << 1;
@@ -30,6 +31,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
     private static final int REQUIRES_ACTIVATION_FRAME_FLAG = 1 << 10;
     private static final int REQUIRES_ARGUMENT_OBJECT_FLAG = 1 << 11;
     private static final int DECLARED_AS_FUNCTION_EXPRESSION_FLAG = 1 << 12;
+    private static final int DERIVED_CONSTRUCTOR_FLAG = 1 << 13;
 
     private final JSCode<T> code;
     private final JSCode<T> constructor;
@@ -39,9 +41,9 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
     private final boolean[] paramIsConst;
     private final int flags;
     private final String sourceFile;
-    private final String rawSource;
-    private final int rawSourceStart;
-    private final int rawSourceEnd;
+    private volatile SourceCodeProvider sourceCodeProvider;
+    private final int sourceStart;
+    private final int sourceEnd;
     private final String name;
     private final int languageVersion;
     private final int paramAndVarCount;
@@ -67,9 +69,9 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
             boolean isEvalFunction,
             boolean hasRestArg,
             String sourceFile,
-            String rawSource,
-            int rawSourceStart,
-            int rawSourceEnd,
+            SourceCodeProvider sourceCodeProvider,
+            int sourceStart,
+            int sourceEnd,
             String name,
             int languageVersion,
             int paramAndVarCount,
@@ -79,6 +81,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
             boolean requiresActivationFrame,
             boolean requiresArgumentObject,
             boolean declaredAsFunctionExpression,
+            boolean derivedConstructor,
             SecurityController securityController,
             Object securityDomain,
             int functionType) {
@@ -102,12 +105,16 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         flags = flags | (requiresActivationFrame ? REQUIRES_ACTIVATION_FRAME_FLAG : 0);
         flags = flags | (requiresArgumentObject ? REQUIRES_ARGUMENT_OBJECT_FLAG : 0);
         flags = flags | (declaredAsFunctionExpression ? DECLARED_AS_FUNCTION_EXPRESSION_FLAG : 0);
+        flags = flags | (derivedConstructor ? DERIVED_CONSTRUCTOR_FLAG : 0);
         this.flags = flags;
 
         this.sourceFile = sourceFile;
-        this.rawSource = rawSource;
-        this.rawSourceStart = rawSourceStart;
-        this.rawSourceEnd = rawSourceEnd;
+        this.sourceCodeProvider =
+                sourceCodeProvider != null
+                        ? sourceCodeProvider
+                        : NullSourceCodeProvider.NULL_PROVIDER;
+        this.sourceStart = sourceStart;
+        this.sourceEnd = sourceEnd;
         this.name = name == null ? "" : name;
         this.languageVersion = languageVersion;
         this.paramAndVarCount = paramAndVarCount;
@@ -177,8 +184,17 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         return sourceFile;
     }
 
-    public String getRawSource() {
-        return rawSource.substring(rawSourceStart, rawSourceEnd);
+    public String getSource() {
+        return sourceCodeProvider.getSource(this, sourceStart, sourceEnd);
+    }
+
+    // For testing purposes.
+    SourceCodeProvider getSourceProvider() {
+        return sourceCodeProvider;
+    }
+
+    void replaceSourceProvider(SourceCodeProvider newProvider) {
+        sourceCodeProvider = newProvider;
     }
 
     public String getName() {
@@ -216,10 +232,10 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         return (flags & HAS_DEFAULT_PARAMETERS_FLAG) != 0;
     }
 
-    public boolean hasFunctionNamed(String name) {
+    public boolean hasNoFunctionStatementNamed(String name) {
         for (int f = 0; f < getFunctionCount(); f++) {
             var functionData = getFunction(f);
-            if (!functionData.declaredAsFunctionExpression()
+            if (functionData.getFunctionType() == FunctionNode.FUNCTION_STATEMENT
                     && name.equals(functionData.getFunctionName())) {
                 return false;
             }
@@ -303,9 +319,9 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         public boolean isEvalFunction;
         public boolean hasRestArg;
         public String sourceFile;
-        public String rawSource;
-        public int rawSourceStart;
-        public int rawSourceEnd;
+        public SourceCodeProvider sourceCodeProvider;
+        public int sourceStart;
+        public int sourceEnd;
         public String name;
         public int languageVersion;
         public int paramAndVarCount;
@@ -324,7 +340,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         private Builder(Builder<?> parent) {
             this.parent = parent;
             this.languageVersion = parent.languageVersion;
-            this.rawSource = parent.rawSource;
+            this.sourceCodeProvider = parent.sourceCodeProvider;
             this.sourceFile = parent.sourceFile;
             this.isStrict = parent.isStrict;
             this.securityController = parent.securityController;
@@ -373,9 +389,9 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
                             isEvalFunction,
                             hasRestArg,
                             sourceFile,
-                            rawSource,
-                            rawSourceStart,
-                            rawSourceEnd,
+                            sourceCodeProvider,
+                            sourceStart,
+                            sourceEnd,
                             name == null ? null : name.intern(),
                             languageVersion,
                             paramAndVarCount,
@@ -385,6 +401,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
                             requiresActivationFrame,
                             requiresArgumentObject,
                             declaredAsFunctionExpression,
+                            false,
                             securityController,
                             securityDomain,
                             functionType);

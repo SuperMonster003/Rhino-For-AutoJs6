@@ -17,6 +17,7 @@ import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -54,7 +55,15 @@ public class NativeFloat16Array extends NativeTypedArrayView<Float> {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return NativeTypedArrayView.js_constructor(
-                cx, f, nt, s, thisObj, args, NativeFloat16Array::new, 2);
+                cx,
+                f,
+                nt,
+                s,
+                thisObj,
+                args,
+                NativeFloat16Array::new,
+                2,
+                TopLevel.Builtins.Float16Array);
     }
 
     public NativeFloat16Array(int len) {
@@ -80,8 +89,8 @@ public class NativeFloat16Array extends NativeTypedArrayView<Float> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        return ByteIo.readFloat16(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, useLittleEndian());
+        short shortBits = arrayBuffer.buffer.getShort((index * BYTES_PER_ELEMENT) + offset);
+        return Conversions.shortBitsToFloat16(shortBits);
     }
 
     @Override
@@ -90,8 +99,8 @@ public class NativeFloat16Array extends NativeTypedArrayView<Float> {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        ByteIo.writeFloat16(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, val, useLittleEndian());
+        short shortBits = Conversions.float16ToShortBits(val);
+        arrayBuffer.buffer.putShort((index * BYTES_PER_ELEMENT) + offset, shortBits);
         return null;
     }
 

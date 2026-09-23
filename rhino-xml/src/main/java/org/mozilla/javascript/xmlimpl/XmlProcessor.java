@@ -316,9 +316,13 @@ class XmlProcessor implements Serializable {
 
             // @Hint by SuperMonster003 on May 20, 2023.
             //  ! To support single-name attributes.
-            xml = xml.replaceAll("(?<=\\s)(\\d*[a-zA-Z]\\w*)\\b(?=(\\s*/?>|(?:\\s+\\w+(=\"[\\s\\S]+?\")?)*\\s*/?>))", "$1=\"true\"");
+            xml =
+                    xml.replaceAll(
+                            "(?<=\\s)(\\d*[a-zA-Z]\\w*)\\b(?=(\\s*/?>|(?:\\s+\\w+(=\"[\\s\\S]+?\")?)*\\s*/?>))",
+                            "$1=\"true\"");
 
-            String syntheticXml = "<parent xmlns=\"" + defaultNamespaceUri + "\">" + xml + "</parent>";
+            String syntheticXml =
+                    "<parent xmlns=\"" + defaultNamespaceUri + "\">" + xml + "</parent>";
             builder = getDocumentBuilderFromPool();
             Document document =
                     builder.parse(

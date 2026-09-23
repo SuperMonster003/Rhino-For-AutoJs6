@@ -28,6 +28,7 @@ import java.util.ResourceBundle;
 import java.util.ServiceLoader;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import org.mozilla.javascript.InstrumentEmitter.Type;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.dtoa.DoubleFormatter;
 import org.mozilla.javascript.lc.type.TypeInfo;
@@ -94,6 +95,7 @@ public class ScriptRuntime {
         private static final long serialVersionUID = -5891740962154902286L;
 
         ThrowTypeError(VarScope scope) {
+            super(scope);
             setPrototype(ScriptableObject.getFunctionPrototype(scope));
 
             setAttributes("length", DONTENUM | PERMANENT | READONLY);
@@ -109,14 +111,14 @@ public class ScriptRuntime {
         private static <T extends PropHolder<T>> Slot<T> removeWithoutChecking(
                 Object key,
                 int index,
-                Slot slot,
+                Slot<T> slot,
                 CompoundOperationMap<T> compoundOp,
                 SlotMapOwner<T> owner) {
             return null;
         }
 
         @Override
-        public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
+        public Object call(Context cx, Object nt, VarScope scope, Object thisObj, Object[] args) {
             throwNotAllowed();
             return null;
         }
@@ -152,7 +154,7 @@ public class ScriptRuntime {
          * @return the result of the call
          */
         @Override
-        public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
+        public Object call(Context cx, VarScope scope, Object thisObj, Object[] args) {
             Object[] nestedArgs = new Object[2];
 
             nestedArgs[0] = methodName;
@@ -205,6 +207,15 @@ public class ScriptRuntime {
     }
 
     public static TopLevel initSafeStandardObjects(Context cx, TopLevel scope, boolean sealed) {
+        var event = InstrumentEmitter.emitter.startEvent(Type.SAFE_OBJECTS_INIT);
+        try {
+            return initSafeStandardObjectsInt(cx, scope, sealed);
+        } finally {
+            InstrumentEmitter.emitter.endEvent(event);
+        }
+    }
+
+    private static TopLevel initSafeStandardObjectsInt(Context cx, TopLevel scope, boolean sealed) {
         if (scope == null) {
             scope = new TopLevel();
         }
@@ -305,6 +316,8 @@ public class ScriptRuntime {
             new LazilyLoadedCtor<>(scope, "Proxy", sealed, true, NativeProxy::init);
             new LazilyLoadedCtor<>(scope, "Reflect", sealed, true, NativeReflect::init);
             new LazilyLoadedCtor<>(scope, "WeakRef", sealed, true, NativeWeakRef::init);
+            new LazilyLoadedCtor<>(
+                    scope, "FinalizationRegistry", sealed, true, NativeFinalizationRegistry::init);
         }
 
         scope.cacheBuiltins(sealed);
@@ -320,6 +333,15 @@ public class ScriptRuntime {
     }
 
     public static TopLevel initStandardObjects(Context cx, TopLevel scope, boolean sealed) {
+        var event = InstrumentEmitter.emitter.startEvent(Type.OBJECTS_INIT);
+        try {
+            return initStandardObjectsInt(cx, scope, sealed);
+        } finally {
+            InstrumentEmitter.emitter.endEvent(event);
+        }
+    }
+
+    private static TopLevel initStandardObjectsInt(Context cx, TopLevel scope, boolean sealed) {
         TopLevel s = initSafeStandardObjects(cx, scope, sealed);
 
         // These depend on the legacy initialization behavior of the lazy loading mechanism
@@ -2468,8 +2490,8 @@ public class ScriptRuntime {
                         break;
                     }
                 }
-            } else if (scope instanceof NativeCall) {
-                // NativeCall does not prototype chain and Scriptable.get
+            } else if (scope instanceof CatchScope || scope instanceof NativeCall) {
+                // Scopes do not have a prototype chain and Scriptable.get
                 // can be called directly.
                 result = scope.get(name, scope);
                 if (result != Scriptable.NOT_FOUND) {
@@ -2552,7 +2574,7 @@ public class ScriptRuntime {
                         break;
                     }
                 }
-            } else if (scope instanceof NativeCall) {
+            } else if (scope instanceof CatchScope || scope instanceof NativeCall) {
                 // NativeCall does not prototype chain and Scriptable.get
                 // can be called directly.
                 result = scope.get(name, scope);
@@ -2615,18 +2637,24 @@ public class ScriptRuntime {
         childScopesChecks:
         if (parent != null) {
             // Check for possibly nested "with" scopes first
-            while (scope instanceof WithScope) {
-                Scriptable withObj = ((WithScope) scope).getObject();
-                if (withObj instanceof XMLObject) {
-                    XMLObject xmlObject = (XMLObject) withObj;
-                    if (xmlObject.has(cx, id)) {
-                        return new WithScope(scope.getParentScope(), xmlObject);
-                    }
-                    if (firstXMLScope == null) {
-                        firstXMLScope = scope;
+            while (scope.isNestedScope()) {
+                if (scope instanceof WithScope) {
+                    Scriptable withObj = ((WithScope) scope).getObject();
+                    if (withObj instanceof XMLObject) {
+                        XMLObject xmlObject = (XMLObject) withObj;
+                        if (xmlObject.has(cx, id)) {
+                            return new WithScope(scope.getParentScope(), xmlObject);
+                        }
+                        if (firstXMLScope == null) {
+                            firstXMLScope = scope;
+                        }
+                    } else {
+                        if (ScriptableObject.hasProperty(withObj, id)) {
+                            return scope;
+                        }
                     }
                 } else {
-                    if (ScriptableObject.hasProperty(withObj, id)) {
+                    if (scope.has(id, scope)) {
                         return scope;
                     }
                 }
@@ -3488,7 +3516,7 @@ public class ScriptRuntime {
      * times. The args array reference should not be stored in any object that can be GC-reachable
      * after this method returns. If this is necessary, store args.clone(), not args array itself.
      */
-    public static Ref callRef(Callable function, Scriptable thisObj, Object[] args, Context cx) {
+    public static Ref callRef(Callable function, Object thisObj, Object[] args, Context cx) {
         if (function instanceof RefCallable) {
             RefCallable rfunction = (RefCallable) function;
             Ref ref = rfunction.refCall(cx, thisObj, args);
@@ -3521,7 +3549,7 @@ public class ScriptRuntime {
             Scriptable thisObj,
             Object[] args,
             VarScope scope,
-            Scriptable callerThis,
+            Object callerThis,
             int callType,
             String filename,
             int lineNumber,
@@ -3532,7 +3560,8 @@ public class ScriptRuntime {
 
         if (callType == Node.SPECIALCALL_EVAL) {
             if (thisObj.getParentScope() == null && NativeGlobal.isEvalFunction(fun)) {
-                return evalSpecial(cx, scope, callerThis, args, filename, lineNumber);
+                return evalSpecial(
+                        cx, scope, callerThis, args, filename, lineNumber, cx.isStrictMode());
             }
         } else {
             throw Kit.codeBug();
@@ -3560,7 +3589,7 @@ public class ScriptRuntime {
      * <p>See Ecma 15.3.4.[34]
      */
     public static Object applyOrCall(
-            boolean isApply, Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
+            boolean isApply, Context cx, VarScope scope, Object thisObj, Object[] args) {
         int L = args.length;
         Callable function = getCallable(thisObj);
 
@@ -3628,7 +3657,7 @@ public class ScriptRuntime {
         if (arg1 == null || Undefined.isUndefined(arg1)) {
             return ScriptRuntime.emptyArgs;
         } else if (arg1 instanceof Scriptable && isArrayLike((Scriptable) arg1)) {
-            return cx.getElements((Scriptable) arg1);
+            return ScriptRuntime.getArrayElements(cx, (Scriptable) arg1);
         } else if (arg1 instanceof ScriptableObject) {
             return ScriptRuntime.emptyArgs;
         } else {
@@ -3636,14 +3665,16 @@ public class ScriptRuntime {
         }
     }
 
-    static Callable getCallable(Scriptable thisObj) {
+    static Callable getCallable(Object thisObj) {
         Callable function;
         if (thisObj instanceof Callable) {
             function = (Callable) thisObj;
         } else if (thisObj == null) {
             throw ScriptRuntime.notFunctionError(null, null);
+        } else if (!(thisObj instanceof Scriptable)) {
+            throw ScriptRuntime.notFunctionError(thisObj, null);
         } else {
-            Object value = thisObj.getDefaultValue(ScriptRuntime.FunctionClass);
+            Object value = ((Scriptable) thisObj).getDefaultValue(ScriptRuntime.FunctionClass);
             if (!(value instanceof Callable)) {
                 throw ScriptRuntime.notFunctionError(value, thisObj);
             }
@@ -3663,7 +3694,8 @@ public class ScriptRuntime {
             Object thisArg,
             Object[] args,
             String filename,
-            int lineNumber) {
+            int lineNumber,
+            boolean isStrict) {
         if (args.length < 1) return Undefined.instance;
         Object x = args[0];
         if (!(x instanceof CharSequence)) {
@@ -3727,7 +3759,14 @@ public class ScriptRuntime {
                 thisArg == Undefined.instance
                         ? Undefined.SCRIPTABLE_UNDEFINED
                         : (Scriptable) thisArg;
-        return script.exec(cx, scope, thisObject);
+        VarScope evalScope;
+        if (isStrict
+                || (script instanceof JSScript && ((JSScript) script).getDescriptor().isStrict())) {
+            evalScope = new ScopeObject(scope);
+        } else {
+            evalScope = scope;
+        }
+        return script.exec(cx, evalScope, thisObject);
     }
 
     /** The typeof operator */
@@ -3749,8 +3788,7 @@ public class ScriptRuntime {
     }
 
     /** The typeof operator that correctly handles the undefined case */
-    public static String typeofName(VarScope scope, String id) {
-        Context cx = Context.getContext();
+    public static String typeofName(Context cx, VarScope scope, String id) {
         VarScope val = bind(cx, scope, id);
         if (val == null) return "undefined";
         return typeof(getObjectProp(val, id, cx));
@@ -3912,13 +3950,29 @@ public class ScriptRuntime {
 
     public static Object evalSpecial(
             Context cx,
+            VarScope scope,
+            Object thisArg,
+            Object[] args,
+            String filename,
+            int lineNumber) {
+        return evalSpecial(cx, scope, thisArg, args, filename, lineNumber, cx.isStrictMode());
+    }
+
+    public static Object evalSpecial(
+            Context cx,
             Scriptable scope,
             Object thisArg,
             Object[] args,
             String filename,
             int lineNumber) {
         return evalSpecial(
-                cx, ScriptableObject.getVarScope(scope), thisArg, args, filename, lineNumber);
+                cx,
+                ScriptableObject.getVarScope(scope),
+                thisArg,
+                args,
+                filename,
+                lineNumber,
+                cx.isStrictMode());
     }
 
     public static Number multiply(Number val1, Number val2) {
@@ -4466,49 +4520,44 @@ public class ScriptRuntime {
     }
 
     /**
-     * Equality
-     *
-     * <p>See ECMA 11.9
+     * Implement "IsLooselyEqual" from ECMA-262 (sec-islooselyequal), the abstract operation behind
+     * the == and != operators. Unlike {@link #shallowEq(Object, Object)}, values of different types
+     * may compare equal after conversion (e.g. 1 == "1").
      */
     public static boolean eq(Object x, Object y) {
         if (x == null || Undefined.isUndefined(x)) {
             if (y == null || Undefined.isUndefined(y)) {
                 return true;
             }
-            if (y instanceof ScriptableObject) {
-                Object test = ((ScriptableObject) y).equivalentValues(x);
-                if (test != Scriptable.NOT_FOUND) {
-                    return ((Boolean) test).booleanValue();
-                }
-            }
-            return false;
-        } else if (x instanceof BigInteger) {
-            return eqBigInt((BigInteger) x, y);
-        } else if (x instanceof Number) {
-            return eqNumber(((Number) x).doubleValue(), y);
+            Boolean hooked = equivalentValuesHook(y, x);
+            return hooked != null && hooked;
+        } else if (x instanceof BigInteger bx) {
+            return eqBigInt(bx, y);
+        } else if (x instanceof Number nx) {
+            return eqNumber(nx.doubleValue(), y);
         } else if (x == y) {
+            // Must follow the Number case above: the same NaN reference satisfies x == y,
+            // but NaN == NaN is false.
             return true;
         } else if (x instanceof CharSequence) {
             return eqString((CharSequence) x, y);
-        } else if (x instanceof Boolean) {
-            boolean b = ((Boolean) x).booleanValue();
-            if (y instanceof Boolean) {
-                return b == ((Boolean) y).booleanValue();
+        } else if (x instanceof Boolean bx) {
+            boolean b = bx;
+            if (y instanceof Boolean by) {
+                return b == by;
             }
-            if (y instanceof ScriptableObject) {
-                Object test = ((ScriptableObject) y).equivalentValues(x);
-                if (test != Scriptable.NOT_FOUND) {
-                    return ((Boolean) test).booleanValue();
-                }
+            Boolean hooked = equivalentValuesHook(y, x);
+            if (hooked != null) {
+                return hooked;
             }
             return eqNumber(b ? 1.0 : 0.0, y);
         } else if (isSymbol(x) && isObject(y)) {
             return eq(x, toPrimitive(y));
         } else if (x instanceof Scriptable) {
-            if (x instanceof Delegator) {
-                x = ((Delegator) x).getDelegee();
-                if (y instanceof Delegator) {
-                    return eq(x, ((Delegator) y).getDelegee());
+            if (x instanceof Delegator dx) {
+                x = dx.getDelegee();
+                if (y instanceof Delegator dy) {
+                    return eq(x, dy.getDelegee());
                 }
                 if (x == y) {
                     return true;
@@ -4521,59 +4570,46 @@ public class ScriptRuntime {
                 return eq(toPrimitive(x), y);
             }
             if (y == null || Undefined.isUndefined(y)) {
-                if (x instanceof ScriptableObject) {
-                    Object test = ((ScriptableObject) x).equivalentValues(y);
-                    if (test != Scriptable.NOT_FOUND) {
-                        return ((Boolean) test).booleanValue();
-                    }
-                }
-                return false;
+                Boolean hooked = equivalentValuesHook(x, y);
+                return hooked != null && hooked;
             } else if (y instanceof Scriptable) {
-                if (x instanceof ScriptableObject) {
-                    Object test = ((ScriptableObject) x).equivalentValues(y);
-                    if (test != Scriptable.NOT_FOUND) {
-                        return ((Boolean) test).booleanValue();
-                    }
+                Boolean hooked = equivalentValuesHook(x, y);
+                if (hooked != null) {
+                    return hooked;
                 }
-                if (y instanceof ScriptableObject) {
-                    Object test = ((ScriptableObject) y).equivalentValues(x);
-                    if (test != Scriptable.NOT_FOUND) {
-                        return ((Boolean) test).booleanValue();
-                    }
+                hooked = equivalentValuesHook(y, x);
+                if (hooked != null) {
+                    return hooked;
                 }
-                if (x instanceof Wrapper && y instanceof Wrapper) {
+                if (x instanceof Wrapper wx && y instanceof Wrapper wy) {
                     // See bug 413838. Effectively an extension to ECMA for
                     // the LiveConnect case.
-                    Object unwrappedX = ((Wrapper) x).unwrap();
-                    Object unwrappedY = ((Wrapper) y).unwrap();
+                    Object unwrappedX = wx.unwrap();
+                    Object unwrappedY = wy.unwrap();
                     return unwrappedX == unwrappedY
                             || (isPrimitive(unwrappedX)
                                     && isPrimitive(unwrappedY)
                                     && eq(unwrappedX, unwrappedY));
                 }
                 return false;
-            } else if (y instanceof Boolean) {
-                if (x instanceof ScriptableObject) {
-                    Object test = ((ScriptableObject) x).equivalentValues(y);
-                    if (test != Scriptable.NOT_FOUND) {
-                        return ((Boolean) test).booleanValue();
-                    }
+            } else if (y instanceof Boolean by) {
+                Boolean hooked = equivalentValuesHook(x, y);
+                if (hooked != null) {
+                    return hooked;
                 }
-                double d = ((Boolean) y).booleanValue() ? 1.0 : 0.0;
+                double d = by ? 1.0 : 0.0;
                 return eqNumber(d, x);
-            } else if (y instanceof BigInteger) {
-                return eqBigInt((BigInteger) y, x);
-            } else if (y instanceof Number) {
-                return eqNumber(((Number) y).doubleValue(), x);
-            } else if (y instanceof CharSequence) {
-                return eqString((CharSequence) y, x);
+            } else if (y instanceof BigInteger by) {
+                return eqBigInt(by, x);
+            } else if (y instanceof Number ny) {
+                return eqNumber(ny.doubleValue(), x);
+            } else if (y instanceof CharSequence cy) {
+                return eqString(cy, x);
             }
-            // covers the case when y == Undefined.instance as well
-            return false;
         } else {
             warnAboutNonJSObject(x);
-            return x == y;
         }
+        return false;
     }
 
     /*
@@ -4581,16 +4617,19 @@ public class ScriptRuntime {
      * signed zeroes and NaNs differently.
      */
     public static boolean same(Object x, Object y) {
-        if (!typeof(x).equals(typeof(y))) {
+        if (!sameZero(x, y)) {
             return false;
         }
-        if (x instanceof Number) {
-            if (isNaN(x) && isNaN(y)) {
-                return true;
-            }
-            return x.equals(y);
+        // SameValue differs from SameValueZero only in the treatment of signed zeroes.
+        if (x instanceof Number nx
+                && y instanceof Number ny
+                && !(x instanceof BigInteger)
+                && !(y instanceof BigInteger)) {
+            double dx = nx.doubleValue();
+            double dy = ny.doubleValue();
+            return dx != 0.0 || Double.doubleToRawLongBits(dx) == Double.doubleToRawLongBits(dy);
         }
-        return eq(x, y);
+        return true;
     }
 
     /** Implement "SameValueZero" from ECMA 7.2.9 */
@@ -4598,16 +4637,18 @@ public class ScriptRuntime {
         if (!typeof(x).equals(typeof(y))) {
             return false;
         }
-        if (x instanceof BigInteger) {
-            return x.equals(y);
-        }
-        if (x instanceof Number) {
+        if (x instanceof Number nx) {
             if (isNaN(x) && isNaN(y)) {
                 return true;
             }
-            final double dx = ((Number) x).doubleValue();
-            if (y instanceof Number) {
-                final double dy = ((Number) y).doubleValue();
+            if (x instanceof BigInteger bi) {
+                return eqBigInt(bi, y);
+            }
+            double dx = nx.doubleValue();
+            if (y instanceof Number ny) {
+                // Only difference between this and "same"
+                assert !(y instanceof BigInteger);
+                double dy = ny.doubleValue();
                 if (((dx == negativeZero) && (dy == 0.0)) || ((dx == 0.0) && dy == negativeZero)) {
                     return true;
                 }
@@ -4635,67 +4676,82 @@ public class ScriptRuntime {
                 || (obj instanceof Boolean);
     }
 
-    static boolean eqNumber(double x, Object y) {
+    /**
+     * Probes the {@link ScriptableObject#equivalentValues} extension hook.
+     *
+     * @return the hook's answer, or {@code null} if the hook was absent or returned NOT_FOUND
+     */
+    private static Boolean equivalentValuesHook(Object obj, Object other) {
+        if (obj instanceof ScriptableObject so) {
+            Object test = so.equivalentValues(other);
+            if (test != Scriptable.NOT_FOUND) {
+                return (Boolean) test;
+            }
+        }
+        return null;
+    }
+
+    static boolean eqNumber(double value, Object other) {
         for (; ; ) {
-            if (y == null || Undefined.isUndefined(y)) {
+            if (other == null || Undefined.isUndefined(other)) {
                 return false;
-            } else if (y instanceof BigInteger) {
-                return eqBigInt((BigInteger) y, x);
-            } else if (y instanceof Number) {
-                return x == ((Number) y).doubleValue();
-            } else if (y instanceof CharSequence) {
-                return x == toNumber(y);
-            } else if (y instanceof Boolean) {
-                return x == (((Boolean) y).booleanValue() ? 1.0 : +0.0);
-            } else if (isSymbol(y)) {
+            } else if (other instanceof BigInteger) {
+                return eqBigInt((BigInteger) other, value);
+            } else if (other instanceof Number) {
+                return value == ((Number) other).doubleValue();
+            } else if (other instanceof CharSequence) {
+                return value == toNumber(other);
+            } else if (other instanceof Boolean) {
+                return value == (((Boolean) other).booleanValue() ? 1.0 : +0.0);
+            } else if (isSymbol(other)) {
                 return false;
-            } else if (y instanceof Scriptable) {
-                if (y instanceof ScriptableObject) {
-                    Object xval = wrapNumber(x);
-                    Object test = ((ScriptableObject) y).equivalentValues(xval);
-                    if (test != Scriptable.NOT_FOUND) {
-                        return ((Boolean) test).booleanValue();
+            } else if (other instanceof Scriptable) {
+                if (other instanceof ScriptableObject) {
+                    Boolean hooked = equivalentValuesHook(other, wrapNumber(value));
+                    if (hooked != null) {
+                        return hooked;
                     }
                 }
-                y = toPrimitive(y);
+                other = toPrimitive(other);
             } else {
-                warnAboutNonJSObject(y);
+                warnAboutNonJSObject(other);
                 return false;
             }
         }
     }
 
-    static boolean eqBigInt(BigInteger x, Object y) {
+    static boolean eqBigInt(BigInteger value, Object other) {
         for (; ; ) {
-            if (y == null || Undefined.isUndefined(y)) {
+            if (other == null || Undefined.isUndefined(other)) {
                 return false;
-            } else if (y instanceof BigInteger) {
-                return x.equals(y);
-            } else if (y instanceof Number) {
-                return eqBigInt(x, ((Number) y).doubleValue());
-            } else if (y instanceof CharSequence) {
-                BigInteger biy;
+            } else if (other instanceof BigInteger) {
+                return value.equals(other);
+            } else if (other instanceof Number) {
+                return eqBigInt(value, ((Number) other).doubleValue());
+            } else if (other instanceof CharSequence) {
+                BigInteger biOther;
                 try {
-                    biy = toBigInt(y);
+                    biOther = toBigInt(other);
                 } catch (EcmaError e) {
                     return false;
                 }
-                return x.equals(biy);
-            } else if (y instanceof Boolean) {
-                BigInteger biy = ((Boolean) y).booleanValue() ? BigInteger.ONE : BigInteger.ZERO;
-                return x.equals(biy);
-            } else if (isSymbol(y)) {
+                return value.equals(biOther);
+            } else if (other instanceof Boolean) {
+                BigInteger biOther =
+                        ((Boolean) other).booleanValue() ? BigInteger.ONE : BigInteger.ZERO;
+                return value.equals(biOther);
+            } else if (isSymbol(other)) {
                 return false;
-            } else if (y instanceof Scriptable) {
-                if (y instanceof ScriptableObject) {
-                    Object test = ((ScriptableObject) y).equivalentValues(x);
-                    if (test != Scriptable.NOT_FOUND) {
-                        return ((Boolean) test).booleanValue();
+            } else if (other instanceof Scriptable) {
+                if (other instanceof ScriptableObject) {
+                    Boolean hooked = equivalentValuesHook(other, value);
+                    if (hooked != null) {
+                        return hooked;
                     }
                 }
-                y = toPrimitive(y);
+                other = toPrimitive(other);
             } else {
-                warnAboutNonJSObject(y);
+                warnAboutNonJSObject(other);
                 return false;
             }
         }
@@ -4716,91 +4772,92 @@ public class ScriptRuntime {
         return bdx.compareTo(bdy) == 0;
     }
 
-    private static boolean eqString(CharSequence x, Object y) {
+    private static boolean eqString(CharSequence value, Object other) {
         for (; ; ) {
-            if (y == null || Undefined.isUndefined(y)) {
+            if (other == null || Undefined.isUndefined(other)) {
                 return false;
-            } else if (y instanceof CharSequence) {
-                CharSequence c = (CharSequence) y;
-                return x.length() == c.length() && x.toString().equals(c.toString());
-            } else if (y instanceof BigInteger) {
-                BigInteger bix;
+            } else if (other instanceof CharSequence) {
+                CharSequence c = (CharSequence) other;
+                return value.length() == c.length() && value.toString().equals(c.toString());
+            } else if (other instanceof BigInteger) {
+                BigInteger biValue;
                 try {
-                    bix = toBigInt(x);
+                    biValue = toBigInt(value);
                 } catch (EcmaError e) {
                     return false;
                 }
-                return bix.equals(y);
-            } else if (y instanceof Number) {
-                return toNumber(x.toString()) == ((Number) y).doubleValue();
-            } else if (y instanceof Boolean) {
-                return toNumber(x.toString()) == (((Boolean) y).booleanValue() ? 1.0 : 0.0);
-            } else if (isSymbol(y)) {
+                return biValue.equals(other);
+            } else if (other instanceof Number) {
+                return toNumber(value.toString()) == ((Number) other).doubleValue();
+            } else if (other instanceof Boolean) {
+                return toNumber(value.toString()) == (((Boolean) other).booleanValue() ? 1.0 : 0.0);
+            } else if (isSymbol(other)) {
                 return false;
-            } else if (y instanceof Scriptable) {
-                if (y instanceof ScriptableObject) {
-                    Object test = ((ScriptableObject) y).equivalentValues(x.toString());
-                    if (test != Scriptable.NOT_FOUND) {
-                        return ((Boolean) test).booleanValue();
+            } else if (other instanceof Scriptable) {
+                if (other instanceof ScriptableObject) {
+                    Boolean hooked = equivalentValuesHook(other, value.toString());
+                    if (hooked != null) {
+                        return hooked;
                     }
                 }
-                y = toPrimitive(y);
+                other = toPrimitive(other);
             } else {
-                warnAboutNonJSObject(y);
+                warnAboutNonJSObject(other);
                 return false;
             }
         }
     }
 
+    /**
+     * Implement "IsStrictlyEqual" from ECMA-262 (sec-isstrictlyequal), the abstract operation
+     * behind the === and !== operators. Unlike {@link #eq(Object, Object)}, values of different
+     * types never compare equal.
+     */
     public static boolean shallowEq(Object x, Object y) {
         if (x == y) {
-            if (!(x instanceof Number)) {
+            if (!(x instanceof Number nx)) {
                 return true;
             }
-            // NaN check
-            double d = ((Number) x).doubleValue();
+            // Same-reference Numbers still need a NaN check: NaN === NaN is false.
+            double d = nx.doubleValue();
             return !Double.isNaN(d);
         }
-        if (x == null || x == Undefined.instance || x == Undefined.SCRIPTABLE_UNDEFINED) {
-            if ((x == Undefined.instance && y == Undefined.SCRIPTABLE_UNDEFINED)
-                    || (x == Undefined.SCRIPTABLE_UNDEFINED && y == Undefined.instance))
-                return true;
-            return false;
-        } else if (x instanceof BigInteger) {
-            if (y instanceof BigInteger) {
-                return x.equals(y);
+        if (x == null || Undefined.isUndefined(x)) {
+            // null is strictly equal only to itself (handled above); undefined is strictly
+            // equal to both representations of undefined.
+            return x != null && Undefined.isUndefined(y);
+        } else if (x instanceof BigInteger bx) {
+            if (y instanceof BigInteger by) {
+                return bx.equals(by);
             }
-        } else if (x instanceof Number && !(x instanceof BigInteger)) {
-            if (y instanceof Number && !(y instanceof BigInteger)) {
-                return ((Number) x).doubleValue() == ((Number) y).doubleValue();
+        } else if (x instanceof Number nx) {
+            if (y instanceof Number ny && !(y instanceof BigInteger)) {
+                return nx.doubleValue() == ny.doubleValue();
             }
-        } else if (x instanceof CharSequence) {
-            if (y instanceof CharSequence) {
-                return x.toString().equals(y.toString());
+        } else if (x instanceof CharSequence cx) {
+            if (y instanceof CharSequence cy) {
+                return cx.toString().equals(cy.toString());
             }
-        } else if (x instanceof Boolean) {
-            if (y instanceof Boolean) {
-                return x.equals(y);
+        } else if (x instanceof Boolean bx) {
+            if (y instanceof Boolean by) {
+                return bx.equals(by);
             }
         } else if (x instanceof Scriptable) {
-            if (x instanceof Wrapper && y instanceof Wrapper) {
-                return ((Wrapper) x).unwrap() == ((Wrapper) y).unwrap();
+            if (x instanceof Wrapper wx && y instanceof Wrapper wy) {
+                return wx.unwrap() == wy.unwrap();
             }
-            if (x instanceof Delegator) {
-                x = ((Delegator) x).getDelegee();
-                if (y instanceof Delegator) {
-                    return shallowEq(x, ((Delegator) y).getDelegee());
+            if (x instanceof Delegator dx) {
+                x = dx.getDelegee();
+                if (y instanceof Delegator dy) {
+                    return shallowEq(x, dy.getDelegee());
                 }
                 if (x == y) {
                     return true;
                 }
             }
-            if (y instanceof Delegator && ((Delegator) y).getDelegee() == x) {
-                return true;
-            }
+            return y instanceof Delegator dy && dy.getDelegee() == x;
         } else {
             warnAboutNonJSObject(x);
-            return x == y;
         }
         return false;
     }
@@ -4945,33 +5002,27 @@ public class ScriptRuntime {
     }
 
     private static <T> boolean compareTo(Comparable<T> val1, T val2, int op) {
-        switch (op) {
-            case Token.GE:
-                return val1.compareTo(val2) >= 0;
-            case Token.LE:
-                return val1.compareTo(val2) <= 0;
-            case Token.GT:
-                return val1.compareTo(val2) > 0;
-            case Token.LT:
-                return val1.compareTo(val2) < 0;
-            default:
+        return switch (op) {
+            case Token.GE -> val1.compareTo(val2) >= 0;
+            case Token.LE -> val1.compareTo(val2) <= 0;
+            case Token.GT -> val1.compareTo(val2) > 0;
+            case Token.LT -> val1.compareTo(val2) < 0;
+            default -> {
                 throw Kit.codeBug();
-        }
+            }
+        };
     }
 
-    static boolean compareTo(double d1, double d2, int op) {
-        switch (op) {
-            case Token.GE:
-                return d1 >= d2;
-            case Token.LE:
-                return d1 <= d2;
-            case Token.GT:
-                return d1 > d2;
-            case Token.LT:
-                return d1 < d2;
-            default:
+    public static boolean compareTo(double d1, double d2, int op) {
+        return switch (op) {
+            case Token.GE -> d1 >= d2;
+            case Token.LE -> d1 <= d2;
+            case Token.GT -> d1 > d2;
+            case Token.LT -> d1 < d2;
+            default -> {
                 throw Kit.codeBug();
-        }
+            }
+        };
     }
 
     // ------------------
@@ -5014,7 +5065,7 @@ public class ScriptRuntime {
      */
     @Deprecated
     public static Object doTopCall(
-            Callable callable, Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
+            Callable callable, Context cx, VarScope scope, Object thisObj, Object[] args) {
         return doTopCall(callable, cx, scope, thisObj, args, cx.isStrictMode());
     }
 
@@ -5022,24 +5073,31 @@ public class ScriptRuntime {
     public static Object doTopCall(
             Callable callable, Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
         return doTopCall(
-                callable, cx, ScriptableObject.getVarScope(scope), thisObj, args, cx.isStrictMode());
+                callable,
+                cx,
+                ScriptableObject.getVarScope(scope),
+                thisObj,
+                args,
+                cx.isStrictMode());
     }
 
     @Deprecated
-    public static Object doTopCall(Script script, Context cx, VarScope scope, Scriptable thisObj) {
+    public static Object doTopCall(Script script, Context cx, VarScope scope, Object thisObj) {
         return doTopCall(script, cx, scope, thisObj, cx.isStrictMode());
     }
 
     @Deprecated
-    public static Object doTopCall(Script script, Context cx, Scriptable scope, Scriptable thisObj) {
-        return doTopCall(script, cx, ScriptableObject.getVarScope(scope), thisObj, cx.isStrictMode());
+    public static Object doTopCall(
+            Script script, Context cx, Scriptable scope, Scriptable thisObj) {
+        return doTopCall(
+                script, cx, ScriptableObject.getVarScope(scope), thisObj, cx.isStrictMode());
     }
 
     public static Object doTopCall(
             Callable callable,
             Context cx,
             VarScope scope,
-            Scriptable thisObj,
+            Object thisObj,
             Object[] args,
             boolean isTopLevelStrict) {
         if (scope == null) throw new IllegalArgumentException();
@@ -5077,11 +5135,7 @@ public class ScriptRuntime {
     }
 
     public static Object doTopCall(
-            Script script,
-            Context cx,
-            VarScope scope,
-            Scriptable thisObj,
-            boolean isTopLevelStrict) {
+            Script script, Context cx, VarScope scope, Object thisObj, boolean isTopLevelStrict) {
         if (scope == null) throw new IllegalArgumentException();
         if (cx.topCallScope != null) throw new IllegalStateException();
 
@@ -5156,11 +5210,7 @@ public class ScriptRuntime {
     }
 
     public static void initScript(
-            ScriptOrFn execObj,
-            Scriptable thisObj,
-            Context cx,
-            VarScope scope,
-            boolean evalScript) {
+            ScriptOrFn execObj, Object thisObj, Context cx, VarScope scope, boolean evalScript) {
         if (cx.topCallScope == null) throw new IllegalStateException();
 
         var desc = execObj.getDescriptor();
@@ -5171,7 +5221,7 @@ public class ScriptRuntime {
             VarScope varScope = scope;
             // Never define any variables from var statements inside with
             // object. See bug 38590.
-            while (varScope instanceof WithScope) {
+            while (varScope.isNestedScope()) {
                 varScope = varScope.getParentScope();
             }
 
@@ -5184,7 +5234,7 @@ public class ScriptRuntime {
                     if (isConst) {
                         ScriptableObject.defineConstProperty(varScope, name);
                     } else if (!evalScript) {
-                        if (desc.hasFunctionNamed(name)) {
+                        if (desc.hasNoFunctionStatementNamed(name)) {
                             // Global var definitions are supposed to be DONTDELETE
                             ScriptableObject.defineProperty(
                                     varScope, name, Undefined.instance, ScriptableObject.PERMANENT);
@@ -5262,9 +5312,9 @@ public class ScriptRuntime {
         return null;
     }
 
-    public static Scriptable newCatchScope(
+    public static VarScope newCatchScope(
             Throwable t,
-            Scriptable lastCatchScope,
+            VarScope lastCatchScope,
             String exceptionName,
             Context cx,
             VarScope scope) {
@@ -5282,8 +5332,7 @@ public class ScriptRuntime {
             // the previous scope object
 
             if (lastCatchScope != null) {
-                NativeObject last = (NativeObject) lastCatchScope;
-                obj = last.getAssociatedValue(t);
+                obj = ((DeclarationScope) lastCatchScope).getAssociatedValue(t);
                 if (obj == null) Kit.codeBug();
                 break getObj;
             }
@@ -5370,26 +5419,26 @@ public class ScriptRuntime {
             obj = errorObject;
         }
 
-        NativeObject catchScopeObject = new NativeObject();
+        var catchScope = new CatchScope(scope);
         // See ECMA 12.4
         if (exceptionName != null) {
-            catchScopeObject.defineProperty(exceptionName, obj, ScriptableObject.PERMANENT);
+            catchScope.defineProperty(exceptionName, obj, ScriptableObject.PERMANENT);
         }
 
         if (cx.hasFeature(Context.FEATURE_ENHANCED_JAVA_ACCESS) && isVisible(cx, t)) {
             // Add special Rhino object __exception__ defined in the catch
             // scope that can be used to retrieve the Java exception associated
             // with the JavaScript exception (to get stack trace info, etc.)
-            catchScopeObject.defineProperty(
+            catchScope.defineProperty(
                     "__exception__",
                     Context.javaToJS(t, scope),
                     ScriptableObject.PERMANENT | ScriptableObject.DONTENUM);
         }
 
         if (cacheObj) {
-            catchScopeObject.associateValue(t, obj);
+            catchScope.associateValue(t, obj);
         }
-        return catchScopeObject;
+        return catchScope;
     }
 
     public static Scriptable wrapException(Throwable t, VarScope scope, Context cx) {
@@ -5486,9 +5535,12 @@ public class ScriptRuntime {
         return new WithScope(scope, sobj);
     }
 
-    public static VarScope leaveWith(VarScope scope) {
-        WithScope nw = (WithScope) scope;
-        return nw.getParentScope();
+    public static VarScope enterScope(VarScope scope) {
+        return new LocalScope(scope);
+    }
+
+    public static VarScope leaveScope(VarScope scope) {
+        return scope.getParentScope();
     }
 
     public static VarScope enterDotQuery(Object value, VarScope scope) {
@@ -5568,14 +5620,60 @@ public class ScriptRuntime {
 
     public static void setBuiltinProtoAndParent(
             ScriptableObject obj, JSFunction f, Object nt, VarScope s, TopLevel.Builtins type) {
-        obj.setPrototype((Scriptable) f.getPrototypeProperty());
+        obj.setPrototype(findPrototype(f, nt, type));
+
         obj.setParentScope(s);
     }
 
     public static void setBuiltinProtoAndParent(
             ScriptableObject obj, JSFunction f, Object nt, VarScope s, TopLevel.NativeErrors type) {
-        obj.setPrototype((Scriptable) f.getPrototypeProperty());
+        obj.setPrototype(findPrototype(f, nt, type));
+
         obj.setParentScope(s);
+    }
+
+    public static Scriptable findPrototype(JSFunction f, Object nt, TopLevel.Builtins type) {
+        Object proto;
+        if (nt instanceof JSFunction) {
+            proto = ((JSFunction) nt).getPrototypeProperty();
+        } else if (nt instanceof Scriptable
+                && nt instanceof Function
+                && ((Function) nt).isConstructor()) {
+            var sobj = ((Scriptable) nt);
+            proto = sobj.get("prototype", sobj);
+        } else {
+            nt = f;
+            proto = ((JSFunction) nt).getPrototypeProperty();
+        }
+
+        if (proto instanceof Scriptable) {
+            return (Scriptable) proto;
+        } else {
+            TopLevel top = ScriptableObject.getTopLevelScope(((Function) nt).getDeclarationScope());
+            return TopLevel.getBuiltinPrototype(top, type);
+        }
+    }
+
+    public static Scriptable findPrototype(JSFunction f, Object nt, TopLevel.NativeErrors type) {
+        Object proto;
+        if (nt instanceof JSFunction) {
+            proto = ((JSFunction) nt).getPrototypeProperty();
+        } else if (nt instanceof Scriptable
+                && nt instanceof Function
+                && ((Function) nt).isConstructor()) {
+            var sobj = ((Scriptable) nt);
+            proto = sobj.get("prototype", sobj);
+        } else {
+            nt = f;
+            proto = ((JSFunction) nt).getPrototypeProperty();
+        }
+
+        if (proto instanceof Scriptable) {
+            return (Scriptable) proto;
+        } else {
+            TopLevel top = ScriptableObject.getTopLevelScope(((Function) nt).getDeclarationScope());
+            return TopLevel.getBuiltinPrototype(top, type);
+        }
     }
 
     public static void initFunction(
@@ -5595,12 +5693,16 @@ public class ScriptRuntime {
         } else if (type == FunctionNode.FUNCTION_EXPRESSION_STATEMENT) {
             String name = function.getFunctionName();
             if (name != null && name.length() != 0) {
-                // Always put function expression statements into initial
-                // activation object ignoring the with statement to follow
-                // SpiderMonkey
-                while (scope instanceof WithScope) {
+                // Pre-ES6: always hoist to the enclosing function/script scope.
+                while (scope.isNestedScope()) {
                     scope = scope.getParentScope();
                 }
+                scope.put(name, scope, function);
+            }
+        } else if (type == FunctionNode.FUNCTION_BLOCK_SCOPED) {
+            String name = function.getFunctionName();
+            if (name != null && name.length() != 0) {
+                // Block-scoped function: bind in the current (block) scope.
                 scope.put(name, scope, function);
             }
         } else {
@@ -5763,8 +5865,7 @@ public class ScriptRuntime {
         return obj instanceof NativeArray || obj instanceof Arguments;
     }
 
-    public static Object[] getArrayElements(Scriptable object) {
-        Context cx = Context.getContext();
+    public static Object[] getArrayElements(Context cx, Scriptable object) {
         long longLen = NativeArray.getLengthProperty(cx, object);
         if (longLen > Integer.MAX_VALUE) {
             // arrays beyond  MAX_INT is not in Java in any case

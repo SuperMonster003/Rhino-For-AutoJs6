@@ -1,5 +1,6 @@
 package org.mozilla.javascript;
 
+import static org.mozilla.javascript.InterpreterV2.initFunction;
 import static org.mozilla.javascript.UniqueTag.DOUBLE_MARK;
 
 import java.io.Serializable;
@@ -18,7 +19,8 @@ public class CallFrameV2 extends ACallFrame<CallFrameV2, CompilerData<?>> implem
     public CallFrameV2(
             Context cx,
             VarScope callerScope,
-            Scriptable thisObj,
+            Object thisObj,
+            Object newTarget,
             Scriptable homeObj,
             Object[] args,
             double[] doubleArgs,
@@ -30,6 +32,7 @@ public class CallFrameV2 extends ACallFrame<CallFrameV2, CompilerData<?>> implem
         super(
                 cx,
                 thisObj,
+                newTarget,
                 fnOrScript,
                 (CompilerData<?>) fnOrScript.getDescriptor().getCode(),
                 parentFrame,
@@ -87,8 +90,7 @@ public class CallFrameV2 extends ACallFrame<CallFrameV2, CompilerData<?>> implem
                 for (int i = 0; i < desc.getFunctionCount(); i++) {
                     JSDescriptor<?> fdesc = desc.getFunction(i);
                     if (fdesc.getFunctionType() == FunctionNode.FUNCTION_STATEMENT) {
-                        // Commented out for now to avoid pulling everything at once.
-                        // initFunction(cx, this.scope, desc, i);
+                        initFunction(cx, this.scope, desc, i);
                     }
                 }
             }

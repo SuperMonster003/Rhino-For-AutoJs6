@@ -18,6 +18,7 @@ import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -73,7 +74,15 @@ public class NativeBigUint64Array extends NativeBigIntArrayView {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return NativeTypedArrayView.js_constructor(
-                cx, f, nt, s, thisObj, args, NativeBigUint64Array::new, 8);
+                cx,
+                f,
+                nt,
+                s,
+                thisObj,
+                args,
+                NativeBigUint64Array::new,
+                8,
+                TopLevel.Builtins.BigUint64Array);
     }
 
     @Override
@@ -81,19 +90,8 @@ public class NativeBigUint64Array extends NativeBigIntArrayView {
         if (checkIndex(index)) {
             return Undefined.instance;
         }
-        long base =
-                ByteIo.readUint64Primitive(
-                        arrayBuffer.buffer,
-                        (index * BYTES_PER_ELEMENT) + offset,
-                        useLittleEndian());
-        if ((base & 0x8000000000000000l) == 0) {
-            return BigInteger.valueOf(base);
-        } else {
-            // Do it in two parts
-            var lsw = BigInteger.valueOf(base & 0xffffffff);
-            var msw = BigInteger.valueOf((base >> 32) & 0xffffffff).shiftLeft(32);
-            return msw.add(lsw);
-        }
+        long base = arrayBuffer.buffer.getLong((index * BYTES_PER_ELEMENT) + offset);
+        return Conversions.longBitsToBigUint(base);
     }
 
     @Override
@@ -104,9 +102,7 @@ public class NativeBigUint64Array extends NativeBigIntArrayView {
         }
 
         long base = val.longValue();
-
-        ByteIo.writeUint64(
-                arrayBuffer.buffer, (index * BYTES_PER_ELEMENT) + offset, base, useLittleEndian());
+        arrayBuffer.buffer.putLong((index * BYTES_PER_ELEMENT) + offset, base);
         return null;
     }
 

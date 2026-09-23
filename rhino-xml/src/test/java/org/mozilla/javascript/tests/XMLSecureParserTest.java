@@ -28,10 +28,11 @@ public class XMLSecureParserTest {
 
     /**
      * Test first that XML can be run directly with the default XML parser for this JRE. Then inject
-     * a custom parser to test that the security settings are being applied properly
+     * a custom parser to verify AutoJs6's XML compatibility policy. Its Android UI parser cannot
+     * accept the upstream secure factory configuration, even when the Context feature is enabled.
      */
     @Test
-    public void xmlSecureConfiguration() {
+    public void xmlDefaultConfigurationPreservesAutoJsUiCompatibility() {
         CALLED_BY_XML_PARSER = false;
 
         // run with defaults for this JRE
@@ -68,9 +69,8 @@ public class XMLSecureParserTest {
                 System.clearProperty(XML_PROPERTY);
             }
         }
-        // Our parser will set a flag on this class when configured properly, check that this
-        // happened
-        assertTrue(CALLED_BY_XML_PARSER);
+        assertFalse(
+                CALLED_BY_XML_PARSER, "AutoJs6 must not enable unsupported XML factory features");
     }
 
     /**

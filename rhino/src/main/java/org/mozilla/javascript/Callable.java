@@ -20,9 +20,9 @@ public interface Callable {
      * @param args the array of arguments
      * @return the result of the call
      */
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args);
+    public Object call(Context cx, VarScope scope, Object thisObj, Object[] args);
 
-    public default Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    public default Object call(Context cx, Scriptable scope, Object thisObj, Object[] args) {
         return call(cx, ScriptableObject.getVarScope(scope), thisObj, args);
     }
 }

@@ -30,8 +30,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
     //            exception local and scope local
     static final int EXCEPTION_SLOT_SIZE = 6;
 
-    static boolean compareDescs(JSDescriptor i1, JSDescriptor i2) {
-        return i1 == i2 || Objects.equals(getRawSource(i1), getRawSource(i2));
+    static boolean compareDescs(JSDescriptor<?> i1, JSDescriptor<?> i2) {
+        return i1 == i2 || Objects.equals(getSource(i1), getSource(i2));
     }
 
     private static CallFrame captureFrameForGenerator(CallFrame frame) {
@@ -330,6 +330,9 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             case Icode.OBJECT_REST:
                 // computedKeyCount byte
                 return 1 + 1;
+            case Icode.CLOSURE_STMT:
+                // hoisted indicator byte
+                return 1 + 1;
         }
         if (!Icode.validBytecode(bytecode)) throw Kit.codeBug();
         return 1;
@@ -373,18 +376,29 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         return ret;
     }
 
-    static String getRawSource(JSDescriptor<?> desc) {
-        if (desc.getRawSource() == null) {
+    static String getSource(JSDescriptor<?> desc) {
+        if (desc.getSource() == null) {
             return null;
         }
-        return desc.getRawSource();
+        return desc.getSource();
     }
 
     static void initFunction(Context cx, VarScope scope, JSDescriptor<?> parent, int index) {
+        initFunction(cx, scope, parent, index, false);
+    }
+
+    static void initFunction(
+            Context cx, VarScope scope, JSDescriptor<?> parent, int index, boolean hoist) {
         JSFunction fn;
         fn = JSFunction.createFunction(cx, scope, parent, index, null);
         var desc = fn.getDescriptor();
         ScriptRuntime.initFunction(cx, scope, fn, desc.getFunctionType(), parent.isEvalFunction());
+        if (hoist) {
+            while (scope.isNestedScope()) {
+                scope = scope.getParentScope();
+            }
+            scope.put(fn.getFunctionName(), scope, fn);
+        }
     }
 
     static <T extends ScriptOrFn<T>> Object interpret(
@@ -392,8 +406,9 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             InterpreterData<T> compilerData,
             Context cx,
             VarScope scope,
-            Scriptable thisObj,
-            Object[] args) {
+            Object thisObj,
+            Object[] args,
+            Object newTarget) {
         if (!ScriptRuntime.hasTopCall(cx)) Kit.codeBug();
 
         var desc = ifun.getDescriptor();
@@ -441,7 +456,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
                         args.length,
                         ifun,
                         compilerData,
-                        null);
+                        null,
+                        newTarget);
         frame.isContinuationsTopFrame = cx.isContinuationsTopCall;
         cx.isContinuationsTopCall = false;
 
@@ -735,11 +751,13 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         instructionObjs[base + Token.THIS] = new DoThis();
         instructionObjs[base + Token.SUPER] = new DoSuper();
         instructionObjs[base + Token.THISFN] = new DoThisFunction();
+        instructionObjs[base + Token.NEW_TARGET] = new DoNewTarget();
         instructionObjs[base + Token.FALSE] = new DoFalse();
         instructionObjs[base + Token.TRUE] = new DoTrue();
         instructionObjs[base + Icode.UNDEF] = new DoUndef();
         instructionObjs[base + Token.ENTERWITH] = new DoEnterWith();
-        instructionObjs[base + Token.LEAVEWITH] = new DoLeaveWith();
+        instructionObjs[base + Token.ENTER_SCOPE] = new DoEnterScope();
+        instructionObjs[base + Token.LEAVE_SCOPE] = new DoLeaveScope();
         instructionObjs[base + Token.CATCH_SCOPE] = new DoCatchScope();
         instructionObjs[base + Token.ENUM_INIT_KEYS] = new DoEnumInit();
         instructionObjs[base + Token.ENUM_INIT_VALUES] = new DoEnumInit();
@@ -2631,7 +2649,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             // Check if the lookup result is a function and throw if it's not
             // must not be done sooner according to the spec
             Callable fun = result.getCallable();
-            Scriptable funThisObj = result.getThis();
+            Object funThisObj = result.getThis();
             Scriptable funHomeObj =
                     (fun instanceof BaseFunction) ? ((BaseFunction) fun).getHomeObject() : null;
             if (op == Icode.CALL_ON_SUPER) {
@@ -2813,7 +2831,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
                                     state.indexReg,
                                     ifun,
                                     compilerData,
-                                    callParentFrame);
+                                    callParentFrame,
+                                    ifun.getLexicalNewTarget());
                     if (op != Icode.TAIL_CALL) {
                         frame.savedCallOp = op;
                     }
@@ -2912,7 +2931,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
                                     state.indexReg,
                                     f,
                                     compilerData,
-                                    frame);
+                                    frame,
+                                    lhs);
 
                     frame.stack[frame.stackTop] = newInstance;
                     frame.savedCallOp = op;
@@ -2963,7 +2983,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
     private static class DoTypeOfName extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
-            frame.stack[++frame.stackTop] = ScriptRuntime.typeofName(frame.scope, state.stringReg);
+            frame.stack[++frame.stackTop] =
+                    ScriptRuntime.typeofName(cx, frame.scope, state.stringReg);
             return null;
         }
     }
@@ -3318,6 +3339,14 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         }
     }
 
+    private static class DoNewTarget extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.stack[++frame.stackTop] = frame.newTarget;
+            return null;
+        }
+    }
+
     private static class DoFalse extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
@@ -3354,10 +3383,19 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         }
     }
 
-    private static class DoLeaveWith extends InstructionClass {
+    private static class DoEnterScope extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
-            frame.scope = ScriptRuntime.leaveWith(frame.scope);
+            frame.scope = new LocalScope(frame.scope);
+            frame.stack[++frame.stackTop] = frame.scope;
+            return null;
+        }
+    }
+
+    private static class DoLeaveScope extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.scope = ScriptRuntime.leaveScope(frame.scope);
             return null;
         }
     }
@@ -3374,15 +3412,17 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
 
             boolean afterFirstScope = (frame.compilerData.itsICode[frame.pc] != 0);
             Throwable caughtException = (Throwable) frame.stack[frame.stackTop + 1];
-            Scriptable lastCatchScope;
+            VarScope lastCatchScope;
             if (!afterFirstScope) {
                 lastCatchScope = null;
             } else {
-                lastCatchScope = (Scriptable) frame.stack[state.indexReg];
+                lastCatchScope = (VarScope) frame.stack[state.indexReg];
             }
-            frame.stack[state.indexReg] =
+            VarScope catchScope =
                     ScriptRuntime.newCatchScope(
                             caughtException, lastCatchScope, state.stringReg, cx, frame.scope);
+            frame.stack[state.indexReg] = catchScope;
+            frame.scope = catchScope;
             ++frame.pc;
             return null;
         }
@@ -3556,13 +3596,15 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
     private static class DoClosureStatement extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
-            initFunction(cx, frame.scope, frame.fnOrScript.getDescriptor(), state.indexReg);
+            boolean hoist = frame.compilerData.itsICode[frame.pc++] != 0;
+            initFunction(cx, frame.scope, frame.fnOrScript.getDescriptor(), state.indexReg, hoist);
             return null;
         }
 
         @Override
         void dumpICode(int op, String tname, ICodeDumpContext ctx) {
-            ctx.out.println(tname + " #" + ctx.indexReg);
+            boolean hoist = ctx.compilerData.itsICode[ctx.pc++] != 0;
+            ctx.out.println(tname + " #" + ctx.indexReg + (hoist ? "hoisted" : "un-hoisted"));
         }
     }
 
@@ -4275,7 +4317,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
     private static CallFrame initFrame(
             Context cx,
             VarScope callerScope,
-            Scriptable thisObj,
+            Object thisObj,
             Scriptable homeObj,
             Object[] args,
             double[] argsDbl,
@@ -4284,11 +4326,13 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             int argCount,
             ScriptOrFn<?> fnOrScript,
             InterpreterData<?> code,
-            CallFrame parentFrame) {
+            CallFrame parentFrame,
+            Object newTarget) {
         CallFrame frame =
                 new CallFrame(
                         cx,
                         thisObj,
+                        newTarget,
                         fnOrScript,
                         code,
                         parentFrame,
@@ -4451,7 +4495,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         var desc = frame.fnOrScript.getDescriptor().getFunction(index);
         boolean isArrow = desc.getFunctionType() == FunctionNode.ARROW_FUNCTION;
         var homeObject = isArrow ? frame.fnOrScript.getHomeObject() : null;
-        JSFunction f = new JSFunction(cx, frame.scope, desc, frame.thisObj, homeObject);
+        var newTarget = isArrow ? frame.newTarget : Undefined.instance;
+        JSFunction f = new JSFunction(cx, frame.scope, desc, frame.thisObj, newTarget, homeObject);
         return f;
     }
 
@@ -4459,7 +4504,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             Context cx, CallFrame frame, int index, Scriptable homeObject) {
         var desc = frame.fnOrScript.getDescriptor().getFunction(index);
         boolean isArrow = desc.getFunctionType() == FunctionNode.ARROW_FUNCTION;
-        JSFunction f = new JSFunction(cx, frame.scope, desc, frame.thisObj, homeObject);
+        var newTarget = isArrow ? frame.newTarget : Undefined.instance;
+        JSFunction f = new JSFunction(cx, frame.scope, desc, frame.thisObj, newTarget, homeObject);
         return f;
     }
 }
