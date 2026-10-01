@@ -5059,6 +5059,11 @@ public class ScriptRuntime {
         return scope;
     }
 
+    /** Scriptable view for legacy libraries that discover the active scope through reflection. */
+    public static Scriptable getTopCallScopeObject(Context cx) {
+        return getTopCallScope(cx).getGlobalThis();
+    }
+
     /**
      * @deprecated Use {@link #doTopCall(Callable, Context, VarScope, Scriptable, Object[],
      *     boolean)} instead

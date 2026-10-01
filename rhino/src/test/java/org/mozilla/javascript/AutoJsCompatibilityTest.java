@@ -1,12 +1,71 @@
 package org.mozilla.javascript;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class AutoJsCompatibilityTest {
+    @Test
+    void reflectiveLegacyScopeLookupCanRegisterAndCallJavaClasses() throws Exception {
+        var lookups =
+                Arrays.stream(ScriptRuntime.class.getDeclaredMethods())
+                        .filter(method -> Modifier.isStatic(method.getModifiers()))
+                        .filter(method -> method.getReturnType() == Scriptable.class)
+                        .filter(
+                                method ->
+                                        Arrays.equals(
+                                                method.getParameterTypes(),
+                                                new Class<?>[] {Context.class}))
+                        .toList();
+        var topLevel = ScriptableObject.class.getMethod("getTopLevelScope", Scriptable.class);
+        var wrap = NativeJavaClass.class.getConstructor(Scriptable.class, Class.class);
+        var put = Scriptable.class.getMethod("put", String.class, Scriptable.class, Object.class);
+        try (Context cx = Context.enter()) {
+            TopLevel scope = cx.initStandardObjects();
+            scope.getGlobalThis().setParentScope(scope);
+            Object registered =
+                    ScriptRuntime.doTopCall(
+                            (context, callScope, thisObj, args) -> {
+                                try {
+                                    Object active = null;
+                                    for (var lookup : lookups) {
+                                        try {
+                                            active = lookup.invoke(null, context);
+                                        } catch (ReflectiveOperationException ignored) {
+                                            continue;
+                                        }
+                                        if (active != null) break;
+                                    }
+                                    assertNotNull(active);
+                                    Object global = topLevel.invoke(null, active);
+                                    assertSame(scope.getGlobalThis(), active);
+                                    assertSame(active, global);
+                                    Object type = wrap.newInstance(global, StringBuilder.class);
+                                    put.invoke(global, "RegisteredClass", global, type);
+                                    return context.evaluateString(
+                                            callScope,
+                                            "new RegisteredClass('Kotlin').append('-OK').toString()",
+                                            "legacy-class-registration",
+                                            1,
+                                            null);
+                                } catch (ReflectiveOperationException failure) {
+                                    throw new AssertionError(failure);
+                                }
+                            },
+                            cx,
+                            scope,
+                            scope.getGlobalThis(),
+                            Context.emptyArgs,
+                            false);
+            assertEquals("Kotlin-OK", Context.toString(registered));
+        }
+    }
+
     @Test
     void legacyFunctionConstructionRetainsItsAssignedScopeAndCallsNewSignature() {
         try (Context cx = Context.enter()) {

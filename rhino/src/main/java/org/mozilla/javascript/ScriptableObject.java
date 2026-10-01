@@ -2292,8 +2292,9 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         }
     }
 
-    public static TopLevel getTopLevelScope(Scriptable obj) {
-        return getTopLevelScope(getVarScope(obj));
+    /** Legacy object-based callers need the global object, not its separate variable scope. */
+    public static Scriptable getTopLevelScope(Scriptable obj) {
+        return getTopLevelScope(getVarScope(obj)).getGlobalThis();
     }
 
     static VarScope getVarScope(Scriptable scope) {
