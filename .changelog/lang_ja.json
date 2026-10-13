@@ -1,0 +1,24 @@
+{
+  "labels": {
+    "hint": "ヒント",
+    "feature": "新機能",
+    "fix": "修正",
+    "improvement": "改善",
+    "dependency": "依存関係"
+  },
+  "$data": {
+    "2026-10-13": {
+      "released_date": "2026/10/13",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "派生版専用の紹介と保守履歴が 10 言語に対応し, 各言語に Rhino 公式ドキュメント原文へのリンクを保持"
+        },
+        {
+          "category": "improvement",
+          "text": "README/CHANGELOG が JSON とテンプレートからのオフライン生成に対応し, 読み取り専用チェックと CI でドキュメントの整合性を検証"
+        }
+      ]
+    }
+  }
+}

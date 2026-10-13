@@ -1,0 +1,24 @@
+{
+  "labels": {
+    "hint": "Astuce",
+    "feature": "Fonctionnalité",
+    "fix": "Correction",
+    "improvement": "Amélioration",
+    "dependency": "Dépendance"
+  },
+  "$data": {
+    "2026-10-13": {
+      "released_date": "2026/10/13",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "Présentation propre à la variante et historique de maintenance en 10 langues, chacune conservant un lien vers la documentation officielle originale de Rhino"
+        },
+        {
+          "category": "improvement",
+          "text": "README/CHANGELOG prennent en charge la génération hors ligne à partir de JSON et de modèles, avec des vérifications en lecture seule et une validation CI de la cohérence documentaire"
+        }
+      ]
+    }
+  }
+}

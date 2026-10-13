@@ -29,3 +29,6 @@
 *.jpg binary
 *.jpeg binary
 *.png binary
+
+# Preserve the exact upstream Git blob, including its original whitespace.
+/.readme/upstream/README.md.txt -text -whitespace

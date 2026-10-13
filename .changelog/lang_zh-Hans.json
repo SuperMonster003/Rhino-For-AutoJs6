@@ -1,0 +1,24 @@
+{
+  "labels": {
+    "hint": "提示",
+    "feature": "新增",
+    "fix": "修复",
+    "improvement": "优化",
+    "dependency": "依赖"
+  },
+  "$data": {
+    "2026-10-13": {
+      "released_date": "2026/10/13",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "分支专属介绍与维护记录支持 10 种语言, 各语言均保留原始 Rhino 官方文档入口"
+        },
+        {
+          "category": "improvement",
+          "text": "README/CHANGELOG 支持从 JSON 和模板离线生成, 并通过只读检查与 CI 校验文档一致性"
+        }
+      ]
+    }
+  }
+}

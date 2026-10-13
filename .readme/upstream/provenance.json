@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/mozilla/rhino",
+  "commit": "d878324a6f515c09d8ca49005fdd22b944b4df89",
+  "path": "README.md",
+  "git_blob": "cf1ce48a3b841955971404a82382744054a611d9",
+  "sha256": "f766176b074e2e374868ce676bb210b7ba89c8b2338ae941788be86d8669ab27",
+  "archived_path": ".readme/upstream/README.md.txt",
+  "source_url": "https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md",
+  "archived_on": "2026-10-13"
+}

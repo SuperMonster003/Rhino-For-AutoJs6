@@ -40,3 +40,8 @@ rhino.iws
 # android specific
 android-sdk/
 local.properties
+
+# Generated documentation tooling
+__pycache__/
+*.py[cod]
+/.bak/

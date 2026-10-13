@@ -1,0 +1,24 @@
+{
+  "labels": {
+    "hint": "Hint",
+    "feature": "Feature",
+    "fix": "Fix",
+    "improvement": "Improvement",
+    "dependency": "Dependency"
+  },
+  "$data": {
+    "2026-10-13": {
+      "released_date": "2026/10/13",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "Dedicated fork introduction and maintenance history in 10 languages, each retaining an entry to the original official Rhino documentation"
+        },
+        {
+          "category": "improvement",
+          "text": "README/CHANGELOG now support offline generation from JSON and templates, with read-only checks and CI validation of documentation consistency"
+        }
+      ]
+    }
+  }
+}

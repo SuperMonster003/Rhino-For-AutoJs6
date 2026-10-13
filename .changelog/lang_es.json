@@ -1,0 +1,24 @@
+{
+  "labels": {
+    "hint": "Sugerencia",
+    "feature": "Nuevo",
+    "fix": "Corrección",
+    "improvement": "Mejora",
+    "dependency": "Dependencia"
+  },
+  "$data": {
+    "2026-10-13": {
+      "released_date": "2026/10/13",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "Introducción dedicada a la bifurcación e historial de mantenimiento en 10 idiomas, cada uno con un enlace a la documentación oficial original de Rhino"
+        },
+        {
+          "category": "improvement",
+          "text": "README/CHANGELOG admiten la generación sin conexión a partir de JSON y plantillas, con comprobaciones de solo lectura y validación CI de la coherencia documental"
+        }
+      ]
+    }
+  }
+}

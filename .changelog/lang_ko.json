@@ -1,0 +1,24 @@
+{
+  "labels": {
+    "hint": "힌트",
+    "feature": "추가",
+    "fix": "수정",
+    "improvement": "개선",
+    "dependency": "의존성"
+  },
+  "$data": {
+    "2026-10-13": {
+      "released_date": "2026/10/13",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "포크 전용 소개와 유지 관리 이력을 10개 언어로 제공하며, 각 언어에서 Rhino 공식 문서 원본 링크 유지"
+        },
+        {
+          "category": "improvement",
+          "text": "README/CHANGELOG의 JSON 및 템플릿 기반 오프라인 생성과 읽기 전용 검사 및 CI를 통한 문서 일관성 검증 지원"
+        }
+      ]
+    }
+  }
+}

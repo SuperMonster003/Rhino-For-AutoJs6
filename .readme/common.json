@@ -1,0 +1,15 @@
+{
+  "project_name": "Rhino for AutoJs6",
+  "repo_url": "https://github.com/SuperMonster003/Rhino-For-AutoJs6",
+  "repo_branch": "master",
+  "upstream_readme_url": "https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md",
+  "upstream_commit": "d878324a6f515c09d8ca49005fdd22b944b4df89",
+  "upstream_archive_url": "https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.readme/upstream/README.md.txt",
+  "upstream_provenance_url": "https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.readme/upstream/provenance.json",
+  "upstream_repository_url": "https://github.com/mozilla/rhino",
+  "upstream_documentation_url": "https://rhino.github.io",
+  "upstream_releases_url": "https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/RELEASE-NOTES.md",
+  "host_url": "http://project.autojs6.com",
+  "host_docs_url": "https://docs.autojs6.com",
+  "license_url": "https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/LICENSE.txt"
+}
