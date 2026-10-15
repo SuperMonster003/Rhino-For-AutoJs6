@@ -64,6 +64,13 @@ AutoJs6 references the complete JAR at `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.ja
 
 This history records maintenance changes to this fork by date. Official Rhino release history remains in the upstream release notes and is not presented as new releases of this fork.
 
+### 2026-10-15
+
+###### 2026/10/15
+
+* `Fix` Argument placeholders and brace escaping in error messages, preventing localized diagnostics from losing context or throwing MessageFormat exceptions
+* `Improvement` Complete 9 non-English translations for 28 engine error messages covering ArrayBuffer, DataView, TypedArray, regular expressions, destructuring and related features
+
 ### 2026-10-13
 
 ###### 2026/10/13

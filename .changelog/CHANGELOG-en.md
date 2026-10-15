@@ -17,6 +17,13 @@ This history records maintenance changes to this fork by date. Official Rhino re
 
 [Read the original official Rhino README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). This entry is pinned to commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, preserving the upstream language and the context of relative links. The original document is retained without translation; this page and its other language versions describe this fork.
 
+# 2026-10-15
+
+###### 2026/10/15
+
+* `Fix` Argument placeholders and brace escaping in error messages, preventing localized diagnostics from losing context or throwing MessageFormat exceptions
+* `Improvement` Complete 9 non-English translations for 28 engine error messages covering ArrayBuffer, DataView, TypedArray, regular expressions, destructuring and related features
+
 # 2026-10-13
 
 ###### 2026/10/13

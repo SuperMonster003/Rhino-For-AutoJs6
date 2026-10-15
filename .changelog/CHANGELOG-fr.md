@@ -17,6 +17,13 @@ Cet historique consigne par date les changements de maintenance de cette variant
 
 [Lire le README officiel original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Ce lien cible le commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservant la langue d'origine et le contexte des liens relatifs. Le document original est conservé sans traduction; cette page et ses autres versions linguistiques présentent cette variante.
 
+# 2026-10-15
+
+###### 2026/10/15
+
+* `Correction` Paramètres de substitution et échappement des accolades dans les messages d'erreur, pour éviter la perte de contexte ou les exceptions MessageFormat dans les diagnostics traduits
+* `Amélioration` Traductions complètes en 9 langues autres que l'anglais pour 28 messages d'erreur du moteur concernant ArrayBuffer, DataView, TypedArray, les expressions régulières, la déstructuration et les fonctions associées
+
 # 2026-10-13
 
 ###### 2026/10/13

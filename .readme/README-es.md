@@ -64,6 +64,13 @@ AutoJs6 referencia el JAR completo en `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar
 
 Este historial registra por fecha los cambios de mantenimiento de esta bifurcación. El historial de versiones oficiales de Rhino permanece en las notas de versión originales y no se presenta como versiones nuevas de esta bifurcación.
 
+### 2026-10-15
+
+###### 2026/10/15
+
+* `Corrección` Marcadores de argumentos y escape de llaves en los mensajes de error, para evitar la pérdida de contexto o excepciones de MessageFormat en los diagnósticos traducidos
+* `Mejora` Traducciones completas a 9 idiomas distintos del inglés para 28 mensajes de error del motor sobre ArrayBuffer, DataView, TypedArray, expresiones regulares, desestructuración y funciones relacionadas
+
 ### 2026-10-13
 
 ###### 2026/10/13

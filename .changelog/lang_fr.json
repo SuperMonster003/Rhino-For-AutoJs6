@@ -7,6 +7,19 @@
     "dependency": "Dépendance"
   },
   "$data": {
+    "2026-10-15": {
+      "released_date": "2026/10/15",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "Paramètres de substitution et échappement des accolades dans les messages d'erreur, pour éviter la perte de contexte ou les exceptions MessageFormat dans les diagnostics traduits"
+        },
+        {
+          "category": "improvement",
+          "text": "Traductions complètes en 9 langues autres que l'anglais pour 28 messages d'erreur du moteur concernant ArrayBuffer, DataView, TypedArray, les expressions régulières, la déstructuration et les fonctions associées"
+        }
+      ]
+    },
     "2026-10-13": {
       "released_date": "2026/10/13",
       "entries": [

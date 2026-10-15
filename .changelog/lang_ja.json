@@ -7,6 +7,19 @@
     "dependency": "依存関係"
   },
   "$data": {
+    "2026-10-15": {
+      "released_date": "2026/10/15",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "エラーメッセージの引数プレースホルダーと波括弧のエスケープを修正し, ローカライズされた診断での情報欠落や MessageFormat 例外を防止"
+        },
+        {
+          "category": "improvement",
+          "text": "ArrayBuffer, DataView, TypedArray, 正規表現, 分割代入などのエラーメッセージ 28 件について, 英語以外の 9 言語の翻訳を補完"
+        }
+      ]
+    },
     "2026-10-13": {
       "released_date": "2026/10/13",
       "entries": [

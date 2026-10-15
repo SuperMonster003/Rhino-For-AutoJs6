@@ -17,6 +17,13 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 
 [Leer el README oficial original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Este enlace está fijado al commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservando el idioma original y el contexto de los enlaces relativos. El documento original se conserva sin traducir; esta página y sus versiones en otros idiomas describen esta bifurcación.
 
+# 2026-10-15
+
+###### 2026/10/15
+
+* `Corrección` Marcadores de argumentos y escape de llaves en los mensajes de error, para evitar la pérdida de contexto o excepciones de MessageFormat en los diagnósticos traducidos
+* `Mejora` Traducciones completas a 9 idiomas distintos del inglés para 28 mensajes de error del motor sobre ArrayBuffer, DataView, TypedArray, expresiones regulares, desestructuración y funciones relacionadas
+
 # 2026-10-13
 
 ###### 2026/10/13

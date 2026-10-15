@@ -7,6 +7,19 @@
     "dependency": "Dependencia"
   },
   "$data": {
+    "2026-10-15": {
+      "released_date": "2026/10/15",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "Marcadores de argumentos y escape de llaves en los mensajes de error, para evitar la pérdida de contexto o excepciones de MessageFormat en los diagnósticos traducidos"
+        },
+        {
+          "category": "improvement",
+          "text": "Traducciones completas a 9 idiomas distintos del inglés para 28 mensajes de error del motor sobre ArrayBuffer, DataView, TypedArray, expresiones regulares, desestructuración y funciones relacionadas"
+        }
+      ]
+    },
     "2026-10-13": {
       "released_date": "2026/10/13",
       "entries": [

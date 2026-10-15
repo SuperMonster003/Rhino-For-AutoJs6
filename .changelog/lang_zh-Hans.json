@@ -7,6 +7,19 @@
     "dependency": "依赖"
   },
   "$data": {
+    "2026-10-15": {
+      "released_date": "2026/10/15",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "错误消息中的参数占位符及大括号转义, 避免本地化诊断丢失上下文或触发 MessageFormat 异常"
+        },
+        {
+          "category": "improvement",
+          "text": "ArrayBuffer, DataView, TypedArray, 正则表达式及解构等 28 条引擎错误消息补齐 9 种非英语翻译"
+        }
+      ]
+    },
     "2026-10-13": {
       "released_date": "2026/10/13",
       "entries": [

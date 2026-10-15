@@ -64,6 +64,13 @@ AutoJs6 référence le JAR complet à l'emplacement `libs/org-mozilla-rhino-2_0_
 
 Cet historique consigne par date les changements de maintenance de cette variante. L'historique des versions officielles de Rhino reste dans les notes de version amont et n'est pas présenté comme de nouvelles versions de cette variante.
 
+### 2026-10-15
+
+###### 2026/10/15
+
+* `Correction` Paramètres de substitution et échappement des accolades dans les messages d'erreur, pour éviter la perte de contexte ou les exceptions MessageFormat dans les diagnostics traduits
+* `Amélioration` Traductions complètes en 9 langues autres que l'anglais pour 28 messages d'erreur du moteur concernant ArrayBuffer, DataView, TypedArray, les expressions régulières, la déstructuration et les fonctions associées
+
 ### 2026-10-13
 
 ###### 2026/10/13

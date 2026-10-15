@@ -7,6 +7,19 @@
     "dependency": "의존성"
   },
   "$data": {
+    "2026-10-15": {
+      "released_date": "2026/10/15",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "오류 메시지의 인수 자리 표시자와 중괄호 이스케이프를 수정하여 번역된 진단의 정보 누락 및 MessageFormat 예외 방지"
+        },
+        {
+          "category": "improvement",
+          "text": "ArrayBuffer, DataView, TypedArray, 정규식, 구조 분해 등에 관한 엔진 오류 메시지 28 개의 영어 외 9 개 언어 번역 완성"
+        }
+      ]
+    },
     "2026-10-13": {
       "released_date": "2026/10/13",
       "entries": [

@@ -7,6 +7,19 @@
     "dependency": "依賴"
   },
   "$data": {
+    "2026-10-15": {
+      "released_date": "2026/10/15",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "錯誤訊息中的參數佔位符及大括號跳脫, 避免本地化診斷遺失上下文或觸發 MessageFormat 例外"
+        },
+        {
+          "category": "improvement",
+          "text": "ArrayBuffer, DataView, TypedArray, 正則表達式及解構等 28 條引擎錯誤訊息補齊 9 種非英語翻譯"
+        }
+      ]
+    },
     "2026-10-13": {
       "released_date": "2026/10/13",
       "entries": [
