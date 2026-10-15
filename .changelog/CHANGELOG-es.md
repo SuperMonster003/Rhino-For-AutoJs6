@@ -22,6 +22,7 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 ###### 2026/10/15
 
 * `Corrección` Marcadores de argumentos y escape de llaves en los mensajes de error, para evitar la pérdida de contexto o excepciones de MessageFormat en los diagnósticos traducidos
+* `Corrección` Expresiones regulares con escapes de propiedades Unicode (como `\p{L}`) que lanzaban UnsupportedOperationException en Android 7.x
 * `Mejora` Traducciones completas a 9 idiomas distintos del inglés para 28 mensajes de error del motor sobre ArrayBuffer, DataView, TypedArray, expresiones regulares, desestructuración y funciones relacionadas
 
 # 2026-10-13

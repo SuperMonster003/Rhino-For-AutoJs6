@@ -22,6 +22,7 @@ This history records maintenance changes to this fork by date. Official Rhino re
 ###### 2026/10/15
 
 * `Fix` Argument placeholders and brace escaping in error messages, preventing localized diagnostics from losing context or throwing MessageFormat exceptions
+* `Fix` Regular expressions with Unicode property escapes (such as `\p{L}`) throwing UnsupportedOperationException on Android 7.x
 * `Improvement` Complete 9 non-English translations for 28 engine error messages covering ArrayBuffer, DataView, TypedArray, regular expressions, destructuring and related features
 
 # 2026-10-13

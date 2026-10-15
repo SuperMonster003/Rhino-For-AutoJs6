@@ -15,6 +15,10 @@
           "text": "Argument placeholders and brace escaping in error messages, preventing localized diagnostics from losing context or throwing MessageFormat exceptions"
         },
         {
+          "category": "fix",
+          "text": "Regular expressions with Unicode property escapes (such as `\\p{L}`) throwing UnsupportedOperationException on Android 7.x"
+        },
+        {
           "category": "improvement",
           "text": "Complete 9 non-English translations for 28 engine error messages covering ArrayBuffer, DataView, TypedArray, regular expressions, destructuring and related features"
         }

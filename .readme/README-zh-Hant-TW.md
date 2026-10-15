@@ -69,6 +69,7 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 ###### 2026/10/15
 
 * `修復` 錯誤訊息中的參數預留位置及大括號跳脫, 避免本地化診斷遺失上下文或觸發 MessageFormat 例外
+* `修復` 正規表示式中的 Unicode 屬性跳脫 (如 `\p{L}`) 在 Android 7.x 上擲回 UnsupportedOperationException 的問題
 * `最佳化` ArrayBuffer, DataView, TypedArray, 正規表示式及解構等 28 條引擎錯誤訊息補齊 9 種非英語翻譯
 
 ### 2026-10-13

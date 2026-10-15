@@ -2,6 +2,7 @@ package org.mozilla.javascript.regexp;
 
 import java.util.Map;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Unicode properties handler for Java 11 Character class. Handles binary properties from ECMA-262
@@ -177,6 +178,11 @@ public class UnicodeProperties {
                     Map.entry("Space_Separator", SPACE_SEPARATOR),
                     Map.entry("Zs", SPACE_SEPARATOR));
 
+    // Numbered groups only: Android supports named groups in java.util.regex from API 26, and
+    // AutoJs6 runs on API 24.
+    private static final Pattern PROPERTY_PATTERN =
+            Pattern.compile("^([a-zA-Z_]+)(?:=([a-zA-Z_0-9]+))?$");
+
     /**
      * Looks up a property name and optionally a value and returns an encoded int. For binary
      * properties, combines the property name with TRUE. For General_Category, combines
@@ -191,18 +197,14 @@ public class UnicodeProperties {
             return -1;
         }
 
-        Matcher m =
-                java.util.regex.Pattern.compile(
-                                "^(?<propName>[a-zA-Z_]+)(?:=(?<propValue>[a-zA-Z_0-9]+))?$")
-                        .matcher(propertyOrValue);
-        m.find();
-        if (!m.matches() || m.group("propName") == null) {
+        Matcher m = PROPERTY_PATTERN.matcher(propertyOrValue);
+        if (!m.matches()) {
             return -1;
         }
 
-        if (m.group("propValue") == null) {
+        if (m.group(2) == null) {
             // It's a single property name (binary property)
-            String property = m.group("propName");
+            String property = m.group(1);
 
             Byte propByte = PROPERTY_NAMES.get(property);
 
@@ -224,8 +226,8 @@ public class UnicodeProperties {
             return encodeProperty(propByte, TRUE);
         } else {
             // It's a property=value format
-            String property = m.group("propName");
-            String value = m.group("propValue");
+            String property = m.group(1);
+            String value = m.group(2);
 
             Byte propByte = PROPERTY_NAMES.get(property);
             if (propByte == null) {

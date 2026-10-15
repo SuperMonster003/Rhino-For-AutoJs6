@@ -69,6 +69,7 @@ Cet historique consigne par date les changements de maintenance de cette variant
 ###### 2026/10/15
 
 * `Correction` Paramètres de substitution et échappement des accolades dans les messages d'erreur, pour éviter la perte de contexte ou les exceptions MessageFormat dans les diagnostics traduits
+* `Correction` Expressions régulières avec des échappements de propriétés Unicode (comme `\p{L}`) qui levaient UnsupportedOperationException sous Android 7.x
 * `Amélioration` Traductions complètes en 9 langues autres que l'anglais pour 28 messages d'erreur du moteur concernant ArrayBuffer, DataView, TypedArray, les expressions régulières, la déstructuration et les fonctions associées
 
 ### 2026-10-13

@@ -15,6 +15,10 @@
           "text": "Marcadores de argumentos y escape de llaves en los mensajes de error, para evitar la pérdida de contexto o excepciones de MessageFormat en los diagnósticos traducidos"
         },
         {
+          "category": "fix",
+          "text": "Expresiones regulares con escapes de propiedades Unicode (como `\\p{L}`) que lanzaban UnsupportedOperationException en Android 7.x"
+        },
+        {
           "category": "improvement",
           "text": "Traducciones completas a 9 idiomas distintos del inglés para 28 mensajes de error del motor sobre ArrayBuffer, DataView, TypedArray, expresiones regulares, desestructuración y funciones relacionadas"
         }

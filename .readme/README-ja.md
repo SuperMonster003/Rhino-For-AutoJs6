@@ -69,6 +69,7 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 ###### 2026/10/15
 
 * `修正` エラーメッセージの引数プレースホルダーと波括弧のエスケープを修正し, ローカライズされた診断での情報欠落や MessageFormat 例外を防止
+* `修正` Unicode プロパティエスケープ (`\p{L}` など) を含む正規表現が Android 7.x で UnsupportedOperationException をスローする問題を修正
 * `改善` ArrayBuffer, DataView, TypedArray, 正規表現, 分割代入などのエラーメッセージ 28 件について, 英語以外の 9 言語の翻訳を補完
 
 ### 2026-10-13

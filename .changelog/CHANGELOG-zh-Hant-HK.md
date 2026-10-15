@@ -22,6 +22,7 @@
 ###### 2026/10/15
 
 * `修復` 錯誤訊息中的參數佔位符及大括號跳脫, 避免本地化診斷遺失上下文或觸發 MessageFormat 例外
+* `修復` 正則表達式中的 Unicode 屬性跳脫 (如 `\p{L}`) 在 Android 7.x 上拋出 UnsupportedOperationException 的問題
 * `優化` ArrayBuffer, DataView, TypedArray, 正則表達式及解構等 28 條引擎錯誤訊息補齊 9 種非英語翻譯
 
 # 2026-10-13

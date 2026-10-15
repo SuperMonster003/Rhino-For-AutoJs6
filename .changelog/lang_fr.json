@@ -15,6 +15,10 @@
           "text": "Paramètres de substitution et échappement des accolades dans les messages d'erreur, pour éviter la perte de contexte ou les exceptions MessageFormat dans les diagnostics traduits"
         },
         {
+          "category": "fix",
+          "text": "Expressions régulières avec des échappements de propriétés Unicode (comme `\\p{L}`) qui levaient UnsupportedOperationException sous Android 7.x"
+        },
+        {
           "category": "improvement",
           "text": "Traductions complètes en 9 langues autres que l'anglais pour 28 messages d'erreur du moteur concernant ArrayBuffer, DataView, TypedArray, les expressions régulières, la déstructuration et les fonctions associées"
         }
