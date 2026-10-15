@@ -9,9 +9,9 @@ package org.mozilla.javascript.tests.es6;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
@@ -347,12 +347,133 @@ public class NativeObjectTest {
 
     @Test
     public void fromEntriesOnArray() {
-        Map<Object, Object> map = new HashMap<>();
-        map.put("0", "x");
-        map.put("1", "y");
-        map.put("2", "z");
         assertWithAllModes_StrictAndNonStrict_ES6(
-                "Object.fromEntries(Object.entries(['x','y','z']))", map);
+                "var obj = Object.fromEntries(Object.entries(['x','y','z']));"
+                        + "[obj[0], obj[1], obj[2]].join()",
+                "x,y,z");
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "0",
+                "6",
+                "'0'",
+                "'6'",
+                "-0",
+                "'-0'",
+                "-1",
+                "'-1'",
+                "1.5",
+                "'06'",
+                "'6.0'",
+                "2147483647",
+                "'2147483647'",
+                "2147483648",
+                "'2147483648'"
+            })
+    public void fromEntriesPropertyKeys(String keyExpression) {
+        assertWithAllModes_StrictAndNonStrict_ES6(
+                """
+                var key = %s;
+                var name = String(key);
+                var obj = Object.fromEntries([[key, true]]);
+                var expected = {};
+                expected[key] = true;
+                var desc = Object.getOwnPropertyDescriptor(obj, name);
+                obj[key] === true && obj[name] === true
+                    && Object.prototype.hasOwnProperty.call(obj, name)
+                    && desc !== undefined && desc.value === true
+                    && desc.writable && desc.enumerable && desc.configurable
+                    && Object.keys(obj).length === 1 && Object.keys(obj)[0] === name
+                    && JSON.stringify(obj) === JSON.stringify(expected);
+                """
+                        .formatted(keyExpression),
+                Boolean.TRUE);
+    }
+
+    @Test
+    public void fromEntriesDuplicateNumericKeys() {
+        assertWithAllModes_StrictAndNonStrict_ES6(
+                """
+                var obj = Object.fromEntries([[6, 'first'], ['6', 'second'], [6, 'last']]);
+                obj[6] === 'last' && obj['6'] === 'last'
+                    && Object.keys(obj).join() === '6'
+                    && Object.getOwnPropertyDescriptor(obj, '6').value === 'last';
+                """,
+                Boolean.TRUE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"sym", "Object(sym)"})
+    public void fromEntriesSymbolKeys(String keyExpression) {
+        assertWithAllModes_StrictAndNonStrict_ES6(
+                """
+                var sym = Symbol('key');
+                var obj = Object.fromEntries([[%s, true]]);
+                var desc = Object.getOwnPropertyDescriptor(obj, sym);
+                obj[sym] === true && Object.prototype.hasOwnProperty.call(obj, sym)
+                    && Object.keys(obj).length === 0
+                    && Object.getOwnPropertySymbols(obj).length === 1
+                    && Object.getOwnPropertySymbols(obj)[0] === sym
+                    && desc.value === true && desc.writable && desc.enumerable && desc.configurable;
+                """
+                        .formatted(keyExpression),
+                Boolean.TRUE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"6", "'6'", "sym"})
+    public void fromEntriesConvertsPropertyKeys(String primitiveExpression) {
+        assertWithAllModes_StrictAndNonStrict_ES6(
+                """
+                var sym = Symbol('key');
+                var primitive = %s;
+                var hints = [];
+                var key = {
+                    [Symbol.toPrimitive]: function(hint) {
+                        hints.push(hint);
+                        return primitive;
+                    }
+                };
+                var obj = Object.fromEntries([[key, true]]);
+                obj[primitive] === true
+                    && Object.getOwnPropertyDescriptor(obj, primitive).value === true
+                    && hints.join() === 'string';
+                """
+                        .formatted(primitiveExpression),
+                Boolean.TRUE);
+    }
+
+    @Test
+    public void fromEntriesDoesNotCoercePrimitiveSymbols() {
+        assertWithAllModes_StrictAndNonStrict_ES6(
+                """
+                var sym = Symbol('key');
+                Object.defineProperty(Symbol.prototype, Symbol.toPrimitive, {
+                    value: function() { throw new Error('Unexpected symbol coercion'); }
+                });
+                var obj = Object.fromEntries([[sym, true]]);
+                obj[sym] === true && Object.getOwnPropertySymbols(obj)[0] === sym;
+                """,
+                Boolean.TRUE);
+    }
+
+    @Test
+    public void fromEntriesDefinesProtoDataProperty() {
+        assertWithAllModes_StrictAndNonStrict_ES6(
+                """
+                var value = {};
+                var obj = Object.fromEntries([['__proto__', value]]);
+                var desc = Object.getOwnPropertyDescriptor(obj, '__proto__');
+                Object.getPrototypeOf(obj) === Object.prototype
+                    && Object.prototype.hasOwnProperty.call(obj, '__proto__')
+                    && obj['__proto__'] === value
+                    // Dot access retains this fork's legacy prototype behavior.
+                    && obj.__proto__ === Object.prototype
+                    && desc.value === value && desc.writable && desc.enumerable && desc.configurable;
+                """,
+                Boolean.TRUE);
     }
 
     @Test
