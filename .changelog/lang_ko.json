@@ -7,6 +7,15 @@
     "dependency": "의존성"
   },
   "$data": {
+    "2026-10-20": {
+      "released_date": "2026/10/20",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "configurable이 false인 열거 가능한 속성에 `enumerable`을 생략한 디스크립터 (`{ value: 5 }` 등)로 `Object.defineProperty`를 호출하면 TypeError가 잘못 발생하는 문제 수정"
+        }
+      ]
+    },
     "2026-10-15": {
       "released_date": "2026/10/15",
       "entries": [

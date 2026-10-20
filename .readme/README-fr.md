@@ -64,6 +64,12 @@ AutoJs6 référence le JAR complet à l'emplacement `libs/org-mozilla-rhino-2_0_
 
 Cet historique consigne par date les changements de maintenance de cette variante. L'historique des versions officielles de Rhino reste dans les notes de version amont et n'est pas présenté comme de nouvelles versions de cette variante.
 
+### 2026-10-20
+
+###### 2026/10/20
+
+* `Correction` `Object.defineProperty` qui levait à tort une TypeError sur une propriété énumérable dont configurable vaut false lorsque le descripteur omet `enumerable` (comme `{ value: 5 }`)
+
 ### 2026-10-15
 
 ###### 2026/10/15

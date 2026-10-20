@@ -64,6 +64,12 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 
 ここでは本派生版の保守変更を日付ごとに記録します. Rhino 公式のリリース履歴は上流のリリースノートに保持し, 本派生版の新しいバージョンとして記録しません.
 
+### 2026-10-20
+
+###### 2026/10/20
+
+* `修正` configurable が false の列挙可能なプロパティに対し, `enumerable` を省略した記述子 (`{ value: 5 }` など) で `Object.defineProperty` を呼ぶと誤って TypeError をスローする問題を修正
+
 ### 2026-10-15
 
 ###### 2026/10/15

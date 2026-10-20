@@ -7,6 +7,15 @@
     "dependency": "依赖"
   },
   "$data": {
+    "2026-10-20": {
+      "released_date": "2026/10/20",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "对 configurable 为 false 的可枚举属性调用 `Object.defineProperty` 时, 若描述符未写 `enumerable` (如只传 `{ value: 5 }`) 会误抛 TypeError 的问题"
+        }
+      ]
+    },
     "2026-10-15": {
       "released_date": "2026/10/15",
       "entries": [

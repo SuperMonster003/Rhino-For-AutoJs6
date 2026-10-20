@@ -7,6 +7,15 @@
     "dependency": "Зависимость"
   },
   "$data": {
+    "2026-10-20": {
+      "released_date": "2026/10/20",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "Ошибочное исключение TypeError в `Object.defineProperty` для перечислимого свойства с configurable, равным false, если дескриптор не содержит `enumerable` (например, `{ value: 5 }`)"
+        }
+      ]
+    },
     "2026-10-15": {
       "released_date": "2026/10/15",
       "entries": [

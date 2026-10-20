@@ -7,6 +7,15 @@
     "dependency": "Dépendance"
   },
   "$data": {
+    "2026-10-20": {
+      "released_date": "2026/10/20",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "`Object.defineProperty` qui levait à tort une TypeError sur une propriété énumérable dont configurable vaut false lorsque le descripteur omet `enumerable` (comme `{ value: 5 }`)"
+        }
+      ]
+    },
     "2026-10-15": {
       "released_date": "2026/10/15",
       "entries": [

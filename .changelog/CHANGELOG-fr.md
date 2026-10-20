@@ -17,6 +17,12 @@ Cet historique consigne par date les changements de maintenance de cette variant
 
 [Lire le README officiel original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Ce lien cible le commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservant la langue d'origine et le contexte des liens relatifs. Le document original est conservé sans traduction; cette page et ses autres versions linguistiques présentent cette variante.
 
+# 2026-10-20
+
+###### 2026/10/20
+
+* `Correction` `Object.defineProperty` qui levait à tort une TypeError sur une propriété énumérable dont configurable vaut false lorsque le descripteur omet `enumerable` (comme `{ value: 5 }`)
+
 # 2026-10-15
 
 ###### 2026/10/15

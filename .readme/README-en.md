@@ -64,6 +64,12 @@ AutoJs6 references the complete JAR at `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.ja
 
 This history records maintenance changes to this fork by date. Official Rhino release history remains in the upstream release notes and is not presented as new releases of this fork.
 
+### 2026-10-20
+
+###### 2026/10/20
+
+* `Fix` `Object.defineProperty` wrongly throwing TypeError for an enumerable property whose configurable is false when the descriptor omits `enumerable` (such as `{ value: 5 }`)
+
 ### 2026-10-15
 
 ###### 2026/10/15

@@ -17,6 +17,12 @@
 
 [閱讀原始 Rhino 官方 README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 該入口固定至提交 `d878324a6f515c09d8ca49005fdd22b944b4df89`, 保留上游原有語言與相對連結的上下文. 這份原始文檔僅作留存, 不參與翻譯; 本頁及其其他語言版本介紹本分支.
 
+# 2026-10-20
+
+###### 2026/10/20
+
+* `修復` 對 configurable 為 false 的可枚舉屬性調用 `Object.defineProperty` 時, 若描述符未寫 `enumerable` (如只傳 `{ value: 5 }`) 會誤拋 TypeError 的問題
+
 # 2026-10-15
 
 ###### 2026/10/15

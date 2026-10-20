@@ -64,6 +64,12 @@ AutoJs6 从 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 
 此处按日期记录本分支的维护变更. Rhino 官方发行历史继续保留在上游发行说明中, 不作为本分支的新版本记录.
 
+### 2026-10-20
+
+###### 2026/10/20
+
+* `修复` 对 configurable 为 false 的可枚举属性调用 `Object.defineProperty` 时, 若描述符未写 `enumerable` (如只传 `{ value: 5 }`) 会误抛 TypeError 的问题
+
 ### 2026-10-15
 
 ###### 2026/10/15

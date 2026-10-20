@@ -17,6 +17,12 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 
 [Leer el README oficial original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Este enlace está fijado al commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservando el idioma original y el contexto de los enlaces relativos. El documento original se conserva sin traducir; esta página y sus versiones en otros idiomas describen esta bifurcación.
 
+# 2026-10-20
+
+###### 2026/10/20
+
+* `Corrección` `Object.defineProperty` que lanzaba TypeError por error en una propiedad enumerable con configurable en false cuando el descriptor omite `enumerable` (como `{ value: 5 }`)
+
 # 2026-10-15
 
 ###### 2026/10/15

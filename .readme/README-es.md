@@ -64,6 +64,12 @@ AutoJs6 referencia el JAR completo en `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar
 
 Este historial registra por fecha los cambios de mantenimiento de esta bifurcación. El historial de versiones oficiales de Rhino permanece en las notas de versión originales y no se presenta como versiones nuevas de esta bifurcación.
 
+### 2026-10-20
+
+###### 2026/10/20
+
+* `Corrección` `Object.defineProperty` que lanzaba TypeError por error en una propiedad enumerable con configurable en false cuando el descriptor omite `enumerable` (como `{ value: 5 }`)
+
 ### 2026-10-15
 
 ###### 2026/10/15

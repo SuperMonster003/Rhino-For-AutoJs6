@@ -17,6 +17,12 @@
 
 [Rhino 공식 README 원본 읽기](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 이 링크는 커밋 `d878324a6f515c09d8ca49005fdd22b944b4df89`에 고정되어 원래 언어와 상대 링크의 참조 맥락을 보존합니다. 원본 문서는 번역 없이 보관하며, 이 페이지와 다른 언어 버전에서는 이 포크를 소개합니다.
 
+# 2026-10-20
+
+###### 2026/10/20
+
+* `수정` configurable이 false인 열거 가능한 속성에 `enumerable`을 생략한 디스크립터 (`{ value: 5 }` 등)로 `Object.defineProperty`를 호출하면 TypeError가 잘못 발생하는 문제 수정
+
 # 2026-10-15
 
 ###### 2026/10/15

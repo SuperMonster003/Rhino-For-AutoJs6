@@ -17,6 +17,12 @@
 
 [Rhino 公式 README の原文を読む](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). このリンクはコミット `d878324a6f515c09d8ca49005fdd22b944b4df89` に固定され, 上流の言語と相対リンクの参照先を保持します. 原文は保存用として翻訳せずに残し, このページと各言語版では本派生版を紹介します.
 
+# 2026-10-20
+
+###### 2026/10/20
+
+* `修正` configurable が false の列挙可能なプロパティに対し, `enumerable` を省略した記述子 (`{ value: 5 }` など) で `Object.defineProperty` を呼ぶと誤って TypeError をスローする問題を修正
+
 # 2026-10-15
 
 ###### 2026/10/15

@@ -64,6 +64,12 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 
 이 이력은 포크의 유지 관리 변경 사항을 날짜별로 기록합니다. Rhino 공식 릴리스 이력은 업스트림 릴리스 노트에 유지되며 이 포크의 새 버전으로 기록하지 않습니다.
 
+### 2026-10-20
+
+###### 2026/10/20
+
+* `수정` configurable이 false인 열거 가능한 속성에 `enumerable`을 생략한 디스크립터 (`{ value: 5 }` 등)로 `Object.defineProperty`를 호출하면 TypeError가 잘못 발생하는 문제 수정
+
 ### 2026-10-15
 
 ###### 2026/10/15

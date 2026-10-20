@@ -17,6 +17,12 @@ This history records maintenance changes to this fork by date. Official Rhino re
 
 [Read the original official Rhino README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). This entry is pinned to commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, preserving the upstream language and the context of relative links. The original document is retained without translation; this page and its other language versions describe this fork.
 
+# 2026-10-20
+
+###### 2026/10/20
+
+* `Fix` `Object.defineProperty` wrongly throwing TypeError for an enumerable property whose configurable is false when the descriptor omits `enumerable` (such as `{ value: 5 }`)
+
 # 2026-10-15
 
 ###### 2026/10/15

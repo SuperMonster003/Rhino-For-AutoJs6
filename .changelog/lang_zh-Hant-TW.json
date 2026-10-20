@@ -7,6 +7,15 @@
     "dependency": "依賴"
   },
   "$data": {
+    "2026-10-20": {
+      "released_date": "2026/10/20",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "對 configurable 為 false 的可列舉屬性呼叫 `Object.defineProperty` 時, 若描述元未寫 `enumerable` (如只傳 `{ value: 5 }`) 會誤擲回 TypeError 的問題"
+        }
+      ]
+    },
     "2026-10-15": {
       "released_date": "2026/10/15",
       "entries": [
