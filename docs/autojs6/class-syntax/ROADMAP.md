@@ -92,11 +92,11 @@
 | T1 | 降糖在 IRFactory, 后端只认少量新原语 | Parser 产出 class 专用 AST; IRFactory 把 class 降糖为现有 IR (函数 + 对象字面量 + 作用域节点) 加不超过 8 个新原语 (设置 home object, 定义不可枚举方法, this 初始化检查 / 绑定, super() 构造, 按 new.target 创建实例, 类构造器调用检查, 私有名定义 / 读写 / 品牌检查, 字段初始化器调用). 每个后端为这些原语各写一处处理 (预计 Interpreter 150-250 行, Codegen 150-250 行, V2 按其指令类风格). 这是 Rhino 处理解构 / for-of / 模板字符串的惯用方式, 也是上游 PR 最容易被接受的形态. 推翻点: P2 结束前; 若发现某原语在 Codegen 无法表达, 允许该原语退化为 `ScriptRuntime` 静态调用. |
 | T2 | 新代码新文件, 上游文件只留钩子 | 新文件: `ast/ClassNode.java`, `ast/ClassElement.java` (或拆 ClassMethod / ClassField / StaticBlock), `ast/PrivateName.java`, `ClassLowering.java` (IRFactory 的降糖辅助, 包私有), `ClassRuntime.java` (运行时辅助), `PrivateNameKey.java`, `autojs6/JavaClassInheritance.java` (D3 钩子层, 独立包), 各后端的新指令类 / 处理方法. 上游文件的改动点统一加注释标记 `// AutoJs6: class syntax` 或 `// AutoJs6: async`; 钩子清单 `docs/autojs6/class-syntax/HOOKS.md` 自 P1 建立, 每阶段同一提交内更新 (格式与核对方式见 `AGENTS.md` 第七节 7.1 / 7.2, 该节 2026-10-24 已写好: 同步时的保护清单, 只读预检, 上游实现后的退役判定与步骤). 推翻点: 无 (结构性约定). |
 | T3 | 词法: `class` / `extends` / `static` / `await` / `async` 的识别 | ES6 门控开启时 `class` 从 RESERVED 变为 `Token.CLASS`; `extends` / `static` / `get` / `set` / `async` / `of` 按上下文关键字处理 (不新增全局保留字, 避免破坏把它们用作标识符的旧脚本); `await` 只在 async 函数体内是关键字 (与 ES 规范一致, 脚本顶层 `await` 仍是标识符, 见 D15); `#name` 新增私有名 token. 推翻点: P1 结束前. |
-| T4 | class 构造器与方法的函数对象 | 构造器是普通 `InterpretedFunction` / 编译函数, 带 `isClassConstructor` 标志 (call 时抛 `msg.class.ctor.call`), 派生类带 `isDerived` 标志 (this 以未初始化状态开始, `super()` 后绑定; 重复 super() 抛 ReferenceError; 访问未初始化 this 抛 ReferenceError); 方法沿用对象字面量方法的机制 (home object, 不可构造), 但以不可枚举方式定义到原型 / 构造器; getter / setter 用现有访问器槽位; 匿名类表达式按 ES 规则推断 `name`. `Function.prototype.toString` 的返回见附录 C Q1. 推翻点: P2 结束前. |
+| T4 | class 构造器与方法的函数对象 | 构造器是普通 `InterpretedFunction` / 编译函数, 带 `isClassConstructor` 标志 (call 时抛 `msg.class.ctor.call`), 派生类带 `isDerived` 标志 (this 以未初始化状态开始, `super()` 后绑定; 重复 super() 抛 ReferenceError; 访问未初始化 this 抛 ReferenceError); 方法沿用对象字面量方法的机制 (home object, 不可构造), 但以不可枚举方式定义到原型 / 构造器; getter / setter 用现有访问器槽位; 匿名类表达式按 ES 规则推断 `name`. `Function.prototype.toString` 对类构造器返回类定义的源码片段 (从 `class` 到类体结束的 `}`, 与 ES 规范一致; 附录 C Q1 已决: A), 由 P2.4 实现. 推翻点: P2 结束前. |
 | T5 | 私有名的存储 | 每个 class 定义求值时为每个私有名创建唯一的 `PrivateNameKey` (不可枚举, 不进属性表的键空间), 存放在 `ScriptableObject` 的独立私有槽表中 (与 `SlotMapOwner` 并列的小表, 旧 Android 兼容按 AGENTS.md 属性表定制同样处理); 反射 API (Object.keys / getOwnPropertyNames / getOwnPropertySymbols / Proxy 陷阱 / JSON.stringify / for-in) 一律看不见; 品牌检查失败抛 TypeError (消息 10 语言). 私有方法与访问器放在类的私有品牌上, 不在实例上复制函数对象. 推翻点: P3 开始前. |
 | T6 | Java 类继承经 JavaAdapter 的 fork 钩子 | 降糖时 `extends` 目标在运行时求值: 若是 `NativeJavaClass` (类或接口), 转入 `autojs6/JavaClassInheritance` 钩子: 用 `JavaAdapter.createAdapterCode` 生成 (基类 + 接口 + 覆盖方法集) 的适配器类 (签名缓存沿用 `JavaAdapterSignature`, Android 上经宿主 AndroidClassLoader 转 dex), `super(args)` 映射到 Java 父类构造器 (按 Rhino 现有的 Java 重载选择), `super.m()` 映射到 JavaAdapter 生成的 `super$m` 入口, 实例字段 (P3) 放在 JS self 对象上, 静态成员放在 JS 构造器上. `new X()` 的返回值形态与多接口写法见附录 C Q3 / Q4, 在 P5 开始前拍板. 不进上游 PR. 推翻点: P5 开始前. |
 | T7 | async 建立在生成器机制之上 | async 函数体按生成器方式编译 (复用 `GeneratorState` / 生成器 Icode 与 Codegen 的生成器状态机), `await` 降为带 "awaiter" 的 yield; 驱动器 (`AsyncFunctionDriver`) 在 Promise 落定的微任务里恢复执行; 返回 NativePromise. async 生成器在此之上加请求队列与 AsyncGenerator 原型; for await 用 AsyncFromSyncIterator 包装同步迭代器; 未捕获 rejection 经 `UnhandledRejectionTracker` 交给宿主 (附录 C Q6). 推翻点: P9 开始前. |
-| T8 | V2 的覆盖以 V2 现状为上限 | 新原语在 V2 用其指令类风格实现; 验收时用 fork 自加的 V2 测试模式只跑 V2 当时已能跑通的基线; V2 本身尚不支持的周边能力 (如 continuation) 不在本路线图修. 若 P2 时 V2 连现有生成器 / super 都跑不通, 走附录 C Q2. 推翻点: P2 开始前. |
+| T8 | V2 顺带补到能跑 class 基线 | 附录 C Q2 已决 (2026-10-24, 维护者选 C): 本路线图顺带把 Interpreter V2 补到能跑 class 基线, P2 范围据此扩大. 做法: P2 先盘点 class 降糖后用到的现有 IR 在 V2 上的缺口 (生成器, super 属性访问, new.target, 解构, 块级作用域等) 并补齐, 再按 V2 指令类风格实现新原语; P3 / P9 的新原语同样在 V2 实现. 验收用 fork 自加的 V2 测试模式 (系统属性开启, 不改上游默认矩阵) 跑 class 范围的 test262 与自带测试类, 通过数与仍缺的能力逐阶段登记. V2 中与 class / async 无关的周边能力 (如 continuation) 仍不在本路线图修. 推翻点: 无 (已拍板). |
 | T9 | 内建精确化的统一入口 | 在 `BaseFunction` / `LambdaConstructor` / `IdScriptableObject` 的构造路径提供统一的 `ScriptRuntime.createFromConstructor(cx, nt, scope, defaultProto)` (OrdinaryCreateFromConstructor), 各 Native* 构造器改为用它拿原型; 两种风格 (LambdaConstructor 18 个, IdScriptableObject 42 个) 各做一个样板后批量套用; `Symbol.species` 相关 (Array / Promise / RegExp / TypedArray / ArrayBuffer / Map / Set) 核对现有实现是否读取 `this.constructor[Symbol.species]`. 推翻点: P4 开始前. |
 | T10 | test262 的排除规则 | 范围内用例按目录解锁; 仅当用例 `features` 含本路线图范围外且 Rhino 未实现的特性 (decorators, explicit-resource-management, iterator-helpers, Array.fromAsync, import-defer, source-phase-imports, 以及 Rhino 整体未支持的模块语法 flags: [module]) 时排除, 逐条写入 `test262.properties` 的注释或本文附录 E. 不允许因 "难" 排除. `test262.properties` 用 `-DupdateTest262properties` 由工具重生成, 不手工编辑 (同步规程据此加一步: 先取上游版本再重生成). 推翻点: 无. |
 | T11 | 错误消息 | 新增 msg key 一律同时补 9 个翻译 bundle (与 2026-10-24 同步的做法一致, MessageTranslationsTest 会校验), 文案用半角标点. 推翻点: 无. |
@@ -136,9 +136,9 @@
 
 - [ ] P2.1 `ClassLowering` (T1): class 声明 / 表达式降糖为 "类作用域 + 构造器函数 + 原型方法定义 + 静态方法定义 + 类名内绑定 (const 语义, TDZ)"; 默认构造器 (基类 `constructor() {}`, 派生类 `constructor(...args) { super(...args) }`); 计算键按源码顺序求值一次; `extends` 表达式求值与校验 (null, 非构造器, prototype 不是对象或 null 时的 TypeError).
 - [ ] P2.2 运行时原语 (T1 / T4): 设置 home object; 不可枚举方法 / 访问器定义; 类构造器调用检查 (`msg.class.ctor.call`); 派生构造器的 this 未初始化状态, `super()` 构造 (以当前 new.target 调父构造器, 结果绑定为 this, 重复调用抛 ReferenceError), 构造器返回值规则 (对象 / undefined / 其他 的 TypeError); `BaseFunction.construct` 与 `createObject` 改为按 new.target 原型创建 (T9 的统一入口, 本阶段先覆盖脚本函数与 Object / Function, 其余在 P4).
-- [ ] P2.3 三个后端 (D5): Interpreter 新 Icode 与处理; Codegen (optimizer/BodyCodegen) 对应生成; V2 新指令类 (T8). `new.target` 在构造器 / 箭头函数 / eval 中的传递核对.
+- [ ] P2.3 三个后端 (D5): Interpreter 新 Icode 与处理; Codegen (optimizer/BodyCodegen) 对应生成; V2 新指令类 (T8). `new.target` 在构造器 / 箭头函数 / eval 中的传递核对. V2 按附录 C Q2 = C: 先盘点并补齐 class 降糖依赖的现有能力 (生成器, super 属性访问, new.target 等), 使 V2 能跑 class 基线, 再加新原语; 缺口清单与补齐结果登记在本条证据.
 - [ ] P2.4 名称与长度: `name` (含匿名类名推断, 静态 `name` 方法覆盖时的规则), `length`, `prototype` 不可写, `constructor` 回指; `typeof` 为 function; `Function.prototype.toString` 按附录 C Q1 的拍板实现.
-- [ ] P2.5 测试: fork 新增 `ClassSyntaxTest` (每条语义一组用例, 解释 / 编译 / V2 三模式); test262 核心 2414 例在解释与编译模式 100% (T10 排除登记), V2 按 T8; 全量测试与基线对照无新增失败; `benchmarks` 模块加 class 实例化与方法调用的微基准, 与 function + prototype 写法对照 (附录 A 登记, 门槛见附录 C Q8).
+- [ ] P2.5 测试: fork 新增 `ClassSyntaxTest` (每条语义一组用例, 解释 / 编译 / V2 三模式); test262 核心 2414 例在解释与编译模式 100% (T10 排除登记), V2 按 T8; 全量测试与基线对照无新增失败; `benchmarks` 模块加 class 实例化与方法调用的微基准, 与 function + prototype 写法对照 (附录 A 登记). 硬门槛 (附录 C Q8 = B): class 方法调用慢于 function + prototype 写法超过 10% 即本阶段不通过.
 - 证据: 提交 hash, test262 两目录核心部分的通过数 / 排除清单, 基准数值.
 
 ### P3 字段, static block, 私有名 (fork)
@@ -146,7 +146,7 @@
 - [ ] P3.1 公共字段: 实例字段初始化器 (基类在构造器开头, 派生类在 `super()` 返回后立即执行; 初始化器是独立的函数作用域, this / super / new.target / arguments 规则), 静态字段 (类定义求值时, this 为构造器), 计算字段键的求值顺序, `[[Define]]` 语义 (不触发 setter).
 - [ ] P3.2 static block: 求值时机与顺序 (与静态字段交织), 作用域 (var / await / return 的限制), this 为构造器.
 - [ ] P3.3 私有名 (T5): 私有字段 / 方法 / 访问器 / 静态私有成员, `#x in obj`, 嵌套类的私有名作用域, 重复安装同一私有字段抛 TypeError, 品牌检查 TypeError, 反射不可见 (Object.keys / getOwnPropertyNames / getOwnPropertySymbols / Proxy 所有陷阱 / JSON.stringify / for-in / Object.assign / 展开), `Object.freeze` 后仍可写私有字段, Java 互操作 (NativeJavaObject 作为 this 时的品牌检查) 的行为登记.
-- [ ] P3.4 三个后端的新原语处理 (字段初始化器调用, 私有名定义 / 读 / 写 / in).
+- [ ] P3.4 三个后端的新原语处理 (字段初始化器调用, 私有名定义 / 读 / 写 / in); V2 同 P2.3 (附录 C Q2 = C), 字段与私有名依赖的现有能力在 V2 上缺失时一并补齐.
 - [ ] P3.5 测试: `ClassFieldsTest`, `PrivateNamesTest`; test262 字段 673 + 私有名 4016 在解释与编译模式 100% (T10 排除登记); 全量回归无新增失败.
 - 证据: 提交 hash, 通过数 / 排除清单.
 
@@ -172,7 +172,7 @@
 - [ ] P6.1 以 `-DupdateTest262properties` 重生成 `tests/testsrc/test262.properties`, 解锁 class 两目录与 P4 涉及的 built-ins 用例; 排除项按 T10 逐条登记到附录 E.
 - [ ] P6.2 三模式矩阵: 解释与编译模式按上游 Test262SuiteTest 现有做法; V2 用 fork 自加的测试模式 (系统属性开启, 不改上游默认矩阵) 跑 T8 范围, 结果登记.
 - [ ] P6.3 全量测试 (五个模块) 与 2026-10-24 基线 (附录 A) 对照: 新增失败为 0; 既有 54 项基线差异不变 (或减少并登记原因).
-- [ ] P6.4 `spotlessCheck`, `git diff --check`, `.python/generate_markdown.py --check`; 微基准复测 (P2.5 的对照) 并登记.
+- [ ] P6.4 `spotlessCheck`, `git diff --check`, `.python/generate_markdown.py --check`; 微基准复测 (P2.5 的对照) 并登记, 硬门槛 10% 同 P2.5 (附录 C Q8 = B).
 - [ ] P6.5 同步演练: 用 `git merge --no-commit` 对最新 `upstream/master` 做一次干跑 (不提交, 只记录冲突文件与行数, 然后 `git merge --abort`), 验证 T2 的钩子式结构, 结果登记到附录 A 的 "冲突面" 一行. 注意: 这是本路线图中唯一允许的 merge 操作, 且必须 abort.
 - 证据: 提交 hash, test262.properties 的 diff 统计, 基线对照输出, 干跑冲突统计.
 
@@ -194,10 +194,10 @@
 ### P9 async/await (fork + 宿主, D7 / D13 / D14 / D15 / D16)
 
 - [ ] P9.0 进入前拍板附录 C Q5 (promise.js 保留项), Q6 (未捕获 rejection), Q7 (脚本结束判定); 结果回填 T7 / T12.
-- [ ] P9.1 fork: async 函数 / 方法 / 箭头函数与 await 的降糖与驱动器 (T7), 返回 NativePromise, 微任务排队, `await` 的 thenable 解析 (对宿主 Promise 与 Java Future 的包装行为登记), 栈与错误位置 (await 之后的异常栈), 三个后端.
+- [ ] P9.1 fork: async 函数 / 方法 / 箭头函数与 await 的降糖与驱动器 (T7), 返回 NativePromise, 微任务排队, `await` 的 thenable 解析 (对宿主 Promise 与 Java Future 的包装行为登记), 栈与错误位置 (await 之后的异常栈), 三个后端; V2 同 P2.3 (附录 C Q2 = C), async 降糖依赖的生成器状态机在 V2 上缺失时一并补齐.
 - [ ] P9.2 fork: for await (同步迭代器经 AsyncFromSyncIterator, 异步迭代器协议, 解构变体), Symbol.asyncIterator, AsyncIteratorPrototype.
 - [ ] P9.3 fork: async 生成器 (请求队列, yield / yield* 对异步迭代器的委托, return / throw, AsyncGeneratorFunction / AsyncGeneratorPrototype), class 与对象字面量中的 async 方法 / async 生成器方法, 以及 P1.5 留下的 "尚不支持" 错误的移除.
-- [ ] P9.4 fork 测试: `AsyncFunctionTest`, `AsyncGeneratorTest`, `ForAwaitTest`; test262 async 范围 3991 例 100% (T10 排除登记); 全量回归无新增失败; 微基准 (await 一个已落定 Promise 的往返开销) 登记.
+- [ ] P9.4 fork 测试: `AsyncFunctionTest`, `AsyncGeneratorTest`, `ForAwaitTest`; test262 async 范围 3991 例 100% (T10 排除登记); 全量回归无新增失败; 微基准 (await 一个已落定 Promise 的往返开销) 登记, class 方法调用对照复测仍须满足 10% 硬门槛 (附录 C Q8 = B).
 - [ ] P9.5 宿主 (T12): promise.js 定制点清单与对应实现 (NativePromise.prototype 的宿主扩展 `await` / `wait`, Q5 结论), Loopers 逐宏任务 `processMicrotasks` 与空转判定, 全局 Promise 换回 NativePromise 并删除 promise.js, 未捕获 rejection 的宿主处理 (Q6), 脚本结束判定 (Q7); 宿主 promise 相关单测与 `tools/augment/device_promise_check.py` 回归; Augment 路线图 P4.2 条目回写为 "由 rhino-class P9 完成".
 - [ ] P9.6 宿主设备用例 `RhinoAsyncDeviceTest`: await 计时器 / 宿主 API Promise 的时序, 与 continuation.await 的互操作 (D15), 线程模块中的 async 函数, 脚本结束与退出码, 未捕获 rejection 的控制台输出; 三台设备同 P7.2.
 - [ ] P9.7 jar 重建与宿主换入 (同 P7.1), 宿主 changelog zh-Hans (feature: async/await; improvement: Promise 统一; 行为变化提示), fork 10 语 changelog, 文档站 "async/await 与 continuation" 章节, 插件 README 补 async.
@@ -224,14 +224,14 @@
 
 格式: 编号 问题 | 选项 (推荐项标 "(推荐)") | 影响条目 | 拍板时机. 由调度会话用选择题请维护者拍板, 不自行采用默认值.
 
-- Q1 class 的 `Function.prototype.toString` 返回什么 | A (推荐) 返回类定义源码片段 (Rhino 保留源码时) 与 ES 规范一致; B 返回 `class X { [native code] }` 形式; C 沿用现有函数风格字符串 | P2.4 | P2 开始前
-- Q2 若 P2 时 Interpreter V2 跑不通现有生成器 / super 基线怎么办 | A (推荐) V2 原语照实现, 验收只跑 V2 当时能跑的子集并登记, V2 整体就绪由上游负责; B 暂不实现 V2 原语, 留到上游 V2 可用后补 (上游 PR 会被要求补齐); C 本路线图顺带把 V2 补到能跑 class 基线 (范围失控) | P2.3, P3.4, P9.1 | P2 开始前
+- Q1 已决 (2026-10-24, 维护者选: A 返回类定义源码片段; 已回填 T4 / P2.4) class 的 `Function.prototype.toString` 返回什么 | A (推荐) 返回类定义源码片段 (Rhino 保留源码时) 与 ES 规范一致; B 返回 `class X { [native code] }` 形式; C 沿用现有函数风格字符串 | P2.4 | P2 开始前
+- Q2 已决 (2026-10-24, 维护者选: C 本路线图顺带把 V2 补到能跑 class 基线, P2 范围扩大; 已回填 T8 / P2.3 / P3.4 / P9.1) 若 P2 时 Interpreter V2 跑不通现有生成器 / super 基线怎么办 | A (推荐) V2 原语照实现, 验收只跑 V2 当时能跑的子集并登记, V2 整体就绪由上游负责; B 暂不实现 V2 原语, 留到上游 V2 可用后补 (上游 PR 会被要求补齐); C 本路线图顺带把 V2 补到能跑 class 基线 (范围失控) | P2.3, P3.4, P9.1 | P2 开始前
 - Q3 继承 Java 时的多接口写法 | A (推荐) `extends` 单一 Java 类或接口; 需要同时实现多个接口时用表达式 `extends JavaAdapter(Base, I1, I2)` (JavaAdapter 构造器作为超类工厂返回可被 extends 的适配器基类), 不新增语法; B 只支持单一 extends, 多接口仍用传统 `new JavaAdapter(...)`; C 非标准语法 `class X extends Base implements I1, I2` (上游化与编辑器 / TS 都不认, 不推荐) | P5.1 | P5 开始前
 - Q4 `new X()` (X 继承 Java 类) 的返回值形态 | A (推荐) 返回适配器 Java 对象的包装, 其 JS 原型指向 X.prototype (JS 方法 / 字段 / instanceof X 都可用, 传给 Java API 即是该 Java 对象); B 返回 JS self 对象, Java 对象经 `x.javaObject` 之类属性取得 (传给 Java API 需显式取); C 与 JavaAdapter 现状一致返回 NativeJavaObject, JS 侧只能通过 Java 方法访问 | P5.1, P7.2 | P5 开始前
 - Q5 promise.js 退场时保留哪些宿主扩展 | A (推荐) 在 NativePromise.prototype 上保留 `await()` (经 continuation) 与 `wait()` (settlement latch) 两个宿主扩展方法, `_immediateFn` 的宏任务调度改为规范微任务 (回调顺序与现在不同, changelog 写明); B 全部不保留, 文档引导改用 continuation.await(p) / async; C 连宏任务调度语义也保留 (偏离规范, 与 await 时序打架, 不推荐) | P9.5 | P9 开始前
 - Q6 未捕获的 Promise rejection 怎么处理 | A (推荐) 控制台 error 级输出一次 (含栈), 脚本继续 (浏览器行为); B 终止脚本并按未捕获异常处理 (Node 15+ 默认); C 只在开发者选项开启时输出 | P9.5, P9.6 | P9 开始前
 - Q7 脚本结束判定与挂起的 await | A (推荐) 没有待执行宏任务 / 定时器 / 监听时脚本结束, 未落定的 Promise 不保活 (Node 语义), 控制台不提示; B 同 A 但在有未落定 async 函数时输出一条提示; C 等待所有 async 函数落定 (可能永不结束, 不推荐) | P9.5, P9.6 | P9 开始前
-- Q8 性能门槛 | A (推荐) 不设硬门槛, 登记基准; 方法调用慢于 function + prototype 写法超过 20% 时登记为待决再议; B 设硬门槛 10%; C 不测 | P2.5, P6.4, P9.4 | P2 开始前
+- Q8 已决 (2026-10-24, 维护者选: B 硬门槛 10%, class 方法调用慢于 function + prototype 写法超过 10% 即阶段不通过; 已回填 P2.5 / P6.4 / P9.4) 性能门槛 | A (推荐) 不设硬门槛, 登记基准; 方法调用慢于 function + prototype 写法超过 20% 时登记为待决再议; B 设硬门槛 10%; C 不测 | P2.5, P6.4, P9.4 | P2 开始前
 
 ## 附录 D 内建构造器清单 (P4.1 填写)
 
