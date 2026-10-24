@@ -124,6 +124,9 @@ public class ObjectProperty extends AbstractObjectProperty {
         } else if (isSetterMethod()) {
             sb.append("set ");
         }
+        if (isNormalMethod() && ((FunctionNode) value).isAsync()) { // AutoJs6: async
+            sb.append("async "); // AutoJs6: async
+        } // AutoJs6: async
         sb.append(key.toSource(getType() == Token.COLON ? 0 : depth));
 
         if (!shorthand) {

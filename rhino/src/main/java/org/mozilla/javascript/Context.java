@@ -352,6 +352,12 @@ public class Context implements Closeable {
      */
     public static final int FEATURE_INTL_402 = 22;
 
+    /** AutoJs6: class syntax. ES2015+ classes at language version 200+, on by default. */
+    public static final int FEATURE_CLASS_SYNTAX = 23; // AutoJs6: class syntax
+
+    /** AutoJs6: async. async functions and await at language version 200+, on by default. */
+    public static final int FEATURE_ASYNC_SYNTAX = 24; // AutoJs6: async
+
     public static final String languageVersionProperty = "language version";
     public static final String errorReporterProperty = "error reporter";
 

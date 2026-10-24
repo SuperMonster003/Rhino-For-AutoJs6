@@ -25,6 +25,8 @@ public class CompilerEnvirons {
         warningAsError = false;
         generateObserverCount = false;
         allowSharpComments = false;
+        classSyntaxEnabled = true; // AutoJs6: class syntax
+        asyncSyntaxEnabled = true; // AutoJs6: async
     }
 
     public void initFromContext(Context cx) {
@@ -36,6 +38,8 @@ public class CompilerEnvirons {
         strictMode = cx.hasFeature(Context.FEATURE_STRICT_MODE);
         warningAsError = cx.hasFeature(Context.FEATURE_WARNING_AS_ERROR);
         xmlAvailable = cx.hasFeature(Context.FEATURE_E4X);
+        classSyntaxEnabled = cx.hasFeature(Context.FEATURE_CLASS_SYNTAX); // AutoJs6: class syntax
+        asyncSyntaxEnabled = cx.hasFeature(Context.FEATURE_ASYNC_SYNTAX); // AutoJs6: async
 
         evaluationMethod = cx.getEvaluationMethod();
 
@@ -108,6 +112,24 @@ public class CompilerEnvirons {
     public void setAllowMemberExprAsFunctionName(boolean flag) {
         allowMemberExprAsFunctionName = flag;
     }
+
+    /** AutoJs6: class syntax. Whether ES2015+ classes are parsed (also needs version 200). */
+    public final boolean isClassSyntaxEnabled() { // AutoJs6: class syntax
+        return classSyntaxEnabled; // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
+    public void setClassSyntaxEnabled(boolean flag) { // AutoJs6: class syntax
+        classSyntaxEnabled = flag; // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
+    /** AutoJs6: async. Whether async functions and await are parsed (also needs version 200). */
+    public final boolean isAsyncSyntaxEnabled() { // AutoJs6: async
+        return asyncSyntaxEnabled; // AutoJs6: async
+    } // AutoJs6: async
+
+    public void setAsyncSyntaxEnabled(boolean flag) { // AutoJs6: async
+        asyncSyntaxEnabled = flag; // AutoJs6: async
+    } // AutoJs6: async
 
     public final boolean isXmlAvailable() {
         return xmlAvailable;
@@ -336,6 +358,8 @@ public class CompilerEnvirons {
     private boolean warnTrailingComma;
     private boolean ideMode;
     private boolean allowSharpComments;
+    private boolean classSyntaxEnabled; // AutoJs6: class syntax
+    private boolean asyncSyntaxEnabled; // AutoJs6: async
     private boolean allowSuper;
     Set<String> activationNames;
     private boolean inEval;

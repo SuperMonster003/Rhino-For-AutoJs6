@@ -269,7 +269,11 @@ public class Token {
             // Replaces the current block scope with a fresh copy of itself, so that the bindings
             // the next loop iteration sees are distinct from the ones it leaves behind.
             SCOPE_REPLACE = ITERATION_SCOPE + 1,
-            LAST_TOKEN = SCOPE_REPLACE + 1;
+            CLASS = SCOPE_REPLACE + 1, // AutoJs6: class syntax
+            PRIVATE_NAME = CLASS + 1, // AutoJs6: class syntax
+            CLASS_ELEMENT = PRIVATE_NAME + 1, // AutoJs6: class syntax
+            AWAIT = CLASS_ELEMENT + 1, // AutoJs6: async
+            LAST_TOKEN = AWAIT + 1; // AutoJs6: async
 
     /**
      * Returns a name for the token. If Rhino is compiled with certain hardcoded debugging flags in
@@ -692,6 +696,14 @@ public class Token {
                 return "DOTDOTDOT";
             case QUESTION_DOT:
                 return "QUESTION_DOT";
+            case CLASS: // AutoJs6: class syntax
+                return "CLASS"; // AutoJs6: class syntax
+            case PRIVATE_NAME: // AutoJs6: class syntax
+                return "PRIVATE_NAME"; // AutoJs6: class syntax
+            case CLASS_ELEMENT: // AutoJs6: class syntax
+                return "CLASS_ELEMENT"; // AutoJs6: class syntax
+            case AWAIT: // AutoJs6: async
+                return "AWAIT"; // AutoJs6: async
         }
 
         // Token without name
@@ -775,6 +787,10 @@ public class Token {
                 return "throw";
             case Token.TRY:
                 return "try";
+            case Token.CLASS: // AutoJs6: class syntax
+                return "class"; // AutoJs6: class syntax
+            case Token.AWAIT: // AutoJs6: async
+                return "await"; // AutoJs6: async
             default:
                 return null;
         }

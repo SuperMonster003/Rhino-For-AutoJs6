@@ -784,6 +784,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                 if (c != EOF_CHAR)
                     ungetChar(c); // decrements cursor, don't do this if the char is already EOF
                 String str = getStringFromBuffer(); // mutates tokenEnd to point to cursor
+                wordBeg = tokenBeg; // AutoJs6: class syntax
+                wordEscaped = containsEscape; // AutoJs6: class syntax
 
                 if (!containsEscape
                         || parser.compilerEnv.getLanguageVersion() >= Context.VERSION_ES6) {
@@ -806,6 +808,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                         // Save the string in case we need to use in
                         // object literal definitions.
                         this.string = internString(str);
+                        result = ClassParser.keyword(parser, result); // AutoJs6: class syntax
+                        result = AsyncParser.keyword(parser, result); // AutoJs6: async
                         if (result != Token.RESERVED) {
                             return result;
                         } else if (parser.compilerEnv.getLanguageVersion() >= Context.VERSION_ES6) {
@@ -1151,6 +1155,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                 skipLine();
                 return Token.COMMENT;
             }
+
+            if (c == '#') return ClassParser.privateName(parser); // AutoJs6: class syntax
 
             switch (c) {
                 case ';':
@@ -2538,6 +2544,10 @@ class TokenStream implements Parser.CurrentPositionReporter {
     // Record start and end positions of last scanned token.
     int tokenBeg;
     int tokenEnd;
+
+    // Start and escape flag of the last scanned word. // AutoJs6: class syntax
+    int wordBeg = -1; // AutoJs6: class syntax
+    boolean wordEscaped; // AutoJs6: class syntax
 
     private int lastLineEnd;
     private int tokenStartLastLineEnd;

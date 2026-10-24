@@ -270,6 +270,10 @@ public class ContextFactory {
 
             case Context.FEATURE_INTL_402:
                 return false;
+
+            case Context.FEATURE_CLASS_SYNTAX: // AutoJs6: class syntax
+            case Context.FEATURE_ASYNC_SYNTAX: // AutoJs6: async
+                return true; // AutoJs6: class syntax
         }
         // It is a bug to call the method with unknown featureIndex
         throw new IllegalArgumentException(String.valueOf(featureIndex));

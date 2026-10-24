@@ -122,13 +122,13 @@ public class Parser {
     CompilerEnvirons compilerEnv;
     private ErrorReporter errorReporter;
     private IdeErrorReporter errorCollector;
-    private String sourceURI;
+    String sourceURI; // AutoJs6: class syntax
     private char[] sourceChars;
 
     boolean calledByCompileFunction; // ugly - set directly by Context
     private boolean parseFinished; // set when finished to prevent reuse
 
-    private TokenStream ts;
+    TokenStream ts; // AutoJs6: class syntax
     CurrentPositionReporter currentPos;
     private int currentFlaggedToken = Token.EOF;
     private int currentToken;
@@ -146,10 +146,10 @@ public class Parser {
     // The following are per function variables and should be saved/restored
     // during function parsing.  See PerFunctionVariables class below.
     ScriptNode currentScriptOrFn;
-    private boolean insideMethod;
+    boolean insideMethod; // AutoJs6: class syntax
     Scope currentScope;
     private int endFlags;
-    private boolean inForInit; // bound temporarily during forStatement()
+    boolean inForInit; // bound temporarily during forStatement() // AutoJs6: class syntax
     private boolean
             inSingleStatementContext; // true when parsing a single-statement body (if/while/for
     private boolean inSingleStatementDeclContext; // true when parsing a
@@ -172,6 +172,9 @@ public class Parser {
     private int prevNameTokenColumn;
     private int lastTokenLineno = -1;
     private int lastTokenColumn = -1;
+
+    final ClassParser classSyntax = new ClassParser(this); // AutoJs6: class syntax
+    final AsyncParser asyncSyntax = new AsyncParser(this); // AutoJs6: async
 
     // Exception to unwind
     public static class ParserException extends RuntimeException {
@@ -440,7 +443,7 @@ public class Parser {
     //
     // Note that this function always returned the un-flagged token!
     // The flags, if any, are saved in currentFlaggedToken.
-    private int peekToken() throws IOException {
+    int peekToken() throws IOException { // AutoJs6: class syntax
         // By far the most common case:  last token hasn't been consumed,
         // so return already-peeked token.
         if (currentFlaggedToken != Token.EOF) {
@@ -470,26 +473,26 @@ public class Parser {
         return currentToken; // return unflagged token
     }
 
-    private int lineNumber() {
+    int lineNumber() { // AutoJs6: class syntax
         return lastTokenLineno;
     }
 
-    private int columnNumber() {
+    int columnNumber() { // AutoJs6: class syntax
         return lastTokenColumn;
     }
 
-    private int peekFlaggedToken() throws IOException {
+    int peekFlaggedToken() throws IOException { // AutoJs6: class syntax
         peekToken();
         return currentFlaggedToken;
     }
 
-    private void consumeToken() {
+    void consumeToken() { // AutoJs6: class syntax
         currentFlaggedToken = Token.EOF;
         lastTokenLineno = ts.getTokenStartLineno();
         lastTokenColumn = ts.getTokenColumn();
     }
 
-    private int nextToken() throws IOException {
+    int nextToken() throws IOException { // AutoJs6: class syntax
         int tt = peekToken();
         consumeToken();
         return tt;
@@ -513,7 +516,7 @@ public class Parser {
     // token types valid if they are preceded by a newline.  One example is the
     // postfix ++ or -- operator, which has to be on the same line as its
     // operand.
-    private int peekTokenOrEOL() throws IOException {
+    int peekTokenOrEOL() throws IOException { // AutoJs6: class syntax
         int tt = peekToken();
         // Check for last peeked token flags
         if ((currentFlaggedToken & TI_AFTER_EOL) != 0) {
@@ -554,6 +557,10 @@ public class Parser {
     boolean insideFunctionParams() {
         return nestingOfFunctionParams != 0;
     }
+
+    boolean inSingleStatementContext() { // AutoJs6: class syntax
+        return inSingleStatementContext; // AutoJs6: class syntax
+    } // AutoJs6: class syntax
 
     void pushScope(Scope scope) {
         Scope parent = scope.getParentScope();
@@ -742,7 +749,8 @@ public class Parser {
         return root;
     }
 
-    private AstNode parseFunctionBody(int type, FunctionNode fnNode) throws IOException {
+    AstNode parseFunctionBody(int type, FunctionNode fnNode) // AutoJs6: class syntax
+            throws IOException { // AutoJs6: class syntax
         boolean isExpressionClosure = false;
         if (!matchToken(Token.LC, true)) {
             if (compilerEnv.getLanguageVersion() < Context.VERSION_1_8
@@ -1000,11 +1008,12 @@ public class Parser {
         }
     }
 
-    private FunctionNode function(int type) throws IOException {
+    FunctionNode function(int type) throws IOException { // AutoJs6: async
         return function(type, false);
     }
 
-    private FunctionNode function(int type, boolean isMethodDefiniton) throws IOException {
+    FunctionNode function(int type, boolean isMethodDefiniton) // AutoJs6: class syntax
+            throws IOException { // AutoJs6: class syntax
         boolean isGenerator = false;
         int syntheticType = type;
         int baseLineno = lineNumber(); // line number where source starts
@@ -1146,7 +1155,7 @@ public class Parser {
         }
     }
 
-    private AstNode arrowFunction(AstNode params, int startLine, int startColumn)
+    AstNode arrowFunction(AstNode params, int startLine, int startColumn) // AutoJs6: async
             throws IOException {
         int baseLineno = lineNumber(); // line number where source starts
         int functionSourceStart =
@@ -1563,7 +1572,12 @@ public class Parser {
                 pn = defaultXmlNamespace();
                 break;
 
+            case Token.CLASS: // AutoJs6: class syntax
+                return classSyntax.declaration(); // AutoJs6: class syntax
+
             case Token.NAME:
+                pn = asyncSyntax.declaration(); // AutoJs6: async
+                if (pn != null) return pn; // AutoJs6: async
                 pn = nameOrLabel();
                 if (pn instanceof ExpressionStatement) break;
                 return pn; // LabeledStatement
@@ -1903,6 +1917,7 @@ public class Parser {
                     reportError("msg.no.paren.for");
                 }
             }
+            boolean isForAwait = asyncSyntax.forAwait(); // AutoJs6: async
 
             if (mustMatchToken(Token.LP, "msg.no.paren.for", true)) lp = ts.tokenBeg - forPos;
             int tt = peekToken();
@@ -1953,9 +1968,10 @@ public class Parser {
             }
 
             if (mustMatchToken(Token.RP, "msg.no.paren.for.ctrl", true)) rp = ts.tokenBeg - forPos;
+            if (isForAwait && !isForOf) reportError("msg.async.for.await.of"); // AutoJs6: async
 
             if (isForIn || isForOf) {
-                ForInLoop fis = new ForInLoop(forPos);
+                ForInLoop fis = asyncSyntax.forInLoop(forPos, isForAwait); // AutoJs6: async
                 if (init instanceof VariableDeclaration) {
                     VariableDeclaration varDecl = (VariableDeclaration) init;
                     // check that there was only one variable given
@@ -2338,6 +2354,7 @@ public class Parser {
         try {
             hasUndefinedBeenRedefined = true;
             AstNode body = getNextStatementAfterInlineComments(pn);
+            classSyntax.checkStatementPosition(body); // AutoJs6: class syntax
 
             pn.setLength(getNodeEnd(body) - pos);
             pn.setJsDocNode(withComment);
@@ -2388,7 +2405,7 @@ public class Parser {
         boolean yieldStar = false;
         if ((tt == Token.YIELD)
                 && (compilerEnv.getLanguageVersion() >= Context.VERSION_ES6)
-                && (peekToken() == Token.MUL)) {
+                && (peekTokenOrEOL() == Token.MUL)) { // AutoJs6: class syntax
             yieldStar = true;
             consumeToken();
         }
@@ -2566,6 +2583,7 @@ public class Parser {
             currentLabel = bundle;
             if (stmt == null) {
                 stmt = statementHelper();
+                classSyntax.checkStatementPosition(stmt); // AutoJs6: class syntax
                 int ntt = peekToken();
                 if (ntt == Token.COMMENT
                         && stmt.getLineno()
@@ -3014,7 +3032,7 @@ public class Parser {
         return pn;
     }
 
-    private AstNode assignExpr() throws IOException {
+    AstNode assignExpr() throws IOException { // AutoJs6: class syntax
         int tt = peekToken();
         if (tt == Token.YIELD) {
             return returnOrYield(tt, true);
@@ -3055,7 +3073,7 @@ public class Parser {
             }
         } else if (!hasEOL && tt == Token.ARROW) {
             consumeToken();
-            pn = arrowFunction(pn, startLine, startColumn);
+            pn = asyncSyntax.arrowFunction(pn, startLine, startColumn); // AutoJs6: async
         } else if (pn.getIntProp(Node.OBJECT_LITERAL_DESTRUCTURING, 0) == 1
                 && !inDestructuringAssignment) {
             reportError("msg.syntax");
@@ -3185,7 +3203,7 @@ public class Parser {
     }
 
     private AstNode relExpr() throws IOException {
-        AstNode pn = shiftExpr();
+        AstNode pn = classSyntax.relationalOperand(); // AutoJs6: class syntax
         for (; ; ) {
             int tt = peekToken(), opPos = ts.tokenBeg;
             switch (tt) {
@@ -3206,7 +3224,7 @@ public class Parser {
         return pn;
     }
 
-    private AstNode shiftExpr() throws IOException {
+    AstNode shiftExpr() throws IOException { // AutoJs6: class syntax
         AstNode pn = addExpr();
         for (; ; ) {
             int tt = peekToken(), opPos = ts.tokenBeg;
@@ -3275,7 +3293,7 @@ public class Parser {
         return pn;
     }
 
-    private AstNode unaryExpr() throws IOException {
+    AstNode unaryExpr() throws IOException { // AutoJs6: async
         AstNode node;
         int tt = peekToken();
         if (tt == Token.COMMENT) {
@@ -3330,7 +3348,11 @@ public class Parser {
                 column = columnNumber();
                 node = new UnaryExpression(tt, ts.tokenBeg, unaryExpr());
                 node.setLineColumnNumber(line, column);
+                classSyntax.checkDelete(node); // AutoJs6: class syntax
                 return node;
+
+            case Token.AWAIT: // AutoJs6: async
+                return asyncSyntax.awaitExpression(); // AutoJs6: async
 
             case Token.ERROR:
                 consumeToken();
@@ -3437,7 +3459,7 @@ public class Parser {
      *
      * @param allowCallSyntax passed down to {@link #memberExprTail}
      */
-    private AstNode memberExpr(boolean allowCallSyntax) throws IOException {
+    AstNode memberExpr(boolean allowCallSyntax) throws IOException { // AutoJs6: class syntax
         int tt = peekToken();
         AstNode pn;
 
@@ -3642,6 +3664,10 @@ public class Parser {
                 // handles: name, ns::name, ns::*, ns::[expr]
                 ref = propertyName(-1, memberTypeFlags);
                 break;
+
+            case Token.PRIVATE_NAME: // AutoJs6: class syntax
+                ref = classSyntax.privateMember(pn); // AutoJs6: class syntax
+                break; // AutoJs6: class syntax
 
             case Token.MUL:
                 if (compilerEnv.isXmlAvailable()) {
@@ -3904,6 +3930,9 @@ public class Parser {
                 consumeToken();
                 return function(FunctionNode.FUNCTION_EXPRESSION);
 
+            case Token.CLASS: // AutoJs6: class syntax
+                return classSyntax.expression(); // AutoJs6: class syntax
+
             case Token.LB:
                 consumeToken();
                 return arrayLiteral();
@@ -3987,6 +4016,7 @@ public class Parser {
                     end = ts.tokenEnd;
                     KeywordLiteral keywordLiteral = new KeywordLiteral(pos, end - pos, tt);
                     keywordLiteral.setLineColumnNumber(lineNumber(), columnNumber());
+                    classSyntax.checkSuper(); // AutoJs6: class syntax
                     return keywordLiteral;
                 } else {
                     reportError("msg.super.shorthand.function");
@@ -4090,6 +4120,8 @@ public class Parser {
     private AstNode name(int ttFlagged, int tt) throws IOException {
         String nameString = ts.getString();
         int namePos = ts.tokenBeg, nameLineno = lineNumber(), nameColumn = columnNumber();
+        AstNode asyncHead = asyncSyntax.name(ttFlagged, nameString, namePos); // AutoJs6: async
+        if (asyncHead != null) return asyncHead; // AutoJs6: async
         if (0 != (ttFlagged & TI_CHECK_LABEL) && peekToken() == Token.COLON) {
             // Do not consume colon.  It is used as an unwind indicator
             // to return to statementHelper.
@@ -4101,6 +4133,7 @@ public class Parser {
         // Not a label.  Unfortunately peeking the next token to check for
         // a colon has biffed ts.tokenBeg, ts.tokenEnd.  We store the name's
         // bounds in instance vars and createNameNode uses them.
+        classSyntax.checkArguments(nameString); // AutoJs6: class syntax
         saveNameTokenData(namePos, nameString, nameLineno, nameColumn);
 
         if (compilerEnv.isXmlAvailable()) {
@@ -4460,6 +4493,8 @@ public class Parser {
                             entryKind = SET_ENTRY;
                         }
                     }
+                    pname = asyncSyntax.methodKey(pname); // AutoJs6: async
+                    if (asyncSyntax.isPending()) entryKind = METHOD_ENTRY; // AutoJs6: async
                     if (entryKind == GET_ENTRY || entryKind == SET_ENTRY) {
                         pname = objliteralProperty();
                         if (pname == null) {
@@ -4544,7 +4579,7 @@ public class Parser {
         return pn;
     }
 
-    private AstNode objliteralProperty() throws IOException {
+    AstNode objliteralProperty() throws IOException { // AutoJs6: class syntax
         AstNode pname;
         int tt = peekToken();
         switch (tt) {
@@ -4606,6 +4641,7 @@ public class Parser {
                     int lineno = lineNumber();
                     int column = columnNumber();
                     pname = objliteralProperty();
+                    if (pname == null) return null; // AutoJs6: class syntax
 
                     pname = new GeneratorMethodDefinition(pos, ts.tokenEnd - pos, pname);
                     pname.setLineColumnNumber(lineno, column);
@@ -4642,6 +4678,7 @@ public class Parser {
                     && compilerEnv.getLanguageVersion() < Context.VERSION_ES6) {
                 reportError("msg.bad.object.init");
             }
+            classSyntax.checkArguments(property.getString()); // AutoJs6: class syntax
             AstNode nn = new Name(property.getPosition(), property.getString());
             ObjectProperty pn = new ObjectProperty();
             pn.setKeyAndValue(property, nn);
@@ -4707,7 +4744,7 @@ public class Parser {
      * the {@code token} parameter is not {@link Token#NAME}, then we use token info saved in
      * instance vars.
      */
-    private Name createNameNode(boolean checkActivation, int token) {
+    Name createNameNode(boolean checkActivation, int token) { // AutoJs6: class syntax
         int beg = ts.tokenBeg;
         String s = ts.getString();
         int lineno = lineNumber();
@@ -4879,7 +4916,7 @@ public class Parser {
             reportError(expr.getType() == Token.INC ? "msg.bad.incr" : "msg.bad.decr");
     }
 
-    private ErrorNode makeErrorNode() {
+    ErrorNode makeErrorNode() { // AutoJs6: class syntax
         ErrorNode pn = new ErrorNode(ts.tokenBeg, ts.tokenEnd - ts.tokenBeg);
         pn.setLineColumnNumber(lineNumber(), columnNumber());
         return pn;
@@ -4993,6 +5030,9 @@ public class Parser {
 
             savedHasUndefinedBeenRedefined = Parser.this.hasUndefinedBeenRedefined;
             // we want to inherit the current value
+
+            Parser.this.classSyntax.enterFunction(fnNode); // AutoJs6: class syntax
+            Parser.this.asyncSyntax.enterFunction(fnNode); // AutoJs6: async
         }
 
         void restore() {
@@ -5004,6 +5044,8 @@ public class Parser {
             Parser.this.endFlags = savedEndFlags;
             Parser.this.inForInit = savedInForInit;
             Parser.this.hasUndefinedBeenRedefined = savedHasUndefinedBeenRedefined;
+            Parser.this.classSyntax.exitFunction(); // AutoJs6: class syntax
+            Parser.this.asyncSyntax.exitFunction(); // AutoJs6: async
         }
     }
 

@@ -119,6 +119,7 @@ public class FunctionNode extends ScriptNode {
     private boolean requiresArgumentObject;
     private boolean isGenerator;
     private boolean isES6Generator;
+    private boolean isAsync; // AutoJs6: async
     // ES2024, B.3.2.1: block-scoped function that should also be var-hoisted
     private boolean annexBHoisted;
     private List<Node> generatorResumePoints;
@@ -338,6 +339,14 @@ public class FunctionNode extends ScriptNode {
         needsActivation = true;
     }
 
+    public boolean isAsync() { // AutoJs6: async
+        return isAsync; // AutoJs6: async
+    } // AutoJs6: async
+
+    public void setIsAsync(boolean isAsync) { // AutoJs6: async
+        this.isAsync = isAsync; // AutoJs6: async
+    } // AutoJs6: async
+
     @Override
     public boolean hasRestParameter() {
         return hasRestParameter;
@@ -454,6 +463,7 @@ public class FunctionNode extends ScriptNode {
         boolean isArrow = functionType == ARROW_FUNCTION;
         if (!isMethod()) {
             sb.append(makeIndent(depth));
+            if (isAsync) sb.append("async "); // AutoJs6: async
             if (!isArrow) {
                 sb.append("function");
             }

@@ -42,6 +42,37 @@ class MessageTranslationsTest {
                     "msg.not.base64",
                     "msg.bad.hex");
 
+    /** AutoJs6 class syntax and async messages, see docs/autojs6/class-syntax/HOOKS.md. */
+    private static final List<String> CLASS_SYNTAX_KEYS =
+            List.of(
+                    "msg.class.name.missing",
+                    "msg.class.no.brace",
+                    "msg.class.no.brace.after",
+                    "msg.class.dup.ctor",
+                    "msg.class.ctor.special",
+                    "msg.class.field.ctor",
+                    "msg.class.static.prototype",
+                    "msg.class.private.ctor",
+                    "msg.class.private.undeclared",
+                    "msg.class.private.dup",
+                    "msg.class.private.delete",
+                    "msg.class.private.super",
+                    "msg.class.private.unexpected",
+                    "msg.class.super.call",
+                    "msg.class.field.arguments",
+                    "msg.class.getter.parms",
+                    "msg.class.setter.parms",
+                    "msg.class.strict.parms",
+                    "msg.class.field.semi",
+                    "msg.class.decl.not.in.block",
+                    "msg.class.not.supported",
+                    "msg.async.not.supported",
+                    "msg.async.await.context",
+                    "msg.async.await.params",
+                    "msg.async.for.await.of",
+                    "msg.async.decl.not.in.block",
+                    "msg.async.name.missing");
+
     static Stream<String> languages() {
         return Stream.of("ar", "es", "fr", "ja", "ko", "ru", "zh", "zh_HK", "zh_TW");
     }
@@ -75,9 +106,19 @@ class MessageTranslationsTest {
     @ParameterizedTest
     @MethodSource("languages")
     void uint8ArrayMessagesAreTranslated(String language) throws IOException {
+        assertTranslated(language, UINT8ARRAY_KEYS);
+    }
+
+    @ParameterizedTest
+    @MethodSource("languages")
+    void classSyntaxMessagesAreTranslated(String language) throws IOException {
+        assertTranslated(language, CLASS_SYNTAX_KEYS);
+    }
+
+    private static void assertTranslated(String language, List<String> keys) throws IOException {
         Properties base = load("Messages.properties");
         Properties translated = load("Messages_" + language + ".properties");
-        for (String key : UINT8ARRAY_KEYS) {
+        for (String key : keys) {
             assertNotNull(base.getProperty(key), key);
             String message = translated.getProperty(key);
             assertNotNull(message, language + ": " + key);

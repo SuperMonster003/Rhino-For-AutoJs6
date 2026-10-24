@@ -162,6 +162,8 @@ public final class IRFactory {
                 return transformBreak((BreakStatement) node);
             case Token.CALL:
                 return transformFunctionCall((FunctionCall) node);
+            case Token.CLASS: // AutoJs6: class syntax
+                return ClassLowering.transform(parser, node); // AutoJs6: class syntax
             case Token.CONTINUE:
                 return transformContinue((ContinueStatement) node);
             case Token.DO:
@@ -642,6 +644,7 @@ public final class IRFactory {
     }
 
     private Node transformFunction(FunctionNode fn) {
+        AsyncLowering.check(parser, fn); // AutoJs6: async
         Node mexpr = decompileFunctionHeader(fn);
         int index = parser.currentScriptOrFn.addFunction(fn);
 
