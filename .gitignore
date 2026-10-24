@@ -26,6 +26,10 @@ local.properties
 /AGENTS.md
 docs
 examples
+# AutoJs6: the fork's own documents live in docs/autojs6; the rest of docs stays ignored
+!/docs/
+/docs/*
+!/docs/autojs6/
 
 # idea
 rhino.ipr
