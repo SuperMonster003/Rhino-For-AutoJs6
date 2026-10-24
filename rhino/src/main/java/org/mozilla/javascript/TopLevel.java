@@ -300,6 +300,7 @@ public class TopLevel extends ScopeObject {
      * @param type the built-in type
      * @return the built-in prototype
      */
+    @SuppressWarnings("AmbiguousMethodReference")
     public static Scriptable getBuiltinPrototype(TopLevel scope, Builtins type) {
         // must be called with top level scope
         Scriptable result = ((TopLevel) scope).getBuiltinPrototype(type);
@@ -332,6 +333,7 @@ public class TopLevel extends ScopeObject {
      * @param type the built-in type
      * @return the built-in prototype
      */
+    @SuppressWarnings("AmbiguousMethodReference")
     static Scriptable getBuiltinPrototype(TopLevel scope, NativeErrors type) {
         // must be called with top level scope
         Scriptable result = ((TopLevel) scope).getBuiltinPrototype(type);
@@ -377,6 +379,7 @@ public class TopLevel extends ScopeObject {
      * @param type the built-in type
      * @return the built-in prototype
      */
+    @SuppressWarnings("AmbiguousMethodReference")
     public Scriptable getBuiltinPrototype(Builtins type) {
         BaseFunction func = getBuiltinCtor(type);
         Object proto = func != null ? func.getPrototypeProperty() : null;
@@ -390,6 +393,7 @@ public class TopLevel extends ScopeObject {
      * @param type the built-in type
      * @return the built-in prototype
      */
+    @SuppressWarnings("AmbiguousMethodReference")
     public Scriptable getBuiltinPrototype(NativeErrors type) {
         BaseFunction func = getNativeErrorCtor(type);
         Object proto = func != null ? func.getPrototypeProperty() : null;
@@ -411,7 +415,11 @@ public class TopLevel extends ScopeObject {
 
     @Override
     public void put(String name, VarScope start, Object value) {
-        ScriptableObject.putProperty(globalThis, name, value);
+        if (super.has(name, start)) {
+            super.put(name, start, value);
+        } else {
+            ScriptableObject.putProperty(globalThis, name, value);
+        }
     }
 
     @Override
@@ -466,22 +474,30 @@ public class TopLevel extends ScopeObject {
     // the values on the global scope but not on the global object.
 
     @Override
-    public boolean isConst(String name) {
-        if (super.get(name, this) != NOT_FOUND) {
-            return super.isConst(name);
+    public boolean isConst(Context cx, String name) {
+        if (cx.getLanguageVersion() >= Context.VERSION_ES6) {
+            return super.isConst(cx, name);
         } else {
-            return globalThis.isConst(name);
+            return globalThis.isConst(cx, name);
         }
     }
 
     @Override
-    public void putConst(String name, VarScope start, Object value) {
-        globalThis.putConst(name, globalThis, value);
+    public void putConst(Context cx, String name, VarScope start, Object value) {
+        if (cx.getLanguageVersion() >= Context.VERSION_ES6) {
+            super.putConst(cx, name, start, value);
+        } else {
+            globalThis.putConst(cx, name, globalThis, value);
+        }
     }
 
     @Override
-    public void defineConst(String name, VarScope start) {
-        globalThis.defineConst(name, globalThis);
+    public void defineConst(Context cx, String name, VarScope start) {
+        if (cx.getLanguageVersion() >= Context.VERSION_ES6) {
+            super.defineConst(cx, name, start);
+        } else {
+            globalThis.defineConst(cx, name, globalThis);
+        }
     }
 
     public void defineFunctionProperties(

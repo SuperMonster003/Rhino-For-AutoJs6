@@ -32,7 +32,6 @@ import java.util.TimeZone;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import org.mozilla.classfile.ClassFileWriter.ClassSizeException;
-import org.mozilla.javascript.InstrumentEmitter.Type;
 import org.mozilla.javascript.ast.AstRoot;
 import org.mozilla.javascript.ast.ScriptNode;
 import org.mozilla.javascript.debug.DebuggableScript;
@@ -978,7 +977,7 @@ public class Context implements Closeable {
         throw new EvaluatorException(message, sourceName, lineno, lineSource, lineOffset);
     }
 
-    static EvaluatorException reportRuntimeErrorById(String messageId, Object... args) {
+    public static EvaluatorException reportRuntimeErrorById(String messageId, Object... args) {
         String msg = ScriptRuntime.getMessageById(messageId, args);
         return reportRuntimeError(msg);
     }
@@ -2830,7 +2829,7 @@ public class Context implements Closeable {
             CompilerEnvirons compilerEnv,
             ErrorReporter compilationErrorReporter,
             boolean returnFunction) {
-        var event = InstrumentEmitter.emitter.startEvent(Type.PARSE);
+        var event = InstrumentEmitter.emitter.startEvent(InstrumentEmitter.Type.PARSE);
         try {
             return parseInt(
                     sourceString,

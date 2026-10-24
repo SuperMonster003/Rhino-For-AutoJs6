@@ -477,6 +477,14 @@ public class NativeObjectTest {
     }
 
     @Test
+    public void fromEntriesIndexKeys() {
+        assertWithAllModes_StrictAndNonStrict_ES6(
+                "var o = Object.fromEntries([[6, 'a'], ['7', 'b']]);\n"
+                        + "o[6] + o['6'] + o[7] + o['7'] + o.hasOwnProperty(6) + o.hasOwnProperty('7')",
+                "aabbtruetrue");
+    }
+
+    @Test
     public void issue943() {
         assertWithAllModes_StrictAndNonStrict_ES6(
                 "var foo = function e() {}\n"

@@ -97,6 +97,11 @@ public abstract class SlotMapOwner<T extends PropHolder<T>> implements PropHolde
             }
             return newSlot;
         }
+
+        @Override
+        public SlotMap<T> copyMap() {
+            return this;
+        }
     }
 
     private static final class ThreadSafeEmptySlotMap<T extends PropHolder<T>>
@@ -245,6 +250,11 @@ public abstract class SlotMapOwner<T extends PropHolder<T>> implements PropHolde
             newMap.add(owner, slot);
             return newMap.compute(owner, compoundOp, key, index, c);
         }
+
+        @Override
+        public SlotMap<T> copyMap() {
+            return new SingleEntrySlotMap<>(slot.copySlot());
+        }
     }
 
     static final class ThreadSafeSingleEntrySlotMap<T extends PropHolder<T>>
@@ -291,6 +301,11 @@ public abstract class SlotMapOwner<T extends PropHolder<T>> implements PropHolde
             newMap.add(null, slot);
             var currentMap = ThreadedAccess.checkAndReplaceMap(owner, this, newMap);
             return currentMap == this ? newMap : currentMap;
+        }
+
+        @Override
+        public SlotMap<T> copyMap() {
+            return new ThreadSafeSingleEntrySlotMap<>(slot.copySlot());
         }
     }
 
