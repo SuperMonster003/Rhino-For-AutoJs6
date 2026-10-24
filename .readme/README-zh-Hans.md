@@ -64,6 +64,16 @@ AutoJs6 从 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 
 此处按日期记录本分支的维护变更. Rhino 官方发行历史继续保留在上游发行说明中, 不作为本分支的新版本记录.
 
+### 2026-10-24
+
+###### 2026/10/24
+
+* `新增` `Uint8Array` 支持 Base64 与十六进制转换, 包括静态方法 `fromBase64` / `fromHex` 及实例方法 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `修复` 函数内循环体中的 `const` 每轮不重新绑定的问题 (循环体内的 `const` 始终保持第一轮的值, `for (const x of a)` 每轮均为 undefined; 解释与编译模式均受影响)
+* `修复` `switch` 语句的判别表达式能看到 case 块内同名 `let` / `const` 声明的问题
+* `优化` ES6 语言版本下给 `const` 重新赋值时, 非严格模式同样抛出 TypeError (此前静默忽略), 与 ECMAScript 规范一致; 语言版本 180 及以下保持原行为
+* `依赖` 同步上游 mozilla/rhino 至提交 `34abaca89` (2026/10/23)
+
 ### 2026-10-20
 
 ###### 2026/10/20
@@ -77,13 +87,6 @@ AutoJs6 从 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 * `修复` 错误消息中的参数占位符及大括号转义, 避免本地化诊断丢失上下文或触发 MessageFormat 异常
 * `修复` 正则表达式中的 Unicode 属性转义 (如 `\p{L}`) 在 Android 7.x 上抛出 UnsupportedOperationException 的问题
 * `优化` ArrayBuffer, DataView, TypedArray, 正则表达式及解构等 28 条引擎错误消息补齐 9 种非英语翻译
-
-### 2026-10-13
-
-###### 2026/10/13
-
-* `新增` 分支专属介绍与维护记录支持 10 种语言, 各语言均保留原始 Rhino 官方文档入口
-* `优化` README/CHANGELOG 支持从 JSON 和模板离线生成, 并通过只读检查与 CI 校验文档一致性
 
 [完整分支维护记录](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-zh-Hans.md)
 

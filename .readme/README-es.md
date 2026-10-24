@@ -64,6 +64,16 @@ AutoJs6 referencia el JAR completo en `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar
 
 Este historial registra por fecha los cambios de mantenimiento de esta bifurcación. El historial de versiones oficiales de Rhino permanece en las notas de versión originales y no se presenta como versiones nuevas de esta bifurcación.
 
+### 2026-10-24
+
+###### 2026/10/24
+
+* `Nuevo` Conversión Base64 y hexadecimal para `Uint8Array`: métodos estáticos `fromBase64` / `fromHex` y métodos de instancia `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `Corrección` Un `const` dentro del cuerpo de un bucle en una función que no se volvía a enlazar en cada iteración (el `const` conservaba el valor de la primera iteración y `for (const x of a)` daba undefined en cada iteración; afectaba a los modos interpretado y compilado)
+* `Corrección` La expresión discriminante de una sentencia `switch` que veía las declaraciones `let` / `const` del mismo nombre dentro del bloque de case
+* `Mejora` Asignar a un `const` con la versión de lenguaje ES6 ahora lanza TypeError también en modo no estricto (antes se ignoraba en silencio), como exige la especificación ECMAScript; las versiones de lenguaje 180 e inferiores mantienen el comportamiento anterior
+* `Dependencia` Sincronización de mozilla/rhino de upstream hasta el commit `34abaca89` (2026/10/23)
+
 ### 2026-10-20
 
 ###### 2026/10/20
@@ -77,13 +87,6 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 * `Corrección` Marcadores de argumentos y escape de llaves en los mensajes de error, para evitar la pérdida de contexto o excepciones de MessageFormat en los diagnósticos traducidos
 * `Corrección` Expresiones regulares con escapes de propiedades Unicode (como `\p{L}`) que lanzaban UnsupportedOperationException en Android 7.x
 * `Mejora` Traducciones completas a 9 idiomas distintos del inglés para 28 mensajes de error del motor sobre ArrayBuffer, DataView, TypedArray, expresiones regulares, desestructuración y funciones relacionadas
-
-### 2026-10-13
-
-###### 2026/10/13
-
-* `Nuevo` Introducción dedicada a la bifurcación e historial de mantenimiento en 10 idiomas, cada uno con un enlace a la documentación oficial original de Rhino
-* `Mejora` README/CHANGELOG admiten la generación sin conexión a partir de JSON y plantillas, con comprobaciones de solo lectura y validación CI de la coherencia documental
 
 [Historial completo de mantenimiento de la bifurcación](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-es.md)
 

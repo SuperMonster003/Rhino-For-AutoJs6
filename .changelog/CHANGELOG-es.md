@@ -17,6 +17,16 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 
 [Leer el README oficial original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Este enlace está fijado al commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservando el idioma original y el contexto de los enlaces relativos. El documento original se conserva sin traducir; esta página y sus versiones en otros idiomas describen esta bifurcación.
 
+# 2026-10-24
+
+###### 2026/10/24
+
+* `Nuevo` Conversión Base64 y hexadecimal para `Uint8Array`: métodos estáticos `fromBase64` / `fromHex` y métodos de instancia `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `Corrección` Un `const` dentro del cuerpo de un bucle en una función que no se volvía a enlazar en cada iteración (el `const` conservaba el valor de la primera iteración y `for (const x of a)` daba undefined en cada iteración; afectaba a los modos interpretado y compilado)
+* `Corrección` La expresión discriminante de una sentencia `switch` que veía las declaraciones `let` / `const` del mismo nombre dentro del bloque de case
+* `Mejora` Asignar a un `const` con la versión de lenguaje ES6 ahora lanza TypeError también en modo no estricto (antes se ignoraba en silencio), como exige la especificación ECMAScript; las versiones de lenguaje 180 e inferiores mantienen el comportamiento anterior
+* `Dependencia` Sincronización de mozilla/rhino de upstream hasta el commit `34abaca89` (2026/10/23)
+
 # 2026-10-20
 
 ###### 2026/10/20

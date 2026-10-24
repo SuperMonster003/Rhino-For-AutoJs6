@@ -7,6 +7,31 @@
     "dependency": "依赖"
   },
   "$data": {
+    "2026-10-24": {
+      "released_date": "2026/10/24",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`Uint8Array` 支持 Base64 与十六进制转换, 包括静态方法 `fromBase64` / `fromHex` 及实例方法 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`"
+        },
+        {
+          "category": "fix",
+          "text": "函数内循环体中的 `const` 每轮不重新绑定的问题 (循环体内的 `const` 始终保持第一轮的值, `for (const x of a)` 每轮均为 undefined; 解释与编译模式均受影响)"
+        },
+        {
+          "category": "fix",
+          "text": "`switch` 语句的判别表达式能看到 case 块内同名 `let` / `const` 声明的问题"
+        },
+        {
+          "category": "improvement",
+          "text": "ES6 语言版本下给 `const` 重新赋值时, 非严格模式同样抛出 TypeError (此前静默忽略), 与 ECMAScript 规范一致; 语言版本 180 及以下保持原行为"
+        },
+        {
+          "category": "dependency",
+          "text": "同步上游 mozilla/rhino 至提交 `34abaca89` (2026/10/23)"
+        }
+      ]
+    },
     "2026-10-20": {
       "released_date": "2026/10/20",
       "entries": [

@@ -64,6 +64,16 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 
 이 이력은 포크의 유지 관리 변경 사항을 날짜별로 기록합니다. Rhino 공식 릴리스 이력은 업스트림 릴리스 노트에 유지되며 이 포크의 새 버전으로 기록하지 않습니다.
 
+### 2026-10-24
+
+###### 2026/10/24
+
+* `추가` `Uint8Array`의 Base64 및 16진수 변환 지원: 정적 메서드 `fromBase64` / `fromHex`와 인스턴스 메서드 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `수정` 함수 안의 루프 본문에 있는 `const`가 반복마다 다시 바인딩되지 않는 문제 수정 (루프 본문의 `const`가 첫 반복의 값을 유지하고 `for (const x of a)`는 매번 undefined였음; 인터프리터와 컴파일 모드 모두 해당)
+* `수정` `switch` 문의 판별식에서 case 블록 안의 같은 이름의 `let` / `const` 선언이 보이는 문제 수정
+* `개선` ES6 언어 버전에서 `const`에 다시 할당하면 비엄격 모드에서도 TypeError가 발생하도록 변경 (이전에는 조용히 무시), ECMAScript 명세 준수; 언어 버전 180 이하는 기존 동작 유지
+* `의존성` 업스트림 mozilla/rhino를 커밋 `34abaca89` (2026/10/23)까지 동기화
+
 ### 2026-10-20
 
 ###### 2026/10/20
@@ -77,13 +87,6 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 * `수정` 오류 메시지의 인수 자리 표시자와 중괄호 이스케이프를 수정하여 번역된 진단의 정보 누락 및 MessageFormat 예외 방지
 * `수정` Unicode 속성 이스케이프 (`\p{L}` 등)를 사용하는 정규식이 Android 7.x에서 UnsupportedOperationException을 발생시키는 문제 수정
 * `개선` ArrayBuffer, DataView, TypedArray, 정규식, 구조 분해 등에 관한 엔진 오류 메시지 28 개의 영어 외 9 개 언어 번역 완성
-
-### 2026-10-13
-
-###### 2026/10/13
-
-* `추가` 포크 전용 소개와 유지 관리 이력을 10개 언어로 제공하며, 각 언어에서 Rhino 공식 문서 원본 링크 유지
-* `개선` README/CHANGELOG의 JSON 및 템플릿 기반 오프라인 생성과 읽기 전용 검사 및 CI를 통한 문서 일관성 검증 지원
 
 [전체 포크 유지 관리 이력](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-ko.md)
 

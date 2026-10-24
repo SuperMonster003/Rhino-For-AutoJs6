@@ -7,6 +7,31 @@
     "dependency": "Dependencia"
   },
   "$data": {
+    "2026-10-24": {
+      "released_date": "2026/10/24",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "Conversión Base64 y hexadecimal para `Uint8Array`: métodos estáticos `fromBase64` / `fromHex` y métodos de instancia `toBase64` / `toHex` / `setFromBase64` / `setFromHex`"
+        },
+        {
+          "category": "fix",
+          "text": "Un `const` dentro del cuerpo de un bucle en una función que no se volvía a enlazar en cada iteración (el `const` conservaba el valor de la primera iteración y `for (const x of a)` daba undefined en cada iteración; afectaba a los modos interpretado y compilado)"
+        },
+        {
+          "category": "fix",
+          "text": "La expresión discriminante de una sentencia `switch` que veía las declaraciones `let` / `const` del mismo nombre dentro del bloque de case"
+        },
+        {
+          "category": "improvement",
+          "text": "Asignar a un `const` con la versión de lenguaje ES6 ahora lanza TypeError también en modo no estricto (antes se ignoraba en silencio), como exige la especificación ECMAScript; las versiones de lenguaje 180 e inferiores mantienen el comportamiento anterior"
+        },
+        {
+          "category": "dependency",
+          "text": "Sincronización de mozilla/rhino de upstream hasta el commit `34abaca89` (2026/10/23)"
+        }
+      ]
+    },
     "2026-10-20": {
       "released_date": "2026/10/20",
       "entries": [

@@ -64,6 +64,16 @@ AutoJs6 references the complete JAR at `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.ja
 
 This history records maintenance changes to this fork by date. Official Rhino release history remains in the upstream release notes and is not presented as new releases of this fork.
 
+### 2026-10-24
+
+###### 2026/10/24
+
+* `Feature` `Uint8Array` Base64 and hexadecimal conversion: static methods `fromBase64` / `fromHex` and instance methods `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `Fix` A `const` inside a loop body of a function not being rebound on each iteration (the `const` kept the first iteration's value, and `for (const x of a)` gave undefined on every iteration; both interpreted and compiled modes were affected)
+* `Fix` The discriminant expression of a `switch` statement seeing `let` / `const` declarations of the same name inside the case block
+* `Improvement` Assigning to a `const` under the ES6 language version now throws TypeError in non-strict mode too (previously ignored silently), as the ECMAScript specification requires; language versions 180 and below keep the old behavior
+* `Dependency` Sync upstream mozilla/rhino to commit `34abaca89` (2026/10/23)
+
 ### 2026-10-20
 
 ###### 2026/10/20
@@ -77,13 +87,6 @@ This history records maintenance changes to this fork by date. Official Rhino re
 * `Fix` Argument placeholders and brace escaping in error messages, preventing localized diagnostics from losing context or throwing MessageFormat exceptions
 * `Fix` Regular expressions with Unicode property escapes (such as `\p{L}`) throwing UnsupportedOperationException on Android 7.x
 * `Improvement` Complete 9 non-English translations for 28 engine error messages covering ArrayBuffer, DataView, TypedArray, regular expressions, destructuring and related features
-
-### 2026-10-13
-
-###### 2026/10/13
-
-* `Feature` Dedicated fork introduction and maintenance history in 10 languages, each retaining an entry to the original official Rhino documentation
-* `Improvement` README/CHANGELOG now support offline generation from JSON and templates, with read-only checks and CI validation of documentation consistency
 
 [Full fork maintenance history](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-en.md)
 

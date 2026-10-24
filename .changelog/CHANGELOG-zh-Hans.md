@@ -17,6 +17,16 @@
 
 [阅读原始 Rhino 官方 README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 该入口固定到提交 `d878324a6f515c09d8ca49005fdd22b944b4df89`, 保留上游原有语言与相对链接的上下文. 这份原始文档仅作留存, 不参与翻译; 本页及其其他语言版本介绍本分支.
 
+# 2026-10-24
+
+###### 2026/10/24
+
+* `新增` `Uint8Array` 支持 Base64 与十六进制转换, 包括静态方法 `fromBase64` / `fromHex` 及实例方法 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `修复` 函数内循环体中的 `const` 每轮不重新绑定的问题 (循环体内的 `const` 始终保持第一轮的值, `for (const x of a)` 每轮均为 undefined; 解释与编译模式均受影响)
+* `修复` `switch` 语句的判别表达式能看到 case 块内同名 `let` / `const` 声明的问题
+* `优化` ES6 语言版本下给 `const` 重新赋值时, 非严格模式同样抛出 TypeError (此前静默忽略), 与 ECMAScript 规范一致; 语言版本 180 及以下保持原行为
+* `依赖` 同步上游 mozilla/rhino 至提交 `34abaca89` (2026/10/23)
+
 # 2026-10-20
 
 ###### 2026/10/20

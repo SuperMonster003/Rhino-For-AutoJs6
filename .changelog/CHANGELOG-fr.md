@@ -17,6 +17,16 @@ Cet historique consigne par date les changements de maintenance de cette variant
 
 [Lire le README officiel original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Ce lien cible le commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservant la langue d'origine et le contexte des liens relatifs. Le document original est conservé sans traduction; cette page et ses autres versions linguistiques présentent cette variante.
 
+# 2026-10-24
+
+###### 2026/10/24
+
+* `Fonctionnalité` Conversion Base64 et hexadécimale pour `Uint8Array`: méthodes statiques `fromBase64` / `fromHex` et méthodes d'instance `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `Correction` Un `const` dans le corps d'une boucle à l'intérieur d'une fonction qui n'était pas relié à chaque itération (le `const` gardait la valeur de la première itération et `for (const x of a)` donnait undefined à chaque itération; les modes interprété et compilé étaient concernés)
+* `Correction` L'expression discriminante d'une instruction `switch` qui voyait les déclarations `let` / `const` de même nom dans le bloc des case
+* `Amélioration` Une affectation à un `const` avec la version de langage ES6 lève désormais une TypeError aussi en mode non strict (auparavant ignorée silencieusement), conformément à la spécification ECMAScript; les versions de langage 180 et inférieures gardent l'ancien comportement
+* `Dépendance` Synchronisation de mozilla/rhino en amont jusqu'au commit `34abaca89` (2026/10/23)
+
 # 2026-10-20
 
 ###### 2026/10/20

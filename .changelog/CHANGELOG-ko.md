@@ -17,6 +17,16 @@
 
 [Rhino 공식 README 원본 읽기](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 이 링크는 커밋 `d878324a6f515c09d8ca49005fdd22b944b4df89`에 고정되어 원래 언어와 상대 링크의 참조 맥락을 보존합니다. 원본 문서는 번역 없이 보관하며, 이 페이지와 다른 언어 버전에서는 이 포크를 소개합니다.
 
+# 2026-10-24
+
+###### 2026/10/24
+
+* `추가` `Uint8Array`의 Base64 및 16진수 변환 지원: 정적 메서드 `fromBase64` / `fromHex`와 인스턴스 메서드 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `수정` 함수 안의 루프 본문에 있는 `const`가 반복마다 다시 바인딩되지 않는 문제 수정 (루프 본문의 `const`가 첫 반복의 값을 유지하고 `for (const x of a)`는 매번 undefined였음; 인터프리터와 컴파일 모드 모두 해당)
+* `수정` `switch` 문의 판별식에서 case 블록 안의 같은 이름의 `let` / `const` 선언이 보이는 문제 수정
+* `개선` ES6 언어 버전에서 `const`에 다시 할당하면 비엄격 모드에서도 TypeError가 발생하도록 변경 (이전에는 조용히 무시), ECMAScript 명세 준수; 언어 버전 180 이하는 기존 동작 유지
+* `의존성` 업스트림 mozilla/rhino를 커밋 `34abaca89` (2026/10/23)까지 동기화
+
 # 2026-10-20
 
 ###### 2026/10/20

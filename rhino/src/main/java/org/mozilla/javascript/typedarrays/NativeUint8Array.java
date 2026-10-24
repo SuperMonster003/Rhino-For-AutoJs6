@@ -11,6 +11,7 @@ import static org.mozilla.javascript.ClassDescriptor.Destination.CTOR;
 import static org.mozilla.javascript.ClassDescriptor.Destination.PROTO;
 
 import java.io.Serial;
+import java.nio.Buffer;
 import org.mozilla.javascript.ClassDescriptor;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.JSFunction;
@@ -165,14 +166,14 @@ public class NativeUint8Array extends NativeTypedArrayView<Integer> {
         var length = self.validateAndGetLength();
         var bytes = new byte[(int) length];
         var src = self.arrayBuffer.buffer.duplicate();
-        src.position(self.offset);
+        ((Buffer) src).position(self.offset);
         src.get(bytes);
         return bytes;
     }
 
     private static void writeBytes(NativeTypedArrayView<?> target, byte[] bytes, int length) {
         var dst = target.arrayBuffer.buffer.duplicate();
-        dst.position(target.offset);
+        ((Buffer) dst).position(target.offset);
         dst.put(bytes, 0, length);
     }
 

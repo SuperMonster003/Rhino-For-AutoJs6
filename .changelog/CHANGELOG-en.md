@@ -17,6 +17,16 @@ This history records maintenance changes to this fork by date. Official Rhino re
 
 [Read the original official Rhino README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). This entry is pinned to commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, preserving the upstream language and the context of relative links. The original document is retained without translation; this page and its other language versions describe this fork.
 
+# 2026-10-24
+
+###### 2026/10/24
+
+* `Feature` `Uint8Array` Base64 and hexadecimal conversion: static methods `fromBase64` / `fromHex` and instance methods `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `Fix` A `const` inside a loop body of a function not being rebound on each iteration (the `const` kept the first iteration's value, and `for (const x of a)` gave undefined on every iteration; both interpreted and compiled modes were affected)
+* `Fix` The discriminant expression of a `switch` statement seeing `let` / `const` declarations of the same name inside the case block
+* `Improvement` Assigning to a `const` under the ES6 language version now throws TypeError in non-strict mode too (previously ignored silently), as the ECMAScript specification requires; language versions 180 and below keep the old behavior
+* `Dependency` Sync upstream mozilla/rhino to commit `34abaca89` (2026/10/23)
+
 # 2026-10-20
 
 ###### 2026/10/20

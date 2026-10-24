@@ -7,6 +7,31 @@
     "dependency": "التبعيات"
   },
   "$data": {
+    "2026-10-24": {
+      "released_date": "2026/10/24",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "دعم تحويل Base64 والنظام السداسي عشر في `Uint8Array`: الطرق الثابتة `fromBase64` / `fromHex` وطرق المثيل `toBase64` / `toHex` / `setFromBase64` / `setFromHex`"
+        },
+        {
+          "category": "fix",
+          "text": "إصلاح عدم إعادة ربط `const` داخل جسم حلقة في دالة عند كل تكرار (كان `const` يحتفظ بقيمة التكرار الأول, وكانت `for (const x of a)` تعطي undefined في كل تكرار; تأثر وضعا التفسير والترجمة)"
+        },
+        {
+          "category": "fix",
+          "text": "إصلاح رؤية تعبير التمييز في عبارة `switch` لتصريحات `let` / `const` التي تحمل الاسم نفسه داخل كتلة case"
+        },
+        {
+          "category": "improvement",
+          "text": "إسناد قيمة إلى `const` في إصدار اللغة ES6 يطرح الآن TypeError في الوضع غير الصارم أيضا (كان يتم تجاهله بصمت سابقا), وفقا لمواصفة ECMAScript; تحتفظ إصدارات اللغة 180 وما دونها بالسلوك القديم"
+        },
+        {
+          "category": "dependency",
+          "text": "مزامنة مستودع mozilla/rhino الأصلي حتى الالتزام `34abaca89` (2026/10/23)"
+        }
+      ]
+    },
     "2026-10-20": {
       "released_date": "2026/10/20",
       "entries": [

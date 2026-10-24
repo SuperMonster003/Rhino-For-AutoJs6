@@ -7,6 +7,31 @@
     "dependency": "Dependency"
   },
   "$data": {
+    "2026-10-24": {
+      "released_date": "2026/10/24",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`Uint8Array` Base64 and hexadecimal conversion: static methods `fromBase64` / `fromHex` and instance methods `toBase64` / `toHex` / `setFromBase64` / `setFromHex`"
+        },
+        {
+          "category": "fix",
+          "text": "A `const` inside a loop body of a function not being rebound on each iteration (the `const` kept the first iteration's value, and `for (const x of a)` gave undefined on every iteration; both interpreted and compiled modes were affected)"
+        },
+        {
+          "category": "fix",
+          "text": "The discriminant expression of a `switch` statement seeing `let` / `const` declarations of the same name inside the case block"
+        },
+        {
+          "category": "improvement",
+          "text": "Assigning to a `const` under the ES6 language version now throws TypeError in non-strict mode too (previously ignored silently), as the ECMAScript specification requires; language versions 180 and below keep the old behavior"
+        },
+        {
+          "category": "dependency",
+          "text": "Sync upstream mozilla/rhino to commit `34abaca89` (2026/10/23)"
+        }
+      ]
+    },
     "2026-10-20": {
       "released_date": "2026/10/20",
       "entries": [

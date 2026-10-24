@@ -7,6 +7,31 @@
     "dependency": "의존성"
   },
   "$data": {
+    "2026-10-24": {
+      "released_date": "2026/10/24",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`Uint8Array`의 Base64 및 16진수 변환 지원: 정적 메서드 `fromBase64` / `fromHex`와 인스턴스 메서드 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`"
+        },
+        {
+          "category": "fix",
+          "text": "함수 안의 루프 본문에 있는 `const`가 반복마다 다시 바인딩되지 않는 문제 수정 (루프 본문의 `const`가 첫 반복의 값을 유지하고 `for (const x of a)`는 매번 undefined였음; 인터프리터와 컴파일 모드 모두 해당)"
+        },
+        {
+          "category": "fix",
+          "text": "`switch` 문의 판별식에서 case 블록 안의 같은 이름의 `let` / `const` 선언이 보이는 문제 수정"
+        },
+        {
+          "category": "improvement",
+          "text": "ES6 언어 버전에서 `const`에 다시 할당하면 비엄격 모드에서도 TypeError가 발생하도록 변경 (이전에는 조용히 무시), ECMAScript 명세 준수; 언어 버전 180 이하는 기존 동작 유지"
+        },
+        {
+          "category": "dependency",
+          "text": "업스트림 mozilla/rhino를 커밋 `34abaca89` (2026/10/23)까지 동기화"
+        }
+      ]
+    },
     "2026-10-20": {
       "released_date": "2026/10/20",
       "entries": [

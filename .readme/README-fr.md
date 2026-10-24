@@ -64,6 +64,16 @@ AutoJs6 référence le JAR complet à l'emplacement `libs/org-mozilla-rhino-2_0_
 
 Cet historique consigne par date les changements de maintenance de cette variante. L'historique des versions officielles de Rhino reste dans les notes de version amont et n'est pas présenté comme de nouvelles versions de cette variante.
 
+### 2026-10-24
+
+###### 2026/10/24
+
+* `Fonctionnalité` Conversion Base64 et hexadécimale pour `Uint8Array`: méthodes statiques `fromBase64` / `fromHex` et méthodes d'instance `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
+* `Correction` Un `const` dans le corps d'une boucle à l'intérieur d'une fonction qui n'était pas relié à chaque itération (le `const` gardait la valeur de la première itération et `for (const x of a)` donnait undefined à chaque itération; les modes interprété et compilé étaient concernés)
+* `Correction` L'expression discriminante d'une instruction `switch` qui voyait les déclarations `let` / `const` de même nom dans le bloc des case
+* `Amélioration` Une affectation à un `const` avec la version de langage ES6 lève désormais une TypeError aussi en mode non strict (auparavant ignorée silencieusement), conformément à la spécification ECMAScript; les versions de langage 180 et inférieures gardent l'ancien comportement
+* `Dépendance` Synchronisation de mozilla/rhino en amont jusqu'au commit `34abaca89` (2026/10/23)
+
 ### 2026-10-20
 
 ###### 2026/10/20
@@ -77,13 +87,6 @@ Cet historique consigne par date les changements de maintenance de cette variant
 * `Correction` Paramètres de substitution et échappement des accolades dans les messages d'erreur, pour éviter la perte de contexte ou les exceptions MessageFormat dans les diagnostics traduits
 * `Correction` Expressions régulières avec des échappements de propriétés Unicode (comme `\p{L}`) qui levaient UnsupportedOperationException sous Android 7.x
 * `Amélioration` Traductions complètes en 9 langues autres que l'anglais pour 28 messages d'erreur du moteur concernant ArrayBuffer, DataView, TypedArray, les expressions régulières, la déstructuration et les fonctions associées
-
-### 2026-10-13
-
-###### 2026/10/13
-
-* `Fonctionnalité` Présentation propre à la variante et historique de maintenance en 10 langues, chacune conservant un lien vers la documentation officielle originale de Rhino
-* `Amélioration` README/CHANGELOG prennent en charge la génération hors ligne à partir de JSON et de modèles, avec des vérifications en lecture seule et une validation CI de la cohérence documentaire
 
 [Historique complet de maintenance de la variante](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-fr.md)
 

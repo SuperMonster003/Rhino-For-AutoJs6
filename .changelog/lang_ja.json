@@ -7,6 +7,31 @@
     "dependency": "依存関係"
   },
   "$data": {
+    "2026-10-24": {
+      "released_date": "2026/10/24",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`Uint8Array` の Base64 / 16 進数変換に対応: 静的メソッド `fromBase64` / `fromHex` とインスタンスメソッド `toBase64` / `toHex` / `setFromBase64` / `setFromHex`"
+        },
+        {
+          "category": "fix",
+          "text": "関数内のループ本体にある `const` が反復ごとに再束縛されない問題を修正 (ループ本体の `const` が最初の反復の値のままになり, `for (const x of a)` は毎回 undefined になっていた; インタプリタとコンパイルの両モードが影響を受けていた)"
+        },
+        {
+          "category": "fix",
+          "text": "`switch` 文の判別式から case ブロック内の同名の `let` / `const` 宣言が見えてしまう問題を修正"
+        },
+        {
+          "category": "improvement",
+          "text": "ES6 の言語バージョンで `const` に再代入すると, 非 strict モードでも TypeError をスローするよう変更 (以前は黙って無視), ECMAScript 仕様に準拠; 言語バージョン 180 以下は従来の動作を維持"
+        },
+        {
+          "category": "dependency",
+          "text": "上流の mozilla/rhino をコミット `34abaca89` (2026/10/23) まで同期"
+        }
+      ]
+    },
     "2026-10-20": {
       "released_date": "2026/10/20",
       "entries": [
