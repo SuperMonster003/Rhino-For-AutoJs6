@@ -90,7 +90,7 @@
 | 编号 | 决策 | 依据与推翻点 |
 | --- | --- | --- |
 | T1 | 降糖在 IRFactory, 后端只认少量新原语 | Parser 产出 class 专用 AST; IRFactory 把 class 降糖为现有 IR (函数 + 对象字面量 + 作用域节点) 加不超过 8 个新原语 (设置 home object, 定义不可枚举方法, this 初始化检查 / 绑定, super() 构造, 按 new.target 创建实例, 类构造器调用检查, 私有名定义 / 读写 / 品牌检查, 字段初始化器调用). 每个后端为这些原语各写一处处理 (预计 Interpreter 150-250 行, Codegen 150-250 行, V2 按其指令类风格). 这是 Rhino 处理解构 / for-of / 模板字符串的惯用方式, 也是上游 PR 最容易被接受的形态. 推翻点: P2 结束前; 若发现某原语在 Codegen 无法表达, 允许该原语退化为 `ScriptRuntime` 静态调用. |
-| T2 | 新代码新文件, 上游文件只留钩子 | 新文件: `ast/ClassNode.java`, `ast/ClassElement.java` (或拆 ClassMethod / ClassField / StaticBlock), `ast/PrivateName.java`, `ClassLowering.java` (IRFactory 的降糖辅助, 包私有), `ClassRuntime.java` (运行时辅助), `PrivateNameKey.java`, `autojs6/JavaClassInheritance.java` (D3 钩子层, 独立包), 各后端的新指令类 / 处理方法. 上游文件的改动点统一加注释标记 `// AutoJs6: class syntax` 或 `// AutoJs6: async`, 并在 P8 把逐条清单登记到 `AGENTS.md` 第二节. 推翻点: 无 (结构性约定). |
+| T2 | 新代码新文件, 上游文件只留钩子 | 新文件: `ast/ClassNode.java`, `ast/ClassElement.java` (或拆 ClassMethod / ClassField / StaticBlock), `ast/PrivateName.java`, `ClassLowering.java` (IRFactory 的降糖辅助, 包私有), `ClassRuntime.java` (运行时辅助), `PrivateNameKey.java`, `autojs6/JavaClassInheritance.java` (D3 钩子层, 独立包), 各后端的新指令类 / 处理方法. 上游文件的改动点统一加注释标记 `// AutoJs6: class syntax` 或 `// AutoJs6: async`; 钩子清单 `docs/autojs6/class-syntax/HOOKS.md` 自 P1 建立, 每阶段同一提交内更新 (格式与核对方式见 `AGENTS.md` 第七节 7.1 / 7.2, 该节 2026-10-24 已写好: 同步时的保护清单, 只读预检, 上游实现后的退役判定与步骤). 推翻点: 无 (结构性约定). |
 | T3 | 词法: `class` / `extends` / `static` / `await` / `async` 的识别 | ES6 门控开启时 `class` 从 RESERVED 变为 `Token.CLASS`; `extends` / `static` / `get` / `set` / `async` / `of` 按上下文关键字处理 (不新增全局保留字, 避免破坏把它们用作标识符的旧脚本); `await` 只在 async 函数体内是关键字 (与 ES 规范一致, 脚本顶层 `await` 仍是标识符, 见 D15); `#name` 新增私有名 token. 推翻点: P1 结束前. |
 | T4 | class 构造器与方法的函数对象 | 构造器是普通 `InterpretedFunction` / 编译函数, 带 `isClassConstructor` 标志 (call 时抛 `msg.class.ctor.call`), 派生类带 `isDerived` 标志 (this 以未初始化状态开始, `super()` 后绑定; 重复 super() 抛 ReferenceError; 访问未初始化 this 抛 ReferenceError); 方法沿用对象字面量方法的机制 (home object, 不可构造), 但以不可枚举方式定义到原型 / 构造器; getter / setter 用现有访问器槽位; 匿名类表达式按 ES 规则推断 `name`. `Function.prototype.toString` 的返回见附录 C Q1. 推翻点: P2 结束前. |
 | T5 | 私有名的存储 | 每个 class 定义求值时为每个私有名创建唯一的 `PrivateNameKey` (不可枚举, 不进属性表的键空间), 存放在 `ScriptableObject` 的独立私有槽表中 (与 `SlotMapOwner` 并列的小表, 旧 Android 兼容按 AGENTS.md 属性表定制同样处理); 反射 API (Object.keys / getOwnPropertyNames / getOwnPropertySymbols / Proxy 陷阱 / JSON.stringify / for-in) 一律看不见; 品牌检查失败抛 TypeError (消息 10 语言). 私有方法与访问器放在类的私有品牌上, 不在实例上复制函数对象. 推翻点: P3 开始前. |
@@ -129,7 +129,8 @@
 - [ ] P1.4 早期错误: 重复 constructor, constructor 为 getter / setter / 生成器 / 字段名, 未声明的 `#x`, 重复私有名 (getter + setter 配对除外), `super()` 出现在非派生构造器或非构造器中, 字段名 `constructor`, 静态字段名 `prototype`, `#constructor`, `delete this.#x`, 类名 `await` / `yield` 的上下文限制等, 消息 10 语言 (T11).
 - [ ] P1.5 async 语法先行解析 (方法, 函数, 箭头, await, for await, async 生成器), IRFactory 在 P9 之前对 async 节点抛 "尚不支持" 的清晰错误 (消息 10 语言), 保证 P9 前的失败是可读的而不是语法错误.
 - [ ] P1.6 测试: fork 新增 `ClassSyntaxParserTest` (AST 形状, toSource 往返, 早期错误) 与 `AsyncSyntaxParserTest`; test262 class 两目录中 `negative: SyntaxError` (parse 阶段) 的用例全部通过 (登记数量); 全量测试与基线对照 (附录 A) 无新增失败.
-- 证据: 提交 hash, 新 token / AST 文件清单, 通过的负向用例数.
+- [ ] P1.7 建立 `docs/autojs6/class-syntax/HOOKS.md` (按 `AGENTS.md` 第七节 7.1 的内容: 钩子行清单, 新文件清单, 开关名, 自带测试类与模块, 依赖的上游机制, 编号链唯一性测试), 并写 `TokenUniquenessTest` 一类的编号链测试; 之后每阶段的提交都同步更新 HOOKS.md.
+- 证据: 提交 hash, 新 token / AST 文件清单, 通过的负向用例数, HOOKS.md 条目数.
 
 ### P2 ES2015 核心: 降糖, 运行时原语, 三个后端 (fork)
 
@@ -185,7 +186,7 @@
 
 ### P8 上游 PR 与同步规程 (fork)
 
-- [ ] P8.1 定制清单入库: 新建 `docs/autojs6/class-syntax/HOOKS.md` (git 跟踪) 列出钩子点 (文件 + 标记注释 + 行内容摘要), 新文件清单, 开关名, 自带测试类, test262.properties 的重生成步骤 (T10); `AGENTS.md` (本地忽略文件, 不入库) 第二节新增 "class / async 定制" 条目指向该文件, 第五节验收加 ClassSyntaxTest / ClassFieldsTest / PrivateNamesTest / BuiltinSubclassingTest / JavaClassInheritanceTest / Async*Test 与 test262 class / async 目录 100% 为必过项, 第六节加 "先取上游 test262.properties 再重生成" 一步.
+- [ ] P8.1 定制清单核对: `docs/autojs6/class-syntax/HOOKS.md` (P1.7 建立, 各阶段更新) 与源码逐条对账 (`rg -n "AutoJs6: (class syntax|async)" rhino/src/main/java` 的数量与文件一致, 新文件清单完整, 唯一性测试齐全); `AGENTS.md` (本地忽略文件, 不入库) 第七节已于 2026-10-24 写好保护与退役规程, 本阶段只按实际落地情况修订其中的测试类名, 模块名与命令, 并把第五节验收项与 HOOKS.md 对齐.
 - [ ] P8.2 在 `E:/.cache` 导出干净的 `upstream/master` 克隆, 以 patch 方式移植通用部分 (不含 `autojs6/` 包与 docs/autojs6), 拆成 "语法 + AST", "降糖 + 运行时 + 后端", "字段与私有名", "内建精确化", "test262 解锁" 五个提交, 在该克隆上跑上游全量测试与 spotless; 开 draft PR 到 mozilla/rhino 引用 #835 (PR 文案由维护者确认后由维护者推送 / 开 PR, 子会话只准备好分支与文案); 评审反馈作为待决事项登记到看板.
 - [ ] P8.3 同步规程演练: 按 `AGENTS.md` 全流程对最新 upstream/master 做一次真实同步 (若有新提交), 验证 P6.5 的结论与新规程步骤.
 - 证据: AGENTS.md 提交 hash, 克隆路径与五个提交 hash, PR 文案位置.
