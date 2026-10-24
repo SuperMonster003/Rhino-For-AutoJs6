@@ -123,14 +123,23 @@
 
 ### P1 语法与 AST (fork)
 
-- [ ] P1.1 词法: `Token.CLASS` 等新 token 与 ES6 门控 (T3), 私有名 `#x` 扫描, 上下文关键字 `extends` / `static` / `async` 的处理; `CompilerEnvirons` 开关 (D4) 与 `Context` 侧的默认值.
-- [ ] P1.2 AST 新节点 (T2): ClassNode (名字, 超类表达式, 元素列表, 是声明还是表达式, 源码位置), ClassElement 各类 (方法 / getter / setter / 字段 / static block, static 标志, 计算键, 私有名), PrivateName; `toSource` 与 `visit` 实现; `ast` 包的 Node 类型注册.
-- [ ] P1.3 Parser: class 声明 (statement 位置, 含 `export` 之外的全部位置约束) 与 class 表达式 (primaryExpr), class 体解析复用对象字面量方法解析 (生成器方法, getter / setter, 计算键), 字段与 static block 解析, 私有名解析与作用域登记, `super()` 调用 (仅派生构造器) 与 `super.x` (方法, 字段初始化器, static block), `new.target`, class 体隐式严格模式, 匿名类名推断的 AST 标记.
-- [ ] P1.4 早期错误: 重复 constructor, constructor 为 getter / setter / 生成器 / 字段名, 未声明的 `#x`, 重复私有名 (getter + setter 配对除外), `super()` 出现在非派生构造器或非构造器中, 字段名 `constructor`, 静态字段名 `prototype`, `#constructor`, `delete this.#x`, 类名 `await` / `yield` 的上下文限制等, 消息 10 语言 (T11).
-- [ ] P1.5 async 语法先行解析 (方法, 函数, 箭头, await, for await, async 生成器), IRFactory 在 P9 之前对 async 节点抛 "尚不支持" 的清晰错误 (消息 10 语言), 保证 P9 前的失败是可读的而不是语法错误.
-- [ ] P1.6 测试: fork 新增 `ClassSyntaxParserTest` (AST 形状, toSource 往返, 早期错误) 与 `AsyncSyntaxParserTest`; test262 class 两目录中 `negative: SyntaxError` (parse 阶段) 的用例全部通过 (登记数量); 全量测试与基线对照 (附录 A) 无新增失败.
-- [ ] P1.7 建立 `docs/autojs6/class-syntax/HOOKS.md` (按 `AGENTS.md` 第七节 7.1 的内容: 钩子行清单, 新文件清单, 开关名, 自带测试类与模块, 依赖的上游机制, 编号链唯一性测试), 并写 `TokenUniquenessTest` 一类的编号链测试; 之后每阶段的提交都同步更新 HOOKS.md.
+- [x] P1.1 词法: `Token.CLASS` 等新 token 与 ES6 门控 (T3), 私有名 `#x` 扫描, 上下文关键字 `extends` / `static` / `async` 的处理; `CompilerEnvirons` 开关 (D4) 与 `Context` 侧的默认值.
+- [x] P1.2 AST 新节点 (T2): ClassNode (名字, 超类表达式, 元素列表, 是声明还是表达式, 源码位置), ClassElement 各类 (方法 / getter / setter / 字段 / static block, static 标志, 计算键, 私有名), PrivateName; `toSource` 与 `visit` 实现; `ast` 包的 Node 类型注册.
+- [x] P1.3 Parser: class 声明 (statement 位置, 含 `export` 之外的全部位置约束) 与 class 表达式 (primaryExpr), class 体解析复用对象字面量方法解析 (生成器方法, getter / setter, 计算键), 字段与 static block 解析, 私有名解析与作用域登记, `super()` 调用 (仅派生构造器) 与 `super.x` (方法, 字段初始化器, static block), `new.target`, class 体隐式严格模式, 匿名类名推断的 AST 标记.
+- [x] P1.4 早期错误: 重复 constructor, constructor 为 getter / setter / 生成器 / 字段名, 未声明的 `#x`, 重复私有名 (getter + setter 配对除外), `super()` 出现在非派生构造器或非构造器中, 字段名 `constructor`, 静态字段名 `prototype`, `#constructor`, `delete this.#x`, 类名 `await` / `yield` 的上下文限制等, 消息 10 语言 (T11).
+- [x] P1.5 async 语法先行解析 (方法, 函数, 箭头, await, for await, async 生成器), IRFactory 在 P9 之前对 async 节点抛 "尚不支持" 的清晰错误 (消息 10 语言), 保证 P9 前的失败是可读的而不是语法错误.
+- [x] P1.6 测试: fork 新增 `ClassSyntaxParserTest` (AST 形状, toSource 往返, 早期错误) 与 `AsyncSyntaxParserTest`; test262 class 两目录中 `negative: SyntaxError` (parse 阶段) 的用例全部通过 (登记数量); 全量测试与基线对照 (附录 A) 无新增失败.
+- [x] P1.7 建立 `docs/autojs6/class-syntax/HOOKS.md` (按 `AGENTS.md` 第七节 7.1 的内容: 钩子行清单, 新文件清单, 开关名, 自带测试类与模块, 依赖的上游机制, 编号链唯一性测试), 并写 `TokenUniquenessTest` 一类的编号链测试; 之后每阶段的提交都同步更新 HOOKS.md.
 - 证据: 提交 hash, 新 token / AST 文件清单, 通过的负向用例数, HOOKS.md 条目数.
+- 完成 (2026-10-24, 子会话 rhino-p1): 提交 b5eafcb3f (功能, 测试, 消息, HOOKS.md, NOTES.md) + 本条勾选提交.
+  - 新 token: `Token.CLASS` / `PRIVATE_NAME` / `CLASS_ELEMENT` / `AWAIT` (链尾, `LAST_TOKEN = AWAIT + 1`); 开关 `Context.FEATURE_CLASS_SYNTAX` (23) / `FEATURE_ASYNC_SYNTAX` (24), `CompilerEnvirons.set/isClassSyntaxEnabled`, `set/isAsyncSyntaxEnabled`, 默认开, 需语言版本 >= 200.
+  - 新文件: `ClassParser`, `AsyncParser`, `ClassLowering` (P1 只报 `msg.class.not.supported`), `AsyncLowering` (P1 只报 `msg.async.not.supported`), `ast/ClassNode`, `ast/ClassElement`, `ast/PrivateName`, `ast/AwaitExpression`, `ast/ForAwaitOfLoop`; 消息 27 个 (class 21, async 6), 10 语言.
+  - test262 class 两目录 (只解析, `ClassSyntaxTest262ParseTest`): parse 阶段反例 1262 / 1262 拒绝; 正例 7101 / 7127 可解析, 其余 26 例是上游生成器 `yield` 解析缺口 (附录 C Q10); 跳过 module 13 例与 decorators 24 例 (T10). `test262.properties` 未改 (附录 C Q9).
+  - HOOKS.md: 钩子行 127 (class syntax 77, async 50, 9 个上游文件, 表内 43 行登记), 新文件 9 个, 自带测试类 6 个; `HooksRegistryTest` 对照通过.
+  - 自带测试: rhino 模块 ClassSyntaxParserTest 61, AsyncSyntaxParserTest 20, TokenUniquenessTest 4, HooksRegistryTest 2, MessageTranslationsTest 36 (含新 key) 全部通过; tests 模块 ClassSyntaxTest262ParseTest 通过.
+  - 全量 (JDK 21, 五个模块): rhino 4094 (0 失败), rhino-xml 6, rhino-engine 43, rhino-tools 21 (1 失败, 同基线), tests 121076 (54 失败); 失败集与附录 A 基线 55 项完全相同, 无新增. 另有 9 个登记为失败的 test262 用例现在通过 (await 作标识符 / 标签, yield 换行 *, `for (async of ...)`), P6.1 重生成时去掉.
+  - fork changelog 不在 P1 写: P1 没有用户可见的可执行功能, 按 P7.3 / P9.7 写 10 语言 changelog.
+  - 交接要点与留给 P2 / P3 / P9 的早期错误清单见 `NOTES.md`.
 
 ### P2 ES2015 核心: 降糖, 运行时原语, 三个后端 (fork)
 
@@ -232,6 +241,8 @@
 - Q6 未捕获的 Promise rejection 怎么处理 | A (推荐) 控制台 error 级输出一次 (含栈), 脚本继续 (浏览器行为); B 终止脚本并按未捕获异常处理 (Node 15+ 默认); C 只在开发者选项开启时输出 | P9.5, P9.6 | P9 开始前
 - Q7 脚本结束判定与挂起的 await | A (推荐) 没有待执行宏任务 / 定时器 / 监听时脚本结束, 未落定的 Promise 不保活 (Node 语义), 控制台不提示; B 同 A 但在有未落定 async 函数时输出一条提示; C 等待所有 async 函数落定 (可能永不结束, 不推荐) | P9.5, P9.6 | P9 开始前
 - Q8 已决 (2026-10-24, 维护者选: B 硬门槛 10%, class 方法调用慢于 function + prototype 写法超过 10% 即阶段不通过; 已回填 P2.5 / P6.4 / P9.4) 性能门槛 | A (推荐) 不设硬门槛, 登记基准; 方法调用慢于 function + prototype 写法超过 20% 时登记为待决再议; B 设硬门槛 10%; C 不测 | P2.5, P6.4, P9.4 | P2 开始前
+- Q9 已按推荐先行待确认 (P1 子会话 2026-10-24 登记) P1 阶段是否重生成 `test262.properties` | A (推荐, 已先行) P1 不改 `test262.properties`, class 两目录仍为 `~` 整目录排除; P1.6 的 "parse 阶段反例全部通过" 由 tests 模块的 `ClassSyntaxTest262ParseTest` 只解析地验证 (反例 1262 / 1262 拒绝, 正例 7101 / 7127 可解析, 跳过 module 与 decorators 37 例), P6.1 按原计划重生成解锁; B 现在就用 `-DupdateTest262properties` 重生成解锁 class 两目录 (反例经编译期报错计为通过, 约 7100 个正例以 "暂不支持" 失败逐条写进 properties, P2-P6 每阶段都要重生成, properties 改动量大) | P1.6, P6.1 | 改选返工: B 约 1 小时 (重生成一次加全量对照); A 无 | P2 开始前
+- Q10 需拍板 (P1 子会话 2026-10-24 登记) test262 class 两目录有 26 个正例因上游生成器解析的缺口不能解析 (未加括号的 `yield` 出现在逗号表达式 / 条件表达式分支 / 对象展开 / 计算属性名里; 同样写法在普通生成器里也失败, 上游 properties 里对应的生成器用例同样登记为失败), 清单在 `ClassSyntaxTest262ParseTest.KNOWN_PARSE_GAPS` | A (推荐) fork 在 P6 (或 P2 顺带) 修 Parser 的 `yield` 解析, 钩子带 `// AutoJs6: class syntax` 并登记 HOOKS.md, 普通生成器的同类用例一并转为通过, P8 作为通用修复提上游 PR; B 登记为附录 E 例外 (与 T10 "不允许因难排除" 冲突, 需维护者明确豁免); C 先给上游提 PR, 等合入后随同步获得 | P6.1 (class 范围 100%), P8 | 改选返工: A 约 30-80 行 Parser 钩子加测试; B 无; C 依赖上游节奏, 可能拖到 P6 之后 | P6 开始前
 
 ## 附录 D 内建构造器清单 (P4.1 填写)
 
