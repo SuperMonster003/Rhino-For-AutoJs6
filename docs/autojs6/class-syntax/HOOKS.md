@@ -17,6 +17,7 @@
 | P5 | 完成 (2026-10-25) | 继承 Java 类与接口 (T6, fork-only D3): `class X extends JavaClass` / `extends Interface` / `extends JavaAdapter(Base, I1, I2)` (附录 C Q3 = A), 实例是包装适配器对象的脚本对象 (附录 C Q4 = A), 适配器类经 `JavaAdapter.createAdapterCode` 按签名缓存; 钩子层在 `autojs6` 包 |
 | P6 | 完成 (2026-10-25) | test262 解锁: `Test262SuiteTest` 运行 class 特性 (T10 的 `decorators` / `nonextensible-applies-to-private` 改为 unsupported), `test262.properties` 由工具重生成 (class 两目录不再整目录排除, 剩余登记只有 P9 与 T10, 附录 E); 可选的 Interpreter V2 模式 (`-Drhino.test262.interpreterV2=true`, 目前 0 例); `HooksRegistryTest` 起把上游测试源码 `tests/src` 一并对账; `rhino/src/main/java` 不变 |
 | P6.6 | 完成 (2026-10-26) | 调用里的实参展开 (附录 C Q16 = B, 与 class 无关的通用修复): `f(...a)` / `o.m(...a)` / `super.m(...a)` / `new F(...a)` / `eval(...a)`, IRFactory 把全部实参收进一个数组字面量, 解释器经 5 个 `SPREAD_*` icode (普通调用复用 CALL 指令的内联帧), 编译器经 `generateCallArgArray` |
+| P6.7 | 完成 (2026-10-26) | 逻辑赋值 `||=` / `&&=` / `??=` 的短路 (附录 C Q17 = B, 通用修复): IRFactory 降为 `a || (a = b)` 形式, 属性引用的对象与非常量键存进 let 表达式的临时绑定, 两个后端不改; 显式 `set: undefined` 的访问器在严格模式写入抛 TypeError (附录 C Q18, 已按推荐先行) |
 | P7-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
@@ -196,7 +197,10 @@
 | `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | class syntax | 5 | `DoCallByteCode`: `SPREAD_CALL` / `SPREAD_CALL_ON_SUPER` 把数组元素作为 bound 实参 (`SpreadCall.callArguments`), 改按 `CALL` / `CALL_ON_SUPER` 继续 (解释函数仍走内联帧, 栈深与 continuation 同普通调用) | P6.6 |
 | `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 1 | `generateCallArgArray`: 展开调用的实参数组由 `SpreadCallCodegen.generateArgs` 生成 (普通调用, super 调用, 可选调用, new, eval, REF_CALL 都经这里) | P6.6 |
 | `rhino/src/main/java/org/mozilla/javascript/optimizer/OptTransformer.java` | class syntax | 1 | `detectDirectCall`: 展开调用不做直接调用 (实参个数运行时才知道) | P6.6 |
-合计 480 行 (class syntax 430, async 50; 上游测试源码 `tests/src` 7 行, P6 起登记); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行; P4 新增 62 行, 另把 `JSFunction.construct` 里 P2 的 `createObject` 调用改为 `BuiltinConstruction.thisObject`. P4 在上游文件里删除的行: `findPrototype` 两个方法体, `NativeMap` / `NativeSet` 的 `loadFromIterable` 方法体, 各构造器的 `setBuiltinProtoAndParent` 调用, `BaseFunction.createObject` 的方法体, `NativeRegExp.js_constructCall` 的提前返回, `NativeDataView` 的 `TopLevel` import; 合并时上游改了这些位置, 按第三节第 7 条以上游版本为基础重新插入钩子. P5 新增 23 行, 全部是 Java 类继承 (fork-only, D3): 上游文件 19 行, fork 文件 `ClassRuntime` 4 行 (它是第 4 节的新文件, 这 4 行仍带标记, 退役 class 族时按 `AGENTS.md` 7.4 改挂到上游实现, 见 NOTES.md P5). P6 新增 7 行, 都在上游测试源码 `Test262SuiteTest` (test262 解锁与 V2 模式开关), `rhino/src/main/java` 不变; 删除的行: `UNSUPPORTED_FEATURES` 里的 `class` / `class-fields-private` / `class-fields-public`, `getResult` 里原来的 `allCovered` 一行. P8 上游 PR 的 "test262 解锁" 提交只带去掉 class 特性那部分, V2 开关与 T10 的两个特性是否随带由 P8 定 (NOTES.md P6). P6.6 (实参展开, 与 class 无关, P8 单独一个上游 PR) 新增 20 行: IRFactory 2, Icode 6, CodeGenerator 5 (其中改动的上游行 2 行), Interpreter 5, BodyCodegen 1, OptTransformer 1; 标记沿用 `class syntax` (同 P2 的 yield 修复).
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 2 | `createAssignment` 开头: 逻辑赋值交给 `LogicalAssignment.lower` (返回 null 时照旧, 即特殊属性与 E4X 引用) | P6.7 |
+| `rhino/src/main/java/org/mozilla/javascript/AccessorSlot.java` | class syntax | 5 | `setValue`: setter 为 `undefined` 的 `FunctionSetter` 按没有 setter 处理 (`throwNoSetterException`, 严格模式抛 TypeError, 非严格忽略); 上游原来静默成功 (附录 C Q18) | P6.7 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 1 | `case Token.SUPER`: home object 经 `ClassBodyCodegen.homeObject` (`ClassRuntime.homeObject` 沿作用域链找到函数的活动对象); 上游把当前作用域直接强转为 `NativeCall`, 方法里 let 块 (作用域对象) 或 with 语句中的 `super` 在编译模式抛 `ClassCastException`, 逻辑赋值的临时绑定同样会碰到; 删除的上游行: `CHECKCAST NativeCall` 与 `getHomeObject` 调用 (共 6 行) | P6.7 |
+合计 488 行 (class syntax 438, async 50; 上游测试源码 `tests/src` 7 行, P6 起登记); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行; P4 新增 62 行, 另把 `JSFunction.construct` 里 P2 的 `createObject` 调用改为 `BuiltinConstruction.thisObject`. P4 在上游文件里删除的行: `findPrototype` 两个方法体, `NativeMap` / `NativeSet` 的 `loadFromIterable` 方法体, 各构造器的 `setBuiltinProtoAndParent` 调用, `BaseFunction.createObject` 的方法体, `NativeRegExp.js_constructCall` 的提前返回, `NativeDataView` 的 `TopLevel` import; 合并时上游改了这些位置, 按第三节第 7 条以上游版本为基础重新插入钩子. P5 新增 23 行, 全部是 Java 类继承 (fork-only, D3): 上游文件 19 行, fork 文件 `ClassRuntime` 4 行 (它是第 4 节的新文件, 这 4 行仍带标记, 退役 class 族时按 `AGENTS.md` 7.4 改挂到上游实现, 见 NOTES.md P5). P6 新增 7 行, 都在上游测试源码 `Test262SuiteTest` (test262 解锁与 V2 模式开关), `rhino/src/main/java` 不变; 删除的行: `UNSUPPORTED_FEATURES` 里的 `class` / `class-fields-private` / `class-fields-public`, `getResult` 里原来的 `allCovered` 一行. P8 上游 PR 的 "test262 解锁" 提交只带去掉 class 特性那部分, V2 开关与 T10 的两个特性是否随带由 P8 定 (NOTES.md P6). P6.6 (实参展开, 与 class 无关, P8 单独一个上游 PR) 新增 20 行: IRFactory 2, Icode 6, CodeGenerator 5 (其中改动的上游行 2 行), Interpreter 5, BodyCodegen 1, OptTransformer 1; 标记沿用 `class syntax` (同 P2 的 yield 修复). P6.7 (逻辑赋值短路, `set: undefined` 与编译模式块内 `super`, 同样是通用修复, 与 P6.6 合为一个上游 PR 还是分开由 P8 定) 新增 8 行: IRFactory 2, AccessorSlot 5 (新的钩子文件), BodyCodegen 1 (另删除上游 6 行).
 
 ## 4. 新文件
 
@@ -215,7 +219,7 @@
 - `rhino/src/main/java/org/mozilla/javascript/PrivateElements.java`: 对象的 [[PrivateElements]] (T5): `ScriptableObject` 用字段 `privateElements` 持有, 写时复制的两个数组, 添加在宿主对象监视器下进行 (不用 VarHandle); 其他 `Scriptable` (Java 对象包装按被包装的对象) 用弱引用的标识表 (P3).
 - `rhino/src/main/java/org/mozilla/javascript/ClassInterpreter.java`: 解释器后端: `Token.CLASS` 的 icode 生成 (`generate`), 指令类注册 (`register`) 与 icode 名字 (P2).
 - `rhino/src/main/java/org/mozilla/javascript/BindingLowering.java`: 与 class 无关的通用绑定修复, test262 class 目录的方法用例依赖它们: 参数作用域, 参数 TDZ, 参数解构的迭代器协议, 生成器参数解构, for-of 关闭迭代器, 函数名推断, 需要 arguments 的活动对象 (P2); 对象解构赋值里成员表达式目标的求值顺序 (P3).
-- `rhino/src/main/java/org/mozilla/javascript/optimizer/ClassBodyCodegen.java`: 编译后端: `Token.CLASS` 的字节码生成, 当前 this 的取值, 直接调用判定用的 `hasYield`, for-of 局部变量清零的判定 (P2).
+- `rhino/src/main/java/org/mozilla/javascript/optimizer/ClassBodyCodegen.java`: 编译后端: `Token.CLASS` 的字节码生成, 当前 this 的取值, 直接调用判定用的 `hasYield`, for-of 局部变量清零的判定 (P2); P6.7 加 `homeObject` (编译模式 `super` 的 home object, 运行时在 `ClassRuntime.homeObject`, 通用修复).
 - `rhino/src/main/java/org/mozilla/javascript/BuiltinConstruction.java`: 内建构造器按 new.target 创建 (P4, T9): `prototypeOf` (GetPrototypeFromConstructor; new.target 就是构造器自身或没有时直接取自身的 prototype, 不查找), `createFromConstructor` (普通对象的 OrdinaryCreateFromConstructor, 经 `ScriptRuntime.createFromConstructor` 调用), `functionRealm` (GetFunctionRealm: 绑定函数取目标, Proxy 取目标, 已撤销抛 TypeError), 默认原型 (按构造器名查 `TopLevel.Builtins` / `NativeErrors`, 再取 `findPrototype` 传入的类型, 再取同名类原型; 跨 realm 时在 new.target 的 realm 里取), `create` / `withPrototype` / `thisObject` (BaseFunction, LambdaConstructor, JSFunction 的构造路径), `defineConstructor`, Map / Set 的 AddEntriesFromIterable, DataView 的 `checkView`, RegExp 的 `regExpArgs` 与 `userTest`.
 - `rhino/src/main/java/org/mozilla/classfile/StackSpills.java`: 编译模式生成器在 yield 点保存 / 恢复操作数栈的类型: 先留空指令占位, 方法结束时按栈图分析的类型改写为装箱 / 拆箱 / 强转 (P2, 附录 C Q10).
 - `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassCtorCheck.java`: V2 指令, 对应 icode `CLASS_CTOR_CHECK` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
@@ -245,6 +249,7 @@
 
 - `rhino/src/main/java/org/mozilla/javascript/SpreadCall.java`: P6.6 (附录 C Q16 = B, 通用修复): 实参展开的 IR 收拢 (`lower`: 全部实参移进一个数组字面量, 它按迭代器协议展开并从左到右求值), 解释器的 5 个 icode (`emit` 发射, `register` 注册: `SPREAD_CALL` / `SPREAD_CALL_ON_SUPER` 由 CALL 的指令执行, `SPREAD_NEW` / `SPREAD_CALLSPECIAL` / `SPREAD_REF_CALL` 是自有指令类), `callArguments` (CALL 指令的钩子用) 与运行时 `args` (数组字面量 -> 实参数组, 编译代码调用, 故为 public); 不生成对 `Function.prototype.apply` / `Reflect.apply` 的 JS 级调用.
 - `rhino/src/main/java/org/mozilla/javascript/optimizer/SpreadCallCodegen.java`: P6.6: 编译后端 `generateCallArgArray` 的钩子, 展开调用的实参数组 = 数组字面量 + `SpreadCall.args`.
+- `rhino/src/main/java/org/mozilla/javascript/LogicalAssignment.java`: P6.7 (附录 C Q17 = B, 通用修复): 逻辑赋值的 IR 降糖 (`lower`): 标识符为 `a || (a = b)` (const 只在真正写入时报错, `with` / 全局 / let 照常解析); 属性引用 `o.k` / `o[k]` / `super.k` / `this.#x` 的对象与非常量键各求值一次 (存进 LETEXPR 的临时绑定, 名字以 `%` 开头, 标识符引用不到), `this` / `super` / 常量键 / 私有名重新求值; 非常量键先对对象做 RequireObjectCoercible (`ClassOp.REQUIRE_OBJECT`); 调用作为目标报 SyntaxError (可选链目标由 Parser 照旧报错); 写入走普通赋值, 保留函数名推断与私有名 / 严格模式的检查.
 
 ### 4.1 错误消息
 
@@ -275,6 +280,8 @@
 | `org.mozilla.javascript.tests.classsyntax.BuiltinSubclassingTest` | rhino | 附录 D 的每个构造器至少一个子类用例 (instanceof, 原型方法, species, 自定义成员, 覆盖的 `set` / `add` / `exec`), Proxy / 绑定函数 / 另一 realm 的函数作 new.target, 宿主 LambdaConstructor 被继承, 解释 / 编译两模式 | P4 |
 | `org.mozilla.javascript.tests.BuiltinSubclassingTest262Test` | tests | test262 `subclass-builtins` (两目录 72 个), `subclass/builtin-objects` (70 个) 与 `built-ins` 下含 `newTarget` 的文件 (219 个) 解释 / 编译两模式执行, 跳过规则同 `ClassSyntaxTest262CoreTest`, 已知失败登记附录 E (P9 1 例); 失败明细写到 `tests/build/class-syntax/builtins-<模式>.txt` | P4 |
 | `org.mozilla.javascript.tests.classsyntax.JavaClassInheritanceTest` | rhino | 继承 Java 类 (Thread, AbstractList, 带受保护构造器 / 字段 / 方法的抽象类), 单个接口, `JavaAdapter(Base, I1, I2)`, super() 的重载选择, `super.m()`, Java 构造器调用被覆盖的方法, 静态成员, 字段 / 私有名在实例上, 赋值写 Java 字段, Java API 拿到 Java 对象且回来仍是实例, toString / equals / hashCode, 类的子类, Java 线程池回调, 适配器类缓存, 旧 `JavaAdapter` 写法回归, 各类 TypeError / ReferenceError 消息, 解释 / 编译两模式 | P5 |
+| `org.mozilla.javascript.tests.classsyntax.SpreadCallTest` | rhino | 实参展开的四种形式, 混合与多个展开, 可选调用, 各种可迭代对象, 数组迭代可观察 (覆写 `Symbol.iterator` 与 `next`), 不可迭代的 TypeError, 求值顺序与中途异常, new.target 与 new 的结果, `super.m` 的 this 与 home object, 不经 `apply` / `Reflect`, 直接 eval, 绑定函数与 call / apply, REF_CALL, 生成器里的 yield, 解释模式的深递归与 continuation (内联帧), 解释 / 编译两模式 | P6.6 |
+| `org.mozilla.javascript.tests.classsyntax.LogicalAssignmentTest` | rhino | 三个运算符的值, 标识符 (const / let / `with` / 全局 / 未声明), 脚本顶层与闭包里的临时绑定, 短路时不调 setter 与冻结对象不报错, 对象与键只求值一次, null 基对象先于键转换报错, 数组元素, 私有名 (只有 getter 的访问器, 静态, 品牌检查), super 属性 (含派生构造器与非常量键), 函数名推断, 生成器, 非法目标的 SyntaxError, `set: undefined` 的严格模式写入 (Q18), 解释 / 编译两模式 | P6.7 |
 
 后续阶段规划的测试类 (AsyncFunctionTest, AsyncGeneratorTest, ForAwaitTest) 落地时登记到本表.
 
@@ -324,6 +331,13 @@ P6 起依赖 (上游测试框架; 上游改动时 `Test262SuiteTest` 的钩子�
 
 - `Test262SuiteTest` 的 `UNSUPPORTED_FEATURES` (按 features 跳过, 写进 properties 的 `{unsupported: [...]}`), properties 的读法 (`~` 整目录排除, 子目录汇总只含直接文件) 与重生成 (`-DupdateTest262properties=all`, `tests/build.gradle` 要求 `RHINO_TEST_JAVA_VERSION=17`).
 - `TestMode` 的矩阵与 `TestResultTracker.getResult` 的标签规则 ("全部模式都失败" 时不写标签, 模式数按 `InterpreterV2Mode.modeCount()`), `Context.EvaluationMethod` / `setOptimizationLevel(-2)` 选择 V2 的方式 (V2 模式的可用性按 "能否用 V2 编译脚本" 判断).
+
+P6.6 / P6.7 起依赖 (通用修复; 上游实现实参展开或逻辑赋值短路时按 `AGENTS.md` 7.4 判定退役这两项):
+
+- 数组字面量的展开: `ARRAYLIT` 的 `NUMBER_OF_SPREAD` / `DESTRUCTURING_ARRAY_LENGTH` 属性, 解释器 `NewLiteralStorage.spreadArray` 与编译器同名路径按迭代器协议 (`ScriptRuntime.callIterator`) 展开; 结果是 `NativeArray`.
+- 解释器 `DoCallByteCode` 的 bound 实参 (`boundArgs` / `blen`, 内联帧的 `initFrame`), `CALL_ON_SUPER` 的 this 替换; 编译器 `BodyCodegen.generateCallArgArray` 是全部调用形式的实参数组出口.
+- LETEXPR 的临时绑定: `Parser.createScopeNode` / `pushScope` / `defineSymbol(Token.LET, ...)` / `popScope` 与 `currentScriptOrFn.getNextTempName` (同 `Parser.destructuringAssignmentHelper`), NodeTransformer 把它变为局部变量或作用域对象; `Parser.simpleAssignment` 的目标检查 (const, 严格模式, 私有名) 与函数名推断.
+- `AccessorSlot.FunctionSetter` (显式 `set: undefined` 时 target 为 `Undefined`) 与 `throwNoSetterException` 的严格模式判断 (`Context.isStrictMode`).
 
 后续阶段将依赖 (登记时补充): `GeneratorState` 与 async 驱动, `NativePromise` 与 `Context.enqueueMicrotask`, `UnhandledRejectionTracker`.
 
@@ -392,14 +406,21 @@ P6 (test262 解锁, 记录与理由见 NOTES.md P6):
 
 - `test262.properties` 按 JDK 17 生成 (`tests/build.gradle` 的要求, 与上游一致): JDK 17 的 Unicode 版本较旧, 32 个 RegExp property-escapes / identifiers 用例在 JDK 21 通过但保持登记 (JDK 21 全量只打印 "marked as failing but it does not"); 本机 test262 检出为 CRLF (`core.autocrlf=true`), `Function/prototype/toString/line-terminator-normalisation-LF.js` 因此登记为失败, LF 检出的机器上同样只打印提示.
 - 附录 A 的 7 个既有 test262 基线差异 (`__proto__` 定制 6 个, CRLF 1 个) 随重生成写进 properties, 全量对照里不再出现; 它们仍是 fork 与上游的行为差异, 同步时按 `AGENTS.md` 第五节最后一条照旧核对.
-- 实参展开 `f(...args)` / `new F(...args)` / `super.m(...args)` 原来在上游各后端未实现 (内部错误 `190`), 已由 P6.6 补上 (附录 C Q16 = B), 限制见下面 "P6.6"; 逻辑赋值 `&&=` / `||=` / `??=` 不短路 (上游 IR 总是写回, 私有名同样), 附录 C Q17.
+- 实参展开 `f(...args)` / `new F(...args)` / `super.m(...args)` 原来在上游各后端未实现 (内部错误 `190`), 已由 P6.6 补上 (附录 C Q16 = B), 限制见下面 "P6.6"; 逻辑赋值 `&&=` / `||=` / `??=` 原来不短路 (上游 IR 总是写回, 私有名同样), 已由 P6.7 修复 (附录 C Q17 = B), 限制见下面 "P6.7".
 
 P6.6 (实参展开, 记录与理由见 NOTES.md "P6.6 / P6.7"):
 
 - 解释模式的 `new F(...a)`, `eval(...a)` 与 `f(...a) = v` (REF_CALL) 走自有指令, 不内联被调用的解释函数 (与解释器调用编译函数相同, 构造器里捕获 continuation 会失败); 普通调用与 `super.m(...a)` 经 CALL 的指令, 与普通调用一样内联.
 - 编译模式的直接调用优化 (同一脚本里按名调用实参个数相同的函数) 不用于展开调用.
-- 数组的展开总按迭代器协议 (`Array.prototype[Symbol.iterator]` 与数组迭代器的 `next` 都可被覆写), 没有未覆写时的快速路径, 比 `f.apply(null, a)` 慢 (计时见 NOTES.md).
+- 数组的展开总按迭代器协议 (`Array.prototype[Symbol.iterator]` 与数组迭代器的 `next` 都可被覆写), 没有未覆写时的快速路径, 比 `f.apply(null, a)` 慢 (计时见 NOTES.md, 耗时主要在上游数组字面量 `[...a]` 的迭代, 附录 C Q19).
 - V2 模式 0 例: `Context.EvaluationMethod` 没有 -2 级别, 上游也没有 IR 到 V2 的编译器 (附录 C Q11).
+
+P6.7 (逻辑赋值短路, 记录与理由见 NOTES.md "P6.6 / P6.7"):
+
+- 特殊属性 (`__proto__` / `__parent__` 的 `GET_REF`) 与 E4X 引用 (`x.@a`, `x..y`) 上的逻辑赋值不归 `LogicalAssignment` 处理, 照旧走上游的 "读, 运算, 总是写回".
+- 脚本顶层与含嵌套函数的函数里, 临时绑定随 LETEXPR 成为作用域对象 (同块级 let), 比局部变量慢; 只有对象不是 `this` / `super` 或键不是常量时才有临时绑定.
+- 可选链目标 (`o?.x ||= 1`) 仍由 Parser 报 SyntaxError, 消息沿用上游的 "Invalid left-hand side in assignment"; 调用目标 (`f() ||= 1`) 报 `msg.bad.assign.left`, 不再有 `=` / 复合赋值的 web 兼容运行时 ReferenceError.
+- `set: undefined` 的修复 (Q18) 对 `=` / 复合赋值同样生效: 严格模式代码 (含 class 体) 写这种访问器从静默忽略改为 TypeError, 与没有 setter 的访问器一致.
 
 ## 9. 退役记录
 

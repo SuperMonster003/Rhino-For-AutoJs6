@@ -760,6 +760,19 @@ public final class ClassRuntime {
     }
 
     /**
+     * The home object of the function running in the scope, for {@code super} in compiled code. The
+     * scope is the activation of the function or, inside a let block or a with statement of it, a
+     * scope whose parents lead to the activation; the upstream code only expected the activation.
+     */
+    public static Scriptable homeObject(Object scope) {
+        VarScope s = (VarScope) scope;
+        while (!(s instanceof NativeCall)) {
+            s = s.getParentScope();
+        }
+        return ((NativeCall) s).getHomeObject();
+    }
+
+    /**
      * Returns the this value passed on where the current this may be uninitialized without that
      * being an error yet (the this of direct eval code, the debugger): undefined before {@code
      * super()}.

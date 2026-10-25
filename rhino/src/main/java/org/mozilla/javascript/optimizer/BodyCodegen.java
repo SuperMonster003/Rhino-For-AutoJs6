@@ -1166,12 +1166,7 @@ class BodyCodegen {
                     // Read home object from activation, which we know we'll always have because we
                     // set "requiresActivation" to any function that mentions "super" in IRFactory
                     cfw.addALoad(variableObjectLocal);
-                    cfw.add(ByteCode.CHECKCAST, "org/mozilla/javascript/NativeCall");
-                    cfw.addInvoke(
-                            ByteCode.INVOKEVIRTUAL,
-                            "org/mozilla/javascript/NativeCall",
-                            "getHomeObject",
-                            "()Lorg/mozilla/javascript/Scriptable;");
+                    ClassBodyCodegen.homeObject(cfw); // AutoJs6: class syntax
 
                     // If null, then put undefined
                     int after = cfw.acquireLabel();

@@ -2612,6 +2612,8 @@ public final class IRFactory {
     }
 
     private Node createAssignment(int assignType, Node left, Node right) {
+        Node lg = LogicalAssignment.lower(parser, assignType, left, right); // AutoJs6: class syntax
+        if (lg != null) return lg; // AutoJs6: class syntax
         Node ref = makeReference(left);
         if (ref == null) {
             if (left.getType() == Token.ARRAYLIT || left.getType() == Token.OBJECTLIT) {

@@ -173,6 +173,11 @@ final class ClassBodyCodegen {
         invoke(cfw, "receiver", "(" + OBJECT + ")" + OBJECT);
     }
 
+    /** Replaces the scope on the stack by the home object of the current function. */
+    static void homeObject(ClassFileWriter cfw) {
+        invoke(cfw, "homeObject", "(" + OBJECT + ")Lorg/mozilla/javascript/Scriptable;");
+    }
+
     private static void pushDescriptor(BodyCodegen bc, Node function) {
         int fnIndex = function.getExistingIntProp(Node.FUNCTION_PROP);
         OptFunctionNode ofn = OptFunctionNode.get(bc.scriptOrFn, fnIndex);

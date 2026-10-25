@@ -87,6 +87,11 @@ public class AccessorSlot extends StandardSlot<Scriptable> {
 
     @Override
     public boolean setValue(Object value, Scriptable owner, Scriptable start, boolean isThrow) {
+        if (setter instanceof FunctionSetter f // AutoJs6: class syntax
+                && !(f.target instanceof Function)) { // AutoJs6: class syntax
+            throwNoSetterException(start, value); // AutoJs6: class syntax
+            return true; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         if (setter == null) {
             if (getter != null) {
                 throwNoSetterException(start, value);
