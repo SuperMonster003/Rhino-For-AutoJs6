@@ -156,3 +156,63 @@
 - `#x in obj` 4 个: `expressions/in/private-field-presence-{accessor,method}{,-shadowed}.js`.
 - 私有方法的 `Function.prototype.toString` 4 个: `Function/prototype/toString/private-{,static-}method-class-{expression,statement}.js`.
 - 顶层箭头函数里的 `new.target` 报 SyntaxError 1 个: `global-code/new.target-arrow.js`.
+
+## P4 内建构造器按 new.target 创建 (2026-10-25 完成, 子会话 rhino-p4)
+
+### 统一入口与快速路径
+
+- T9 盘点结论: 可行, 不登记推翻 (附录 D "T9 落地方式"). 上游已把内建迁到 `ClassDescriptor` (构造器是 `JSFunction`, 构造代码拿到 new.target), 并有近似入口 `ScriptRuntime.findPrototype` / `setBuiltinProtoAndParent`; P4 把它们与脚本函数的 `BaseFunction.createObject` 统一到新文件 `BuiltinConstruction`, 上游文件只留钩子 (HOOKS.md 第 3 节 P4 行, 62 行).
+- 两个入口: `BuiltinConstruction.prototypeOf(f, nt)` (内建构造器: GetPrototypeFromConstructor, 默认原型是 f 自己的 `prototype`) 与 `ScriptRuntime.createFromConstructor(cx, nt, scope, defaultProto)` (普通对象的 OrdinaryCreateFromConstructor, 脚本函数 / class 基类构造器的 this 经 `BaseFunction.createObject` 用它). `findPrototype` 两个重载转调 `prototypeOf`, 已经调用 `setBuiltinProtoAndParent` 的构造器由此一并套用; 其余构造器在建实例之前调 `prototypeOf` (样板 NativeMap 与 NativeError, 然后批量套用, 附录 D 每行的状态).
+- 快速路径: new.target 就是构造器自身 (普通 `new X()`) 或没有 new.target (作为函数调用) 时直接取 X 的 `prototype` 字段, 不做属性查找也不算 realm; new.target 是 JSFunction 时同样读字段, 只有绑定函数 / Proxy / 宿主函数作 new.target 才 Get `prototype`.
+- GetFunctionRealm (`functionRealm`): 绑定函数取目标, Proxy 取 target (已撤销抛 TypeError), 其他函数取声明作用域的顶层. new.target 的 `prototype` 不是对象时取默认原型: 同 realm 时先取 f 自己的 `prototype`; 否则 (或它不是对象) 在 new.target 所在 realm 里按 f 的名字取内建原型 (`TopLevel.Builtins` / `NativeErrors` 枚举名; 6 个原生错误共用的 `js_constructor` 都传 Error, 按名才分得开, 不必改 `NativeGlobal`), 名字不是内建名时取 `findPrototype` 传入的类型, 再退到同名类原型. 类型参数不能省: `Uint8Array.fromBase64` / `fromHex` 以静态方法自身为 f 执行构造代码 (首轮全量的 7 个 test262 文件与 `AdditionalUint8ArrayMethodsTest` 因此失败, 已修并在 `BuiltinSubclassingTest.typedArrays` 加用例).
+- 内建构造器的 this: `JSFunction.construct` 在执行构造代码前总会建一个 this 对象, 内建构造器不用它. P4 让它经 `BuiltinConstruction.thisObject`: 脚本函数 (描述符 `isFunction()`) 走 OrdinaryCreateFromConstructor, 内建构造器得到与 P4 之前相同的对象, 不读 new.target. 首轮 test262 的 3 例新失败 (TypedArray 的 Symbol 实参, DataView 偏移, ArrayBuffer `maxByteLength`) 都是这个 this 提前调用了 new.target 的 `prototype` getter.
+- 宿主构造器: `LambdaConstructor.construct` 与 `BaseFunction.construct` (非 JSFunction) 在 Java 侧建好对象后按 new.target 改原型 (`withPrototype`); Java 代码不知道 new.target, 对象此时还没有暴露给脚本.
+
+### 特殊项
+
+逐行状态见 ROADMAP 附录 D; 这里只记实现上需要知道的:
+
+- Map / Set / WeakMap / WeakSet: 先设原型再装入; Map / Set 的装入改为 `addEntriesFromIterable` / `addValuesFromIterable`, adder 从新对象上 Get (子类覆盖的 `set` / `add` 生效), 上游原来取 realm 全局原型上的方法. 迭代器为 undefined 时忽略 (上游原有的宽松处理, 保留).
+- RegExp: `regExpArgs` 实现构造器第 1-6 步 (IsRegExp 读 `Symbol.match`; 作为函数调用, 实参是正则 (或 `Symbol.match` 为真), 没有 flags 且 `pattern.constructor === RegExp` 时返回原对象; 类 RegExp 对象取 `source` / `flags`). `test` 在 exec 被覆盖时走 RegExpExec (`userTest`), 内建 exec 保留原来的快速路径. species 与 lastIndex 原来就对.
+- GeneratorFunction: 生成器函数的 `prototype` 不再带 `constructor` (`BaseFunction.setupDefaultPrototype`); 上游缺陷, 普通生成器声明同样受益.
+- ArrayBuffer 补 `Symbol.species`; DataView 取原型后重查 (`checkView`); TypedArray 非对象实参按 ToIndex (Symbol 抛 TypeError, 原来抛 `Error: invalid argument`).
+- Proxy: ProxyCreate 不读 new.target (原来经 findPrototype 多一次可观察的 Get).
+- Promise: 执行器运行之前取原型.
+- 不可构造与只核对的 (Symbol, BigInt, %TypedArray%, Continuation, 绑定函数与 Proxy 的 [[Construct]]) 行为不变, 只加用例.
+
+### P4.3 脚手架
+
+`ClassRuntime.superCall` 里 P2 的 "父构造器不是 JSFunction 时构造后按 new.target 改原型" 收窄为 `superConstructor instanceof NativeJavaClass`, 注释写明 P5 (T6) 接管; P2 留在 `ClassRuntime` 里未用的 `createFromConstructor` / `prototypeFromConstructor` 删除 (由 `BuiltinConstruction` 取代). 其他非 JSFunction 父构造器 (绑定函数, Proxy, LambdaConstructor, FunctionObject) 都由自身的 [[Construct]] 按 new.target 创建, 不再需要构造后改原型.
+
+### 给 P5 / P6 / P9 的接口
+
+- P5 (Java 继承): `superCall` 里只剩 `NativeJavaClass` 的构造后改原型, P5 的 JavaClassInheritance 在钩子层接手时删掉这一处 (连同注释). 宿主用 `LambdaConstructor` 定义的构造器已能被 class 继承, P5 不必处理. 跨 realm 的原型规则 (`BuiltinConstruction.prototypeOf` / `functionRealm`) 可直接复用.
+- P6.1: `Test262SuiteTest` 新通过的文件见下节, 重生成 `test262.properties` 时由工具去掉; `BuiltinSubclassingTest262Test` 跳过的 SharedArrayBuffer 等按 T10 (附录 E).
+- P9 (async): `built-ins/AsyncFunction/instance-construct-throws.js` 是 `BuiltinSubclassingTest262Test` 唯一的已知失败 (附录 E). AsyncFunction / AsyncGeneratorFunction 构造器落地时: 用 `BaseFunction` 的 Function 构造路径 (经 `findPrototype` 自动按 new.target 取原型), async 函数没有 `prototype` 也不可构造; `class X extends Promise` 已按 new.target 创建 (执行器之前取原型), async 函数返回的 Promise 用 realm 的 %Promise%, 不受子类影响. Promise 子类的 `then` / `resolve` / `all` 等 species 行为原来就对.
+
+### 已知限制
+
+见 `HOOKS.md` 第 8 节 "P4" (TypedArray 对象实参 / ArrayBuffer 超大 `maxByteLength` / `RegExp.prototype.test` 的求值顺序, LambdaConstructor 构造代码看不到子类原型, Java 类留给 P5, WeakMap / WeakSet 的额外 species, E4X, 上游的 `new f(...args)` 内部错误).
+
+### 验证
+
+- test262 内建子类化 (`BuiltinSubclassingTest262Test`, 新, 解释 / 编译相同): `subclass-builtins` 72 个文件运行 70 通过 70 (`subclass-SharedArrayBuffer.js` 两例按 T10 跳过), `subclass/builtin-objects` 70 / 70 / 70, `built-ins` 下含 `newTarget` 的 219 个文件运行 171 通过 170 (跳过 SharedArrayBuffer 20, explicit-resource-management 13, Temporal 9, async-iteration 4, async-functions 1, iterator-helpers 1; 未通过的 1 例是 P9 已知失败 `AsyncFunction/instance-construct-throws.js`, 附录 E). 盘点基线两模式各 33 例失败, 全部修好 (P9 那 1 例除外).
+- test262 class 两目录 (`ClassSyntaxTest262CoreTest`): 两模式各运行 5700 例, 各通过 5681 (P3 为 5677); 核心 2428 / 2423 (P2 / P3 为 2419), 字段 612 / 606, 私有名 2660 / 2652; 未通过的 19 例都是 P9 已知失败, P4 的 4 例已删除. 只解析 (`ClassSyntaxTest262ParseTest`): 反例 1262 / 1262, 正例 7127 / 7127 (同 P3).
+- 自带测试 (rhino 模块, 最终全量里的计数): BuiltinSubclassingTest 18 (新), ClassFieldsTest 12, PrivateNamesTest 15, ClassSyntaxTest 22, ClassSyntaxParserTest 76, ClassInstructionsTest 18, ClassChainUniquenessTest 2, HooksRegistryTest 2, TokenUniquenessTest 4, AsyncSyntaxParserTest 20, MessageTranslationsTest 36 全部通过 (解释 / 编译两模式). P4 没有新消息 key (只用已有的 `msg.arraybuf.detached`, `msg.dataview.offset.range`, `msg.dataview.length.range`, `msg.arg.not.object`).
+- 全量 (JDK 21, 五个模块): rhino 4196 (0 失败, 4 跳过), rhino-xml 6, rhino-engine 43, rhino-tools 21 (1 失败, 同基线), tests 121080 (54 失败, 16 跳过); 失败集与 P3 基线 55 项完全相同, 无新增也无修复 (`.python/junit_failures.py` 对照, 记录在 `build/upstream-sync/class-p4-20261025/`: `current-failures.txt`, `full-tests.log`, `unexpectedly-passing*.txt`). 首轮全量有 30 个新失败 (`Uint8Array.fromBase64` / `fromHex` 的 7 个 test262 文件 x 4 种组合与 `AdditionalUint8ArrayMethodsTest` 2 例), 原因是静态方法以自身为 f 执行构造代码, 默认原型漏掉了 `findPrototype` 的类型参数; 修好后重跑即上面的结果.
+- 门禁: `spotlessCheck`, `git diff --check`, `.python/generate_markdown.py --check` 通过; 钩子审计 (上游文件新增行全部带标记且不超过 100 字符, 共 430 行; 唯一未带标记的新增行是 `ScriptRuntime.createFromConstructor` 方法前格式化要求的空行) 与 HOOKS.md 一致.
+
+### 新通过的 test262 用例 (P6.1 重生成时去掉失败登记)
+
+`Test262SuiteTest` 报 "Test is marked as failing but it does not" 的文件共 1047 个: P1 47 个, P2 927 个, P3 26 个, P4 新增 47 个 (清单 `build/upstream-sync/class-p4-20261025/unexpectedly-passing-new.txt`), 之前的 1000 个仍全部通过. P6.1 用 `-DupdateTest262properties` 重生成时由工具去掉. P4 新增的 47 个 (路径省略 `built-ins/`, 另注明 `language/` 与 `annexB/`):
+
+- RegExp 12 个 (built-ins 11, annexB 1): `RegExp/call_with_non_regexp_same_constructor.js`, `call_with_regexp_match_falsy.js`, `call_with_regexp_not_same_constructor.js`, `from-regexp-like{,-flag-override,-get-ctor-err,-get-flags-err,-get-source-err,-short-circuit}.js` (6), `prototype/Symbol.matchAll/isregexp-{called-once,this-throws}.js`, 以及 `annexB/built-ins/RegExp/prototype/Symbol.split/Symbol.match-getter-recompiles-source.js`.
+- 跨 realm 与 GetFunctionRealm 12 个: `NativeErrors/{Eval,Range,Reference,Syntax,Type,URI}Error/proto-from-ctor-realm.js` (6), `Function/internals/Construct/base-ctor-revoked-proxy{,-realm}.js`, `Function/prototype/bind/{get-fn-realm,get-fn-realm-recursive,proto-from-ctor-realm}.js`, `Proxy/construct/trap-is-undefined-proto-from-newtarget-realm.js`.
+- WeakRef / FinalizationRegistry 6 个: `{WeakRef,FinalizationRegistry}/{proto-from-ctor-realm,prototype-from-newtarget-abrupt,prototype-from-newtarget-custom}.js`.
+- ArrayBuffer 5 个: `ArrayBuffer/Symbol.species/{length,return-value,symbol-species-name,symbol-species}.js`, `ArrayBuffer/data-allocation-after-object-creation.js`.
+- TypedArray 5 个: `TypedArrayConstructors/{ctors,ctors-bigint}/length-arg/{is-symbol-throws,toindex-length}.js` (4), `TypedArrayConstructors/ctors/typedarray-arg/throw-type-error-before-custom-proto-access.js`.
+- DataView 3 个: `DataView/custom-proto-access-{detaches-buffer,resizes-buffer-invalid-by-length,resizes-buffer-invalid-by-offset}.js`.
+- 生成器函数的 prototype 不带 constructor 2 个: `language/{expressions,statements}/generators/prototype-own-properties.js`.
+- 其他 2 个: `Iterator/proto-from-ctor-realm.js` (`BuiltinSubclassingTest262Test` 按 iterator-helpers 跳过, `Test262SuiteTest` 照跑), `language/expressions/super/realm.js`.
+
+`BuiltinSubclassingTest262Test` 与 `ClassSyntaxTest262CoreTest` 不受 `test262.properties` 影响, 上面的清单只关系到 `Test262SuiteTest`.
