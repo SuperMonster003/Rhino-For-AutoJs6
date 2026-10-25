@@ -39,8 +39,9 @@ import org.yaml.snakeyaml.Yaml;
  * AutoJs6 class syntax (ROADMAP P2.5, P3.5): runs the two test262 class directories (everything but
  * async functions, which belong to P9) in the interpreted and the compiled mode, and expects every
  * test to pass; the counts are reported for the ES2015 core, the public fields and static blocks,
- * and the private names (ROADMAP 1.4). {@code Test262SuiteTest} keeps skipping the class features
- * until P6.1 regenerates {@code test262.properties} (ROADMAP appendix C Q9). Tests that need later
+ * and the private names (ROADMAP 1.4). Since P6.1 {@code Test262SuiteTest} runs these directories
+ * too, and {@code test262.properties} lists exactly the tests skipped or known to fail here; this
+ * test stays the stricter check, as it fails once a known failure passes. Tests that need later
  * phases are listed in {@link #KNOWN_FAILURES}.
  *
  * <p>Like {@code Test262SuiteTest}, module and async tests are not run, nor are features Rhino does

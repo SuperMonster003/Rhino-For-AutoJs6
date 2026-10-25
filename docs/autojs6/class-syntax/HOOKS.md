@@ -3,7 +3,7 @@
 本文是 fork 的 class / async 定制在上游文件里留下的钩子的唯一事实来源 (`AGENTS.md` 第七节 7.1). 路线图见同目录 `ROADMAP.md`, 决策 D1-D16 与 T1-T11 不在此重复.
 
 - 上游文件里每一行新增或改动的代码都带 `// AutoJs6: class syntax` 或 `// AutoJs6: async` 标记 (钩子块前后的空行除外); 逻辑放在第 4 节的新文件里. 核对: `git diff -U0 <基线> -- rhino/src/main/java` 里新增的非空行都应带标记.
-- 第 3 节的表按 "文件 + 标记" 记行数, `HooksRegistryTest` 会把它与 `rg -n "AutoJs6: (class syntax|async)" rhino/src/main/java` 的实际结果逐文件逐标记对照; 第 4 节的新文件必须存在.
+- 第 3 节的表按 "文件 + 标记" 记行数, `HooksRegistryTest` 会把它与 `rg -n "AutoJs6: (class syntax|async)" rhino/src/main/java tests/src` 的实际结果逐文件逐标记对照 (P6 起含上游测试源码 `tests/src`); 第 4 节的新文件 (`rhino/` 与 `tests/` 下) 必须存在.
 - 钩子增减或搬家时, 同一提交内更新本文. 行号会随上游变化, 表里只写方法名.
 
 ## 1. 阶段进度
@@ -15,7 +15,8 @@
 | P3 | 完成 (2026-10-25) | 公共字段, static block, 私有名 (T5: 每次类求值新建 `PrivateNameKey`, 对象上独立的私有元素表), 直接 eval 里的外层私有名与类元素上下文 (附录 C Q13), V2 指令类 |
 | P4 | 完成 (2026-10-25) | 内建构造器按 new.target 创建 (T9): 统一入口 `ScriptRuntime.createFromConstructor` 与新文件 `BuiltinConstruction` (GetPrototypeFromConstructor 含 GetFunctionRealm, 跨 realm 按构造器名取对方的内建原型); 逐个构造器改为先取原型 (附录 D 36 行); Map / Set 装入用实例的 `set` / `add`, RegExp 的 IsRegExp 与 RegExpExec, DataView 取原型后重查, ArrayBuffer 的 `Symbol.species`, TypedArray 非对象实参的 ToIndex, 生成器函数的 prototype 不带 constructor, Proxy 不读 new.target; 拆掉 P2 的构造后改原型脚手架 (只留 Java 类给 P5) |
 | P5 | 完成 (2026-10-25) | 继承 Java 类与接口 (T6, fork-only D3): `class X extends JavaClass` / `extends Interface` / `extends JavaAdapter(Base, I1, I2)` (附录 C Q3 = A), 实例是包装适配器对象的脚本对象 (附录 C Q4 = A), 适配器类经 `JavaAdapter.createAdapterCode` 按签名缓存; 钩子层在 `autojs6` 包 |
-| P6-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
+| P6 | 完成 (2026-10-25) | test262 解锁: `Test262SuiteTest` 运行 class 特性 (T10 的 `decorators` / `nonextensible-applies-to-private` 改为 unsupported), `test262.properties` 由工具重生成 (class 两目录不再整目录排除, 剩余登记只有 P9 与 T10, 附录 E); 可选的 Interpreter V2 模式 (`-Drhino.test262.interpreterV2=true`, 目前 0 例); `HooksRegistryTest` 起把上游测试源码 `tests/src` 一并对账; `rhino/src/main/java` 不变 |
+| P7-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
 
@@ -185,7 +186,10 @@
 | `rhino/src/main/java/org/mozilla/javascript/JavaMembers.java` | class syntax | 4 | 包内方法 `member(name)` (实例成员, 再静态成员), 供 `JavaInheritanceSupport.isWritableJavaProperty` 判断赋值写 Java 对象还是建自有属性 | P5, fork-only (D3) |
 | `rhino/src/main/java/org/mozilla/javascript/WrapFactory.java` | class syntax | 1 | import `autojs6.JavaClassInheritance` | P5, fork-only (D3) |
 | `rhino/src/main/java/org/mozilla/javascript/WrapFactory.java` | class syntax | 4 | `wrap` 与 `wrapNewObject`: 类实例的 Java 对象包装回实例本身 (`JavaClassInheritance.selfOf`; 在 `wrapAsJavaObject` 之前) | P5, fork-only (D3) |
-合计 453 行 (class syntax 403, async 50); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行; P4 新增 62 行, 另把 `JSFunction.construct` 里 P2 的 `createObject` 调用改为 `BuiltinConstruction.thisObject`. P4 在上游文件里删除的行: `findPrototype` 两个方法体, `NativeMap` / `NativeSet` 的 `loadFromIterable` 方法体, 各构造器的 `setBuiltinProtoAndParent` 调用, `BaseFunction.createObject` 的方法体, `NativeRegExp.js_constructCall` 的提前返回, `NativeDataView` 的 `TopLevel` import; 合并时上游改了这些位置, 按第三节第 7 条以上游版本为基础重新插入钩子. P5 新增 23 行, 全部是 Java 类继承 (fork-only, D3): 上游文件 19 行, fork 文件 `ClassRuntime` 4 行 (它是第 4 节的新文件, 这 4 行仍带标记, 退役 class 族时按 `AGENTS.md` 7.4 改挂到上游实现, 见 NOTES.md P5).
+| `tests/src/test/java/org/mozilla/javascript/tests/Test262SuiteTest.java` | class syntax | 3 | `UNSUPPORTED_FEATURES`: 去掉 `class` / `class-fields-private` / `class-fields-public` (说明行), 加 T10 排除的 `decorators` 与 `nonextensible-applies-to-private` (附录 C Q14), 属性文件里记为 `{unsupported: [...]}` | P6.1 |
+| `tests/src/test/java/org/mozilla/javascript/tests/Test262SuiteTest.java` | class syntax | 2 | `TestMode.V2`: 可选的 Interpreter V2 模式 (`-Drhino.test262.interpreterV2=true`, 不在默认矩阵, 可用性见 `InterpreterV2Mode`) | P6.2 |
+| `tests/src/test/java/org/mozilla/javascript/tests/Test262SuiteTest.java` | class syntax | 2 | `TestResultTracker.getResult`: "全部模式都失败" 的模式数按 `InterpreterV2Mode.modeCount()` 计 (V2 不运行时不计, 结果与上游的 `values().length * 2 - 2` 相同) | P6.2 |
+合计 460 行 (class syntax 410, async 50; 上游测试源码 `tests/src` 7 行, P6 起登记); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行; P4 新增 62 行, 另把 `JSFunction.construct` 里 P2 的 `createObject` 调用改为 `BuiltinConstruction.thisObject`. P4 在上游文件里删除的行: `findPrototype` 两个方法体, `NativeMap` / `NativeSet` 的 `loadFromIterable` 方法体, 各构造器的 `setBuiltinProtoAndParent` 调用, `BaseFunction.createObject` 的方法体, `NativeRegExp.js_constructCall` 的提前返回, `NativeDataView` 的 `TopLevel` import; 合并时上游改了这些位置, 按第三节第 7 条以上游版本为基础重新插入钩子. P5 新增 23 行, 全部是 Java 类继承 (fork-only, D3): 上游文件 19 行, fork 文件 `ClassRuntime` 4 行 (它是第 4 节的新文件, 这 4 行仍带标记, 退役 class 族时按 `AGENTS.md` 7.4 改挂到上游实现, 见 NOTES.md P5). P6 新增 7 行, 都在上游测试源码 `Test262SuiteTest` (test262 解锁与 V2 模式开关), `rhino/src/main/java` 不变; 删除的行: `UNSUPPORTED_FEATURES` 里的 `class` / `class-fields-private` / `class-fields-public`, `getResult` 里原来的 `allCovered` 一行. P8 上游 PR 的 "test262 解锁" 提交只带去掉 class 特性那部分, V2 开关与 T10 的两个特性是否随带由 P8 定 (NOTES.md P6).
 
 ## 4. 新文件
 
@@ -230,6 +234,8 @@
 - `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaSubclassObject.java`: fork-only (D3), P5: 类实例 (附录 C Q4 = A): 包装适配器对象 (`Wrapper`), 是适配器的 delegee 与 self, 字段与私有元素是它自己的; Java 成员经适配器对象的 `NativeJavaObject` 视图 (含受保护成员), `Iterable` 的 `Symbol.iterator`.
 - `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaSubclass.java`: fork-only (D3), P5: 类适配器实现的标记接口, `WrapFactory` 钩子据此认出类实例的 Java 对象.
 
+- `tests/src/test/java/org/mozilla/javascript/tests/InterpreterV2Mode.java`: P6.2 (T8, 附录 C Q11): `Test262SuiteTest` 的可选 Interpreter V2 模式. 系统属性 `rhino.test262.interpreterV2=true` 请求 (Gradle 把 `rhino.*` 属性都传给测试), 只有 Context 能用 V2 编译脚本时才运行, 否则打印原因并运行 0 例 (现在: `EvaluationMethod` 没有 -2 级别, `setOptimizationLevel(-2)` 抛 `IllegalStateException`; 上游补上级别后还会因 `InterpreterV2.compileScript` 没有编译器抛 `UnsupportedOperationException`); 上游编译器合入后同一开关直接跑全部 test262 (含 class 两目录) 的 V2 模式.
+
 ### 4.1 错误消息
 
 基础 `Messages.properties` 与 9 个翻译 bundle (ar, es, fr, ja, ko, ru, zh, zh_HK, zh_TW) 末尾各有一段 `# AutoJs6: class syntax` 与 `# AutoJs6: async` 注释开头的 fork 消息 (T11). key 清单以 `MessageTranslationsTest` 的 `CLASS_SYNTAX_KEYS` 为准 (P1 27 个, P2 新增 11 个, P3 删除 1 个新增 8 个, P5 新增 9 个, 共 54 个):
@@ -247,7 +253,7 @@
 | `org.mozilla.javascript.tests.classsyntax.ClassSyntaxParserTest` | rhino | class 的 AST 形状, 位置, `toSource`, 早期错误, 开关与 ES6 门控; P2 加 ES6 生成器的 `yield` 解析与 JS 1.7 生成器的括号要求; P3 起字段 / static block / 私有名可以编译 | P1 / P2 / P3 |
 | `org.mozilla.javascript.tests.classsyntax.AsyncSyntaxParserTest` | rhino | async / await / for await 的预解析, 早期错误, 开关, 编译期 "暂不支持" | P1 |
 | `org.mozilla.javascript.tests.classsyntax.TokenUniquenessTest` | rhino | 编号链唯一性 (第 7 节) | P1 |
-| `org.mozilla.javascript.tests.classsyntax.HooksRegistryTest` | rhino | 本文第 3 / 4 节与源码对照 | P1 |
+| `org.mozilla.javascript.tests.classsyntax.HooksRegistryTest` | rhino | 本文第 3 / 4 节与源码对照; P6 起含上游测试源码 `tests/src` 的标记行与 `tests/` 下的新文件 | P1 / P6 |
 | `org.mozilla.javascript.tests.MessageTranslationsTest` (fork 已有, 新增 `classSyntaxMessagesAreTranslated`) | rhino | fork 消息在 9 个翻译 bundle 齐全 | P1 |
 | `org.mozilla.javascript.tests.classsyntax.ClassSyntaxTest262ParseTest` | tests | test262 class 两目录只解析: parse 阶段反例全部拒绝, 其余用例全部可解析 (P2 起 `KNOWN_PARSE_GAPS` 为空) | P1 |
 | `org.mozilla.javascript.tests.classsyntax.ClassSyntaxTest` | rhino | ES2015 class 语义, 每条规则一组, 解释 / 编译两模式 | P2 |
@@ -303,6 +309,11 @@ P5 起依赖 (Java 类继承, fork-only D3; 上游改动这些机制时 `autojs6
 - `WrapFactory.wrap` / `wrapNewObject` 是 Java 值进入脚本的出口 (宿主覆盖 `wrapAsJavaObject` 不影响钩子, 钩子在它之前); `NativeJavaClass.hasInstance` 解包 `Wrapper` (instanceof Java 类).
 - super 访问: 读取 (`ScriptableObject.getSuperProperty`) 以当前 this 为 start; 方法调用 (`getPropAndThis` + `CALL_ON_SUPER`) 以 super 对象为 start 查找, 调用时换成 this, `JavaPrototype` 为此返回延迟查找的函数. 上游把 super 调用改为以 this 为 start 时, 这层可以去掉.
 - `ContextFactory.call`: 没有 Context 的 Java 线程回调 (`JavaAdapter.callMethod`) 以构造时的 `cx.getFactory()` 进入.
+
+P6 起依赖 (上游测试框架; 上游改动时 `Test262SuiteTest` 的钩子跟着搬, P9 / 同步时按 NOTES.md P6 的步骤重生成):
+
+- `Test262SuiteTest` 的 `UNSUPPORTED_FEATURES` (按 features 跳过, 写进 properties 的 `{unsupported: [...]}`), properties 的读法 (`~` 整目录排除, 子目录汇总只含直接文件) 与重生成 (`-DupdateTest262properties=all`, `tests/build.gradle` 要求 `RHINO_TEST_JAVA_VERSION=17`).
+- `TestMode` 的矩阵与 `TestResultTracker.getResult` 的标签规则 ("全部模式都失败" 时不写标签, 模式数按 `InterpreterV2Mode.modeCount()`), `Context.EvaluationMethod` / `setOptimizationLevel(-2)` 选择 V2 的方式 (V2 模式的可用性按 "能否用 V2 编译脚本" 判断).
 
 后续阶段将依赖 (登记时补充): `GeneratorState` 与 async 驱动, `NativePromise` 与 `Context.enqueueMicrotask`, `UnhandledRejectionTracker`.
 
@@ -366,6 +377,13 @@ P5 (Java 类继承, 决定与理由见 NOTES.md P5):
 - 实例的 `Object.prototype.toString` 标签为 `JavaObject`, `typeof` 为 `object`; JSON / for-in / `Object.keys` 只列实例自有属性 (字段), 不含 Java 成员.
 - 把类实例当作旧写法 `new JavaAdapter(Base, instance)` 的实现对象时, 方法经 `JavaClassInheritance.method` 查找, 缺失的抽象方法报 TypeError (普通实现对象得到 undefined).
 - 适配器类按顶层作用域缓存 (`ClassCache`), 新的顶层作用域 (宿主每次运行脚本) 重新生成; Android 上每个签名首次构造要经宿主 D8 转 dex (P5.2 结论, P7 测量).
+
+P6 (test262 解锁, 记录与理由见 NOTES.md P6):
+
+- `test262.properties` 按 JDK 17 生成 (`tests/build.gradle` 的要求, 与上游一致): JDK 17 的 Unicode 版本较旧, 32 个 RegExp property-escapes / identifiers 用例在 JDK 21 通过但保持登记 (JDK 21 全量只打印 "marked as failing but it does not"); 本机 test262 检出为 CRLF (`core.autocrlf=true`), `Function/prototype/toString/line-terminator-normalisation-LF.js` 因此登记为失败, LF 检出的机器上同样只打印提示.
+- 附录 A 的 7 个既有 test262 基线差异 (`__proto__` 定制 6 个, CRLF 1 个) 随重生成写进 properties, 全量对照里不再出现; 它们仍是 fork 与上游的行为差异, 同步时按 `AGENTS.md` 第五节最后一条照旧核对.
+- 实参展开 `f(...args)` / `new F(...args)` / `super.m(...args)` 在上游各后端未实现 (内部错误 `190`, 与 class 无关, `super(...args)` 由 P2 单独支持), 逻辑赋值 `&&=` / `||=` / `??=` 不短路 (上游 IR 总是写回, 私有名同样): class 两目录外 18 个 class 特性用例因此失败, 附录 C Q16 / Q17.
+- V2 模式 0 例: `Context.EvaluationMethod` 没有 -2 级别, 上游也没有 IR 到 V2 的编译器 (附录 C Q11).
 
 ## 9. 退役记录
 

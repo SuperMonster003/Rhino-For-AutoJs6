@@ -18,19 +18,20 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
  * AutoJs6 class syntax: {@code docs/autojs6/class-syntax/HOOKS.md} is the single source of truth
  * for the fork's hook lines (AGENTS.md 7.1 / 7.2). The marked lines in {@code rhino/src/main/java}
- * must match the hook table file by file and marker by marker, and every listed new file must
- * exist.
+ * and, from P6 on, in the upstream test sources under {@code tests/src} must match the hook table
+ * file by file and marker by marker, and every listed new file must exist.
  */
 class HooksRegistryTest {
 
     private static final String[] MARKERS = {"class syntax", "async"};
+
+    private static final String[] SOURCES = {"rhino/src/main/java", "tests/src"};
 
     // | `path` | class syntax | 3 | ... |
     private static final Pattern HOOK_ROW =
@@ -38,7 +39,8 @@ class HooksRegistryTest {
                     "^\\|\\s*`([^`]+\\.java)`\\s*\\|\\s*(class syntax|async)\\s*\\|\\s*(\\d+)\\s*\\|");
 
     // - `path` ...
-    private static final Pattern NEW_FILE = Pattern.compile("^-\\s*`(rhino/[^`]+\\.java)`");
+    private static final Pattern NEW_FILE =
+            Pattern.compile("^-\\s*`((?:rhino|tests)/[^`]+\\.java)`");
 
     private static Path repositoryRoot() {
         Path dir = Path.of("").toAbsolutePath();
@@ -86,10 +88,11 @@ class HooksRegistryTest {
         }
 
         Map<String, Integer> actual = new TreeMap<>();
-        Path sources = root.resolve("rhino/src/main/java");
-        List<Path> files;
-        try (Stream<Path> walk = Files.walk(sources)) {
-            files = walk.filter(p -> p.toString().endsWith(".java")).collect(Collectors.toList());
+        List<Path> files = new ArrayList<>();
+        for (String sources : SOURCES) {
+            try (Stream<Path> walk = Files.walk(root.resolve(sources))) {
+                walk.filter(p -> p.toString().endsWith(".java")).forEach(files::add);
+            }
         }
         for (Path file : files) {
             String relative = root.relativize(file).toString().replace('\\', '/');

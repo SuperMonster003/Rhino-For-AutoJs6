@@ -31,8 +31,8 @@ import org.mozilla.javascript.testutils.TestSource;
  * new.target. Runs, in the interpreted and the compiled mode, the test262 tests of subclassing the
  * built-ins ({@code subclass-builtins} and {@code subclass/builtin-objects} of the class
  * directories) and every test under {@code built-ins} that mentions {@code newTarget}, and expects
- * every test to pass. {@code Test262SuiteTest} keeps its own expectations until P6.1 regenerates
- * {@code test262.properties} (ROADMAP appendix C Q9).
+ * every test to pass. Since P6.1 {@code test262.properties} agrees with it: none of the files it
+ * runs and passes is listed there, and every listed one is skipped here or the known failure.
  *
  * <p>Tests are skipped as in {@link ClassSyntaxTest262CoreTest}: modules, async tests, P9 and T10
  * features.

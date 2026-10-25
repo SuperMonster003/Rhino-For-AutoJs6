@@ -118,9 +118,9 @@ public class Test262SuiteTest {
                             "IsHTMLDDA",
                             "async-functions",
                             "async-iteration",
-                            "class",
-                            "class-fields-private",
-                            "class-fields-public",
+                            // AutoJs6: class syntax (P6.1): class features run; T10 exclusions
+                            "decorators", // AutoJs6: class syntax
+                            "nonextensible-applies-to-private", // AutoJs6: class syntax
                             "SharedArrayBuffer",
                             "tail-call-optimization",
                             "Temporal",
@@ -872,6 +872,8 @@ public class Test262SuiteTest {
                     cx.setEvaluationMethod(EvaluationMethod.Interpreter);
                     cx.setDebugger(new NoOpDebugger(), null);
                 }),
+        // AutoJs6: class syntax (P6.2, T8): opt-in Interpreter V2 mode, see InterpreterV2Mode
+        V2("v2", InterpreterV2Mode.RUN, false, InterpreterV2Mode::setup), // AutoJs6: class syntax
         SKIPPED("skipped", false, false, cx -> {});
 
         private final String keyPart;
@@ -987,7 +989,8 @@ public class Test262SuiteTest {
             }
 
             boolean allFailed = modes.entrySet().stream().allMatch(e -> !e.getValue().get());
-            boolean allCovered = (modes.size() == TestMode.values().length * 2 - 2);
+            int modeCount = InterpreterV2Mode.modeCount(); // AutoJs6: class syntax
+            boolean allCovered = (modes.size() == modeCount * 2 - 2); // AutoJs6: class syntax
 
             // failure on all optLevels in both strict and non-strict mode
             if (allCovered && allFailed) {
