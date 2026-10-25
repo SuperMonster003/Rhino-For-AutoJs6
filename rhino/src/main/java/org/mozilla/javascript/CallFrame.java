@@ -172,10 +172,12 @@ final class CallFrame extends ACallFrame<CallFrame, InterpreterData<?>> implemen
             int offset = desc.getParamCount() - 1;
             if (argCount >= desc.getParamCount()) {
                 vals = new Object[argCount - offset];
+                int bound = boundArgs == null ? 0 : boundArgs.length; // AutoJs6: class syntax
 
-                argShift = argShift + offset;
+                argShift = argShift + offset - bound; // AutoJs6: class syntax
                 for (int valsIdx = 0; valsIdx != vals.length; ++argShift, ++valsIdx) {
-                    Object val = args[argShift];
+                    int i = offset + valsIdx; // AutoJs6: class syntax
+                    Object val = i < bound ? boundArgs[i] : args[argShift]; // AutoJs6: class syntax
                     if (val == UniqueTag.DOUBLE_MARK) {
                         val = ScriptRuntime.wrapNumber(argsDbl[argShift]);
                     }

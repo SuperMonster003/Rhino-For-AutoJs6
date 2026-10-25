@@ -178,8 +178,21 @@ abstract class Icode {
             // replace the current block scope with a copy of itself
             SCOPE_REPLACE = RESETVAR - 1,
 
+            // AutoJs6: class syntax (see ClassInterpreter)
+            CLASS_DEFINE = SCOPE_REPLACE - 1, // AutoJs6: class syntax
+            CLASS_ELEMENT = CLASS_DEFINE - 1, // AutoJs6: class syntax
+            CLASS_CTOR_CHECK = CLASS_ELEMENT - 1, // AutoJs6: class syntax
+            CLASS_THIS = CLASS_CTOR_CHECK - 1, // AutoJs6: class syntax
+            CLASS_TDZ = CLASS_THIS - 1, // AutoJs6: class syntax
+            CLASS_SUPER_FUNC = CLASS_TDZ - 1, // AutoJs6: class syntax
+            CLASS_SUPER_CALL = CLASS_SUPER_FUNC - 1, // AutoJs6: class syntax
+            CLASS_ITER_REST = CLASS_SUPER_CALL - 1, // AutoJs6: class syntax
+            CLASS_REQUIRE_OBJECT = CLASS_ITER_REST - 1, // AutoJs6: class syntax
+            CLASS_ITER_CLOSE = CLASS_REQUIRE_OBJECT - 1, // AutoJs6: class syntax
+            CLASS_PARAM_SCOPE = CLASS_ITER_CLOSE - 1, // AutoJs6: class syntax
+
             // Last icode
-            MIN_ICODE = SCOPE_REPLACE;
+            MIN_ICODE = CLASS_PARAM_SCOPE; // AutoJs6: class syntax
 
     static String bytecodeName(int bytecode) {
         if (!validBytecode(bytecode)) {
@@ -382,6 +395,10 @@ abstract class Icode {
             case DEF_CONST:
                 return "DEF_CONST";
         }
+        String className = ClassInterpreter.icodeName(bytecode); // AutoJs6: class syntax
+        if (className != null) { // AutoJs6: class syntax
+            return className; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
 
         // icode without name
         throw new IllegalStateException(String.valueOf(bytecode));

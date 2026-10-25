@@ -1958,6 +1958,7 @@ public class ScriptRuntime {
 
     public static Object getSuperElem(
             Object superObject, Object elem, Context cx, VarScope scope, Object thisObject) {
+        thisObject = ClassRuntime.receiver(thisObject); // AutoJs6: class syntax
         Scriptable superScriptable =
                 asScriptableOrThrowUndefReadError(cx, scope, superObject, elem);
         Scriptable thisScriptable = asScriptableOrThrowUndefReadError(cx, scope, thisObject, elem);
@@ -2051,6 +2052,7 @@ public class ScriptRuntime {
             VarScope scope,
             Object thisObject,
             boolean noWarn) {
+        thisObject = ClassRuntime.receiver(thisObject); // AutoJs6: class syntax
         Scriptable superScriptable =
                 asScriptableOrThrowUndefReadError(cx, scope, superObject, property);
         Scriptable thisScriptable =
@@ -2112,6 +2114,7 @@ public class ScriptRuntime {
 
     public static Object getSuperIndex(
             Object superObject, double dblIndex, Context cx, VarScope scope, Object thisObject) {
+        thisObject = ClassRuntime.receiver(thisObject); // AutoJs6: class syntax
         Scriptable superScriptable =
                 asScriptableOrThrowUndefReadError(cx, scope, superObject, dblIndex);
         Scriptable thisScriptable =
@@ -2178,6 +2181,7 @@ public class ScriptRuntime {
             Context cx,
             VarScope scope,
             Object thisObject) {
+        thisObject = ClassRuntime.receiver(thisObject); // AutoJs6: class syntax
         Scriptable superScriptable =
                 asScriptableOrThrowUndefWriteError(cx, scope, superObject, elem, value);
         Scriptable thisScriptable =
@@ -2238,6 +2242,7 @@ public class ScriptRuntime {
             Context cx,
             VarScope scope,
             Object thisObject) {
+        thisObject = ClassRuntime.receiver(thisObject); // AutoJs6: class syntax
         verifyIsScriptableOrComplainWriteErrorInEs5Strict(superObject, property, value, cx);
         verifyIsScriptableOrComplainWriteErrorInEs5Strict(thisObject, property, value, cx);
 
@@ -2295,6 +2300,7 @@ public class ScriptRuntime {
             Context cx,
             VarScope scope,
             Object thisObject) {
+        thisObject = ClassRuntime.receiver(thisObject); // AutoJs6: class syntax
         Scriptable superScriptable =
                 asScriptableOrThrowUndefWriteError(cx, scope, superObject, dblIndex, value);
         Scriptable thisScriptable =
@@ -2746,7 +2752,7 @@ public class ScriptRuntime {
      * that the js/ref for..in can avoid maintaining a hash table and instead perform lookups to see
      * if a given property has already been enumerated.
      */
-    private static class IdEnumeration implements Serializable {
+    static class IdEnumeration implements Serializable { // AutoJs6: class syntax
         private static final long serialVersionUID = -8685189816346084720L;
         Scriptable obj;
         Object[] ids;
@@ -2760,6 +2766,7 @@ public class ScriptRuntime {
         boolean enumNumbers;
 
         Scriptable iterator;
+        boolean done; // AutoJs6: class syntax (for-of: no IteratorClose once set)
     }
 
     public static Scriptable toIterator(Context cx, Scriptable obj, boolean keyOnly) {
@@ -2939,6 +2946,7 @@ public class ScriptRuntime {
         } else {
             scope = cx.topCallScope;
         }
+        enumObj.done = true; // AutoJs6: class syntax
         Object r = f.call(cx, scope, enumObj.iterator, emptyArgs);
         Scriptable iteratorResult = toObject(cx, scope, r);
         Object done = ScriptableObject.getProperty(iteratorResult, ES6Iterator.DONE_PROPERTY);
@@ -2947,6 +2955,7 @@ public class ScriptRuntime {
         }
         enumObj.currentId =
                 ScriptableObject.getProperty(iteratorResult, ES6Iterator.VALUE_PROPERTY);
+        enumObj.done = false; // AutoJs6: class syntax
         return Boolean.TRUE;
     }
 
@@ -3559,6 +3568,7 @@ public class ScriptRuntime {
 
         if (callType == Node.SPECIALCALL_EVAL) {
             if (thisObj.getParentScope() == null && NativeGlobal.isEvalFunction(fun)) {
+                callerThis = ClassRuntime.unwrapThis(callerThis); // AutoJs6: class syntax
                 return evalSpecial(
                         cx, scope, callerThis, args, filename, lineNumber, cx.isStrictMode());
             }

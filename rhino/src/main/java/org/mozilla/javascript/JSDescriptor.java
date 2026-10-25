@@ -37,6 +37,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
     private final JSCode<T> constructor;
     private final JSDescriptor<?> parent;
     public List<JSDescriptor<JSFunction>> nestedFunctions;
+    boolean classCode; // AutoJs6: class syntax
     private final String[] paramAndVarNames;
     private final boolean[] paramIsConst;
     private final int flags;
@@ -280,6 +281,10 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         return (flags & DECLARED_AS_FUNCTION_EXPRESSION_FLAG) != 0;
     }
 
+    public boolean isDerivedConstructor() { // AutoJs6: class syntax
+        return (flags & DERIVED_CONSTRUCTOR_FLAG) != 0; // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     public SecurityController getSecurityController() {
         return securityController;
     }
@@ -331,6 +336,8 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         public boolean requiresActivationFrame;
         public boolean requiresArgumentObject;
         public boolean declaredAsFunctionExpression;
+        public boolean derivedConstructor; // AutoJs6: class syntax
+        public boolean classCode; // AutoJs6: class syntax
         public SecurityController securityController;
         public Object securityDomain;
         public int functionType;
@@ -401,10 +408,11 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
                             requiresActivationFrame,
                             requiresArgumentObject,
                             declaredAsFunctionExpression,
-                            false,
+                            derivedConstructor, // AutoJs6: class syntax
                             securityController,
                             securityDomain,
                             functionType);
+            result.classCode = classCode; // AutoJs6: class syntax
             consumer.accept(result);
             result.nestedFunctions =
                     Collections.unmodifiableList(

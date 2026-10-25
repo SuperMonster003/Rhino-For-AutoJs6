@@ -504,6 +504,7 @@ public class NodeTransformer {
                         if (propertyIds != null) {
                             for (Object propertyId : propertyIds) {
                                 if (!(propertyId instanceof Node)) continue;
+                                if (isSpread(propertyId)) continue; // AutoJs6: class syntax
                                 transformCompilationUnit_r(
                                         tree,
                                         (Node) propertyId,
@@ -525,6 +526,10 @@ public class NodeTransformer {
                     inLoop || node.getType() == Token.LOOP);
         }
     }
+
+    private static boolean isSpread(Object propertyId) { // AutoJs6: class syntax
+        return ((Node) propertyId).getType() == Token.DOTDOTDOT; // AutoJs6: class syntax
+    } // AutoJs6: class syntax
 
     /**
      * Prepends to a flattened block scope the stores that re-entering it implies. Because the scope

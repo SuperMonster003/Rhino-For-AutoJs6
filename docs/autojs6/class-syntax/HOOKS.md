@@ -11,7 +11,8 @@
 | 阶段 | 状态 | 内容 |
 |---|---|---|
 | P1 | 完成 (2026-10-24) | 词法, AST, 解析器, 早期错误, async 预解析, 编译期 "暂不支持" 报错 |
-| P2-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
+| P2 | 完成 (2026-10-25) | class 降糖与运行时原语, 解释 / 编译后端, V2 指令类; 通用绑定修复 (参数作用域, 参数解构的迭代器协议, for-of 关闭, 函数名推断); 生成器 `yield` 解析 (附录 C Q10) 与编译模式 yield 点的栈类型保存 |
+| P3-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
 
@@ -71,42 +72,118 @@
 | `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | async | 1 | `transformFunction` 开头 `AsyncLowering.check` (P1 报 `msg.async.not.supported`) | P1 |
 | `rhino/src/main/java/org/mozilla/javascript/ast/FunctionNode.java` | async | 8 | `isAsync` 字段与读写方法, `toSource` 输出 `async ` | P1 |
 | `rhino/src/main/java/org/mozilla/javascript/ast/ObjectProperty.java` | async | 3 | `toSource`: async 方法输出 `async ` | P1 |
+| `rhino/src/main/java/org/mozilla/classfile/ClassFileWriter.java` | class syntax | 4 | `stopMethod`: 本方法有 yield 点保存操作数栈时先跑一遍栈图分析 (`StackMapTable.resolveSpills`) 回填装箱与强转, 方法结束清空 | P2 |
+| `rhino/src/main/java/org/mozilla/classfile/ClassFileWriter.java` | class syntax | 7 | `getStackSpills` 与字段 `itsStackSpills`: 当前方法的 `StackSpills` | P2 |
+| `rhino/src/main/java/org/mozilla/classfile/ClassFileWriter.java` | class syntax | 20 | `StackMapTable`: `resolveSpills`, `generate` 的分析分支 (分析完调用 `StackSpills.patch`), `verify` 在分析时不清理死代码, `executeBlock` 每条指令前的 `stepSpill` (记录保存项类型, 恢复项按记录的类型入栈, 类型变化时重跑恢复所在块) 与字段 `spillAnalysis` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/BaseFunction.java` | class syntax | 6 | `Function.prototype` 描述符: `caller` 受限访问器 (class 代码里的函数访问时抛 TypeError, 其他函数得 undefined) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/BaseFunction.java` | class syntax | 2 | `arguments` 访问器: `ClassRuntime.checkRestricted` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/BoundFunction.java` | class syntax | 4 | `isConstructor`: 绑定函数可否构造取决于目标 (`extends` 的校验用) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/CallFrame.java` | class syntax | 4 | rest 参数收集计入 `boundArgs` (经 bind 内联调用带 rest 参数的函数时绑定的实参会漏掉) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/CodeGenUtils.java` | class syntax | 5 | `setConstructor`: 类构造器可构造 (方法定义不可), 记录是否派生构造器 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/CodeGenUtils.java` | class syntax | 1 | `fillInCommon`: 记录函数是否 class 代码 (`ClassLowering.isClassCode`, 受限访问器用) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/CodeGenerator.java` | class syntax | 4 | `visitExpression` 可见性放宽为包内; `case Token.CLASS` 转 `ClassInterpreter.generate` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/CodeGenerator.java` | class syntax | 5 | 发射辅助方法可见性放宽为包内: `addIcode`, `addUint8`, `addStringOp`, `addIndexOp`, `stackChange` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 2 | 字段 `outerScopeIsStrict` (extends 表达式按类外的严格性求值); `transform` 可见性放宽为包内 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 2 | `transformElementGet` 与 `createPropertyGet`: `ClassLowering.checkSuperThis` (派生构造器里 `super.x` / `super[x]` 先读 this) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 5 | `transformFunction`: 参数作用域 (`BindingLowering.ParamScope` 创建与 `apply`), 参数 TDZ (`paramTdz`), 默认值的函数名推断 (`named`), 生成器参数解构移入参数初始化块 (`genParams`) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 3 | `transformFunctionCall`: 派生构造器 (及其箭头函数) 里的 `super(...)` 转 `ClassLowering.transformSuperCall`, 其他位置照旧由 `transformLiteral` 报错 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 3 | `transformLiteral`: 派生构造器里的 `this` 转 THIS 原语 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 4 | `transformName`: 类定义期间引用类名转 TDZ 原语 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 1 | `createForIn`: for-of 包上关闭迭代器的 try / finally (`BindingLowering.forOf`) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 1 | `createTryCatchFinally` 可见性放宽为包内 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/IRFactory.java` | class syntax | 3 | `inferNameIfMissing`: 匿名类的名字推断交给 `ClassLowering.inferClassName` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Icode.java` | class syntax | 13 | 链尾新增 `CLASS_DEFINE` ... `CLASS_PARAM_SCOPE` 11 个 icode (含注释行), `MIN_ICODE` 改接到 `CLASS_PARAM_SCOPE` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Icode.java` | class syntax | 4 | `bytecodeName`: fork icode 的名字取自 `ClassInterpreter.icodeName` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | class syntax | 4 | `NewState`, `InterpreterState`, `ICodeDumpContext`, `InstructionClass` 可见性放宽为包内 (`ClassInterpreter` 的指令类用) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | class syntax | 1 | 指令表初始化: `ClassInterpreter.register` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | class syntax | 1 | `DoCallByteCode` 的 `CALL_ON_SUPER` (`super.m()`): 当前 this 经 `ClassRuntime.receiver` (派生构造器 super() 之前报错) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | class syntax | 3 | `DoNew`: 派生构造器不走内联帧 (`ClassRuntime.inlinesNew`), 类构造器不按方法拒绝 (`isMethod`), 类构造器也创建 this 对象 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/JSDescriptor.java` | class syntax | 5 | `isDerivedConstructor` 读取已有的 `DERIVED_CONSTRUCTOR_FLAG`; `Builder.derivedConstructor` 字段与传入构造器 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/JSDescriptor.java` | class syntax | 3 | 包内字段 `classCode` (不改构造器签名, `build` 之后赋值) 与 `Builder.classCode` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/JSFunction.java` | class syntax | 4 | `construct`: 派生构造器交给 `ClassRuntime.constructDerived`; 有 home object 的类构造器同样创建 this | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeObject.java` | class syntax | 1 | `js_constructor`: new.target 不是 Object 自身时忽略实参, 按 new.target 创建 (T9) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Node.java` | class syntax | 7 | 属性链尾新增 `CLASS_PROP` / `DEFAULT_NAME_PROP`, `LAST_PROP` 改接; `propToString` 的两个分支 | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/NodeTransformer.java` | class syntax | 4 | `transformCompilationUnit_r` 的 OBJECTLIT: 展开项既是子节点又在属性 id 里, 不再变换第二次 (生成器里展开中的 yield 会登记两个恢复点); 辅助方法 `isSpread` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 1 | 字段 `bindings` (`BindingLowering` 实例) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 4 | `statementHelper`: ES6 生成器里 `yield` 开头的语句转 `classSyntax.yieldStatement` (`yield a, yield b;`) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 4 | `returnOrYield`: `yield*` 后可以换行, 逗号与冒号前的 yield 无操作数, 操作数走 `classSyntax.returnOrYieldOperand` (ES6 生成器里是 AssignmentExpression) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 5 | `expr` 可见性放宽为包内; `expr` 的逗号后与 `argumentList` 里的 yield 只对 JS 1.7 生成器要求括号 (`classSyntax.isLegacyYield`) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 1 | `memberExpr` 的 new: `classSyntax.checkNewSuper` (`new super()` 早期错误) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 1 | `methodDefinition`: `classSyntax.generatorMethod` (对象字面量生成器方法在方法体解析前标记) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 1 | `checkActivationName`: 参数里引用 `arguments` 时 `bindings.requireArguments` (需要活动对象) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 12 | `destructuringArray`: 函数参数的数组解构按迭代器协议 (`bindings.iterates` / `step` / `rest`, 空位也前进) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 1 | `processDestructuringDefaults`: 解构默认值的函数名推断 (`bindings.inferName`) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/Parser.java` | class syntax | 6 | `setupDefaultValues` 可见性放宽为包内; `destructuringObject`: 空对象模式与只有 rest 的模式也处理默认值与 RequireObjectCoercible (`bindings.requireObject`) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java` | class syntax | 6 | `getSuperElem` / `getSuperProp` / `getSuperIndex` / `setSuperElem` / `setSuperProp` / `setSuperIndex`: this 经 `ClassRuntime.receiver` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java` | class syntax | 4 | `IdEnumeration` 可见性放宽为包内与字段 `done`; `enumNextInOrder` 调用 next 期间置位 (next 抛错或完成时不再 IteratorClose) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java` | class syntax | 1 | `callSpecial` 的直接 eval: this 经 `ClassRuntime.unwrapThis` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 4 | `generateExpression` 可见性放宽为包内; `case Token.CLASS` 转 `ClassBodyCodegen.generate` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 1 | `LOCAL_BLOCK`: for-of 的枚举局部变量在入口清零 (`ClassBodyCodegen.clearsLocal`, 关闭迭代器的处理器可能在 GetIterator 之前进入) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 1 | CALL / NEW: 参数里有 yield 的调用不走直接调用快速路径 (`ClassBodyCodegen.yieldsIn`, 快速路径把实参生成两遍) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 3 | `generateLocalYieldPoint`: 保存 / 恢复操作数栈时经 `StackSpills` 留占位, 由栈图分析回填类型 (附录 C Q10) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 1 | `visitStandardCall` 等的 this: `ClassBodyCodegen.receiver` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 3 | 包内桥接 `callArgArray` (`ClassBodyCodegen` 生成 `super(...)` 的实参数组) | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/BodyCodegen.java` | class syntax | 6 | 字段可见性放宽为包内: `variableObjectLocal`, `contextLocal`, `thisObjLocal`, `funObjLocal`, `newTargetLocal`, `isGenerator` | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/optimizer/ClassCompiler.java` | class syntax | 1 | 生成 JSDescriptor 时传入 `derivedConstructor` | P2 |
 
-合计 127 行 (class syntax 77, async 50).
+合计 330 行 (class syntax 280, async 50); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory.
 
 ## 4. 新文件
 
 - `rhino/src/main/java/org/mozilla/javascript/ClassParser.java`: class 的词法钩子 (`keyword`, `privateName`), 声明 / 表达式 / 类体 / 元素 / 字段初始化器 / static block 的解析, 私有名作用域与引用解析, 函数种类栈与早期错误 (P1).
 - `rhino/src/main/java/org/mozilla/javascript/AsyncParser.java`: `async` / `await` 的词法钩子, async 函数声明 / 表达式 / 箭头函数 / 方法与 `for await` 的预解析, await 上下文栈与早期错误 (P1).
-- `rhino/src/main/java/org/mozilla/javascript/ClassLowering.java`: IRFactory 的 class 降糖入口; P1 只报 `msg.class.not.supported` (P2 起实现降糖).
+- `rhino/src/main/java/org/mozilla/javascript/ClassLowering.java`: IRFactory 的 class 降糖 (P2): 类作用域 + 构造器 + 元素定义, 默认构造器, `super(...)`, 派生构造器的 this, 类名 TDZ, 匿名类名推断, 构造器调用检查; 字段 / static block / 私有名仍报 `msg.class.not.supported` (P3).
 - `rhino/src/main/java/org/mozilla/javascript/AsyncLowering.java`: IRFactory 的 async 入口; P1 只报 `msg.async.not.supported` (P9 起实现).
 - `rhino/src/main/java/org/mozilla/javascript/ast/ClassNode.java`: class 声明 / 表达式节点 (继承 `Scope`, 类型 `Token.CLASS`; 名字, 超类, 元素, 声明或表达式, 匿名类的推断名).
 - `rhino/src/main/java/org/mozilla/javascript/ast/ClassElement.java`: 类元素 (constructor / 方法 / getter / setter / 字段 / static block, static 标志, 计算键, 私有名; 类型 `Token.CLASS_ELEMENT`).
 - `rhino/src/main/java/org/mozilla/javascript/ast/PrivateName.java`: 私有名 `#x` (继承 `Name`, 类型 `Token.PRIVATE_NAME`).
 - `rhino/src/main/java/org/mozilla/javascript/ast/AwaitExpression.java`: `await` 表达式 (类型 `Token.AWAIT`).
 - `rhino/src/main/java/org/mozilla/javascript/ast/ForAwaitOfLoop.java`: `for await (... of ...)` 循环 (继承 `ForInLoop`).
+- `rhino/src/main/java/org/mozilla/javascript/ClassOp.java`: `Token.CLASS` IR 节点的操作描述 (`Node.CLASS_PROP`): DEFINE, SUPER_CALL, THIS, TDZ, CTOR_CHECK, ITERATOR_REST, REQUIRE_OBJECT, ITERATOR_CLOSE, PARAM_SCOPE (P2).
+- `rhino/src/main/java/org/mozilla/javascript/ClassRuntime.java`: 三个后端共用的运行时: 类定义 (ClassDefinitionEvaluation), 元素定义, `super()` 构造, 派生构造器的 this (`DerivedThis`) 与返回值, TDZ 错误, 迭代器 rest / 关闭, RequireObjectCoercible, 参数作用域对象, 受限属性 (P2).
+- `rhino/src/main/java/org/mozilla/javascript/ClassInterpreter.java`: 解释器后端: `Token.CLASS` 的 icode 生成 (`generate`), 指令类注册 (`register`) 与 icode 名字 (P2).
+- `rhino/src/main/java/org/mozilla/javascript/BindingLowering.java`: 与 class 无关的通用绑定修复, test262 class 目录的方法用例依赖它们: 参数作用域, 参数 TDZ, 参数解构的迭代器协议, 生成器参数解构, for-of 关闭迭代器, 函数名推断, 需要 arguments 的活动对象 (P2).
+- `rhino/src/main/java/org/mozilla/javascript/optimizer/ClassBodyCodegen.java`: 编译后端: `Token.CLASS` 的字节码生成, 当前 this 的取值, 直接调用判定用的 `hasYield`, for-of 局部变量清零的判定 (P2).
+- `rhino/src/main/java/org/mozilla/classfile/StackSpills.java`: 编译模式生成器在 yield 点保存 / 恢复操作数栈的类型: 先留空指令占位, 方法结束时按栈图分析的类型改写为装箱 / 拆箱 / 强转 (P2, 附录 C Q10).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassCtorCheck.java`: V2 指令, 对应 icode `CLASS_CTOR_CHECK` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassDefine.java`: V2 指令, 对应 icode `CLASS_DEFINE` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassElement.java`: V2 指令, 对应 icode `CLASS_ELEMENT` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassIterClose.java`: V2 指令, 对应 icode `CLASS_ITER_CLOSE` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassIterRest.java`: V2 指令, 对应 icode `CLASS_ITER_REST` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassParamScope.java`: V2 指令, 对应 icode `CLASS_PARAM_SCOPE` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassRequireObject.java`: V2 指令, 对应 icode `CLASS_REQUIRE_OBJECT` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassSuperCall.java`: V2 指令, 对应 icode `CLASS_SUPER_CALL` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassSuperFunc.java`: V2 指令, 对应 icode `CLASS_SUPER_FUNC` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassTdz.java`: V2 指令, 对应 icode `CLASS_TDZ` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassThis.java`: V2 指令, 对应 icode `CLASS_THIS` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
+- `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassValues.java`: V2 指令类共用的出栈辅助 (P2).
 
 ### 4.1 错误消息
 
-基础 `Messages.properties` 与 9 个翻译 bundle (ar, es, fr, ja, ko, ru, zh, zh_HK, zh_TW) 末尾各有一段 `# AutoJs6: class syntax` 与 `# AutoJs6: async` 注释开头的 fork 消息 (T11). key 清单以 `MessageTranslationsTest` 的 `CLASS_SYNTAX_KEYS` 为准 (P1 共 27 个):
+基础 `Messages.properties` 与 9 个翻译 bundle (ar, es, fr, ja, ko, ru, zh, zh_HK, zh_TW) 末尾各有一段 `# AutoJs6: class syntax` 与 `# AutoJs6: async` 注释开头的 fork 消息 (T11). key 清单以 `MessageTranslationsTest` 的 `CLASS_SYNTAX_KEYS` 为准 (P1 27 个, P2 新增 11 个, 共 38 个):
 
-- class (21): `msg.class.name.missing`, `msg.class.no.brace`, `msg.class.no.brace.after`, `msg.class.dup.ctor`, `msg.class.ctor.special`, `msg.class.field.ctor`, `msg.class.static.prototype`, `msg.class.private.ctor`, `msg.class.private.undeclared`, `msg.class.private.dup`, `msg.class.private.delete`, `msg.class.private.super`, `msg.class.private.unexpected`, `msg.class.super.call`, `msg.class.field.arguments`, `msg.class.getter.parms`, `msg.class.setter.parms`, `msg.class.strict.parms`, `msg.class.field.semi`, `msg.class.decl.not.in.block`, `msg.class.not.supported`.
+- class P1 (21): `msg.class.name.missing`, `msg.class.no.brace`, `msg.class.no.brace.after`, `msg.class.dup.ctor`, `msg.class.ctor.special`, `msg.class.field.ctor`, `msg.class.static.prototype`, `msg.class.private.ctor`, `msg.class.private.undeclared`, `msg.class.private.dup`, `msg.class.private.delete`, `msg.class.private.super`, `msg.class.private.unexpected`, `msg.class.super.call`, `msg.class.field.arguments`, `msg.class.getter.parms`, `msg.class.setter.parms`, `msg.class.strict.parms`, `msg.class.field.semi`, `msg.class.decl.not.in.block`, `msg.class.not.supported` (P2 起文案改为 "暂不支持类字段, static 块与私有成员").
+- class P2 (11): `msg.class.ctor.call`, `msg.class.extends.not.ctor`, `msg.class.extends.proto`, `msg.class.super.not.ctor`, `msg.class.this.uninit`, `msg.class.super.twice`, `msg.class.derived.return`, `msg.class.tdz`, `msg.class.restricted.prop`, `msg.param.tdz`, `msg.class.new.super`.
 - async (6): `msg.async.not.supported`, `msg.async.await.context`, `msg.async.await.params`, `msg.async.for.await.of`, `msg.async.decl.not.in.block`, `msg.async.name.missing`.
 
 ## 5. 自带测试类
 
 | 测试类 | 模块 | 内容 | 阶段 |
 |---|---|---|---|
-| `org.mozilla.javascript.tests.classsyntax.ClassSyntaxParserTest` | rhino | class 的 AST 形状, 位置, `toSource`, 早期错误, 开关与 ES6 门控, 编译期 "暂不支持" | P1 |
+| `org.mozilla.javascript.tests.classsyntax.ClassSyntaxParserTest` | rhino | class 的 AST 形状, 位置, `toSource`, 早期错误, 开关与 ES6 门控, 编译期 "暂不支持"; P2 加 ES6 生成器的 `yield` 解析与 JS 1.7 生成器的括号要求 | P1 / P2 |
 | `org.mozilla.javascript.tests.classsyntax.AsyncSyntaxParserTest` | rhino | async / await / for await 的预解析, 早期错误, 开关, 编译期 "暂不支持" | P1 |
 | `org.mozilla.javascript.tests.classsyntax.TokenUniquenessTest` | rhino | 编号链唯一性 (第 7 节) | P1 |
 | `org.mozilla.javascript.tests.classsyntax.HooksRegistryTest` | rhino | 本文第 3 / 4 节与源码对照 | P1 |
 | `org.mozilla.javascript.tests.MessageTranslationsTest` (fork 已有, 新增 `classSyntaxMessagesAreTranslated`) | rhino | fork 消息在 9 个翻译 bundle 齐全 | P1 |
-| `org.mozilla.javascript.tests.classsyntax.ClassSyntaxTest262ParseTest` | tests | test262 class 两目录只解析: parse 阶段反例全部拒绝, 其余用例除登记的生成器缺口外全部可解析 | P1 |
+| `org.mozilla.javascript.tests.classsyntax.ClassSyntaxTest262ParseTest` | tests | test262 class 两目录只解析: parse 阶段反例全部拒绝, 其余用例全部可解析 (P2 起 `KNOWN_PARSE_GAPS` 为空) | P1 |
+| `org.mozilla.javascript.tests.classsyntax.ClassSyntaxTest` | rhino | ES2015 class 语义, 每条规则一组, 解释 / 编译两模式 | P2 |
+| `org.mozilla.javascript.interpreterv2.ClassInstructionsTest` | rhino | V2 class 指令的栈变化与调试串 (附录 C Q11) | P2 |
+| `org.mozilla.javascript.ClassChainUniquenessTest` | rhino | `Icode` 链与 `Node` 属性 id 的唯一性 (第 7 节) | P2 |
+| `org.mozilla.javascript.tests.ClassSyntaxTest262CoreTest` | tests | test262 class 两目录的 ES2015 核心 (排除字段 / static block / 私有名 / async 与 T10 特性) 解释 / 编译两模式执行, 已知失败按阶段登记 (附录 E) | P2 |
 
-后续阶段规划的测试类 (ClassSyntaxTest, ClassFieldsTest, PrivateNamesTest, BuiltinSubclassingTest, JavaClassInheritanceTest, AsyncFunctionTest, AsyncGeneratorTest, ForAwaitTest) 落地时登记到本表.
+后续阶段规划的测试类 (ClassFieldsTest, PrivateNamesTest, BuiltinSubclassingTest, JavaClassInheritanceTest, AsyncFunctionTest, AsyncGeneratorTest, ForAwaitTest) 落地时登记到本表.
 
-运行: `./gradlew.bat :rhino:test --tests "org.mozilla.javascript.tests.classsyntax.*" --tests "*MessageTranslationsTest*"` 与 `./gradlew.bat :tests:test --tests "*ClassSyntaxTest262ParseTest*"`.
+运行: `./gradlew.bat :rhino:test --tests "org.mozilla.javascript.tests.classsyntax.*" --tests "*MessageTranslationsTest*" --tests "*ClassInstructionsTest*" --tests "*ClassChainUniquenessTest*"` 与 `./gradlew.bat :tests:test --tests "*ClassSyntaxTest262ParseTest*" --tests "*ClassSyntaxTest262CoreTest*"` (核心集的失败明细写到 `tests/build/class-syntax/core-<模式>.txt`).
 
 ## 6. 依赖的上游机制
 
@@ -118,7 +195,16 @@ P1 只依赖解析器内部机制:
 - `IRFactory.transform` 按节点类型分派, `IRFactory.AstNodePosition` 提供报错位置.
 - 对象字面量方法 (`ObjectProperty` 的 `METHOD_ENTRY`) 的解析路径, async 方法复用它.
 
-后续阶段将依赖 (P2 起登记): 对象字面量方法的 home object, `Constructable.construct(cx, nt, ...)`, `GeneratorState` 与生成器 Icode, `NativePromise` 与 `Context.enqueueMicrotask`, `UnhandledRejectionTracker`, V2 指令注册.
+P2 起依赖 (上游改动这些机制时按 `AGENTS.md` 7.6 跟着改 fork 实现, 并跑第 5 节全部测试):
+
+- home object: `JSFunction.getHomeObject` / `setHomeObject`, super 属性访问 (`ScriptRuntime.getSuperProp` 等) 以 home object 与当前 this 工作; 有 home object 且可构造即类构造器 (`ClassRuntime.isClassConstructor`).
+- 构造: `JSFunction.construct(cx, nt, ...)` 与 `BaseFunction.createObject(cx, scope, nt)` 按 new.target 的 prototype 创建 (T9 入口), `JSDescriptor` 的 `DERIVED_CONSTRUCTOR_FLAG` 与构造参数顺序 (`ClassCompiler` 生成), `ScriptRuntime.setBuiltinProtoAndParent` 对 new.target 的处理 (Object / Function).
+- 解释器: `DoNew` 的内联构造帧, `CallFrame` 的 `boundArgs`, 按 icode 编号的 `instructionObjs` 指令表, `CodeGenerator.visitExpression` 分派与栈深度记账.
+- 编译器: `BodyCodegen.generateExpression` 分派, 生成器 yield 点 (`generateLocalYieldPoint` 把操作数栈存进 `Object[]`), `ClassFileWriter.StackMapTable` 的超级块与类型推导, `OptTransformer` 的直接调用 (`DIRECTCALL_PROP`).
+- IR: 参数解构在解析期构建 (`destructuringArray` / `destructuringObject` / `setupDefaultValues`), 生成器参数初始化块 (`FunctionNode.getGeneratorParamInitBlock`), NodeTransformer 的 LETEXPR -> SCOPEEXPR 与对象字面量属性 id 的单独变换, for-of 的 `ENUM_INIT_VALUES` / `IdEnumeration`.
+- V2: `Instruction.stackChange` / `toDebugString` 与 `CallFrameV2` 的栈接口 (只写了指令类, 上游尚无编译器).
+
+后续阶段将依赖 (登记时补充): `GeneratorState` 与 async 驱动, `NativePromise` 与 `Context.enqueueMicrotask`, `UnhandledRejectionTracker`.
 
 ## 7. 编号链
 
@@ -126,16 +212,31 @@ P1 只依赖解析器内部机制:
 |---|---|---|
 | `Token` 常量 | `CLASS`, `PRIVATE_NAME`, `CLASS_ELEMENT`, `AWAIT` (接在上游链尾 `SCOPE_REPLACE` 之后, `LAST_TOKEN = AWAIT + 1`) | `TokenUniquenessTest.tokenValuesAreUnique`, `forkTokensAreAtTheTail` |
 | `Context.FEATURE_*` | `FEATURE_CLASS_SYNTAX` (23), `FEATURE_ASYNC_SYNTAX` (24) | `TokenUniquenessTest.featureValuesAreUniqueAndForkFeaturesLast` |
+| `Icode` 常量 | `CLASS_DEFINE`, `CLASS_ELEMENT`, `CLASS_CTOR_CHECK`, `CLASS_THIS`, `CLASS_TDZ`, `CLASS_SUPER_FUNC`, `CLASS_SUPER_CALL`, `CLASS_ITER_REST`, `CLASS_REQUIRE_OBJECT`, `CLASS_ITER_CLOSE`, `CLASS_PARAM_SCOPE` (接在上游链尾 `SCOPE_REPLACE` 之后依次减一, `MIN_ICODE = CLASS_PARAM_SCOPE`) | `ClassChainUniquenessTest.icodesAreUniqueWithForkIcodesLast` |
+| `Node` 属性 id | `CLASS_PROP` (35), `DEFAULT_NAME_PROP` (36), `LAST_PROP = DEFAULT_NAME_PROP` | `ClassChainUniquenessTest.nodePropertiesAreUniqueWithForkPropertiesLast` |
 
-上游在同一链尾新增常量时, 上游的接在前, fork 的接在后并重算 (`AGENTS.md` 第三节第 8 条). `Icode` 常量, `Node` 属性 id, V2 指令注册在 P1 未改动, 后续阶段新增时补测试并登记.
+上游在同一链尾新增常量时, 上游的接在前, fork 的接在后并重算 (`AGENTS.md` 第三节第 8 条). V2 没有按编号的指令注册表 (每条指令是一个类, 由尚不存在的 IR 到 V2 编译器创建), fork 的 V2 指令类不占编号.
 
-## 8. 已知限制 (P1)
+## 8. 已知限制
 
-- class 与 async 代码能解析, 但编译 (`IRFactory`) 时报 "暂不支持" (`msg.class.not.supported` / `msg.async.not.supported`), 分别由 P2 / P9 实现.
-- `test262.properties` 未改动, class 两目录仍整体排除; P1 的覆盖由 `ClassSyntaxTest262ParseTest` 只解析地验证 (反例 1262 / 1262 拒绝), P6.1 重生成时解锁 (附录 C Q9).
-- 26 个正例因上游生成器解析的缺口 (逗号表达式或参数列表里未加括号的 `yield`, 对象展开里的 `yield`) 不能解析, 同样的写法在普通生成器函数里也失败; 登记在 `ClassSyntaxTest262ParseTest.KNOWN_PARSE_GAPS`, 按附录 C Q10 处理.
-- 部分早期错误在解析阶段尚未报错, 由编译期 "暂不支持" 拦下 (test262 class / async 特性以外目录里 25 例 parse 反例): async 函数 / 箭头函数的参数与函数体重名, 严格函数体配非简单参数, 把 async 箭头函数 / async 函数表达式 / class 表达式 / `await` 表达式用作赋值目标, 对象 async 方法参数里的 `super()`. class 表达式那一类由 P2 补齐, 其余由 P9 补齐.
-- `class A extends new B {}` 与 fork 的 JavaAdapter 写法 `new X {}` 冲突, 按 JavaAdapter 处理; eval 代码里引用外层私有名在解析期报错 (P3 处理); 块内 async 函数声明按 Annex B 与普通函数同样处理; `new super()` 未报错.
+P1 (解析) 留下的限制, P2 之后的状态:
+
+- class 能执行 (P2); 字段 / static block / 私有名在编译时报 `msg.class.not.supported` (P3), async 报 `msg.async.not.supported` (P9).
+- `test262.properties` 未改动, class 两目录仍整体排除; 覆盖由 `ClassSyntaxTest262ParseTest` (只解析) 与 `ClassSyntaxTest262CoreTest` (执行核心部分) 验证, P6.1 重生成时解锁 (附录 C Q9).
+- 26 个生成器 `yield` 解析缺口已在 P2 修复 (附录 C Q10), `KNOWN_PARSE_GAPS` 为空.
+- 解析阶段尚未报的早期错误: async 函数 / 箭头函数的参数与函数体重名, 严格函数体配非简单参数, async 箭头函数 / async 函数表达式 / `await` 表达式用作赋值目标, 对象 async 方法参数里的 `super()` (P9). class 表达式用作赋值目标与 `new super()` 已在 P2 报错.
+- `class A extends new B {}` 与 fork 的 JavaAdapter 写法 `new X {}` 冲突, 按 JavaAdapter 处理; eval 代码里引用外层私有名在解析期报错 (P3 处理); 块内 async 函数声明按 Annex B 与普通函数同样处理.
+
+P2:
+
+- class 声明的外层绑定与 `let` 一样没有 TDZ (上游 `let` 的限制): 声明之前访问得到 undefined, 不抛 ReferenceError. 类定义期间 (extends 与计算键) 对类名的引用有 TDZ.
+- 派生构造器里 `super()` 之前的直接 eval 读 `this` 得到 undefined, 规范要求 ReferenceError.
+- eval 代码里不能用 `new.target` (Parser 只在函数内接受, 普通函数同样; 上游 test262 `eval-code/direct/new.target-fn.js` 失败), 也不能调 `super()` (派生构造器里的直接 eval `super()` 报 SyntaxError, 规范允许; eval 代码不知道所在的函数), 附录 C Q12.
+- 除 Object / Function 外的内建构造器被继承时还不按 new.target 创建 (P4); `ClassSyntaxTest262CoreTest` 里 4 例登记为 P4 已知失败, 另 5 例 async 箭头函数用例登记为 P9.
+- 参数初始化顺序 (上游缺陷, 普通函数同样): 带解构的参数先于简单默认值初始化, 例如 `function f(a = 1, [x] = [a + 1])` 里 x 为 NaN.
+- `Function.prototype` 的 `caller` / `arguments` 受限访问器只对 class 代码里的函数 (类构造器, 方法, heritage 与计算键里的函数, 以及它们内部的函数) 抛 TypeError; 其他严格函数 (含严格对象字面量方法) 保持 Rhino 原行为 (未执行时 `arguments` 为 null, 没有 `caller`), 上游 `ArgumentsTest` 依赖它, 规范要求一律抛错.
+- Interpreter V2 只有指令类, 没有 IR 到 V2 的编译器 (附录 C Q11), V2 端到端 0 例.
+- 编译模式 yield 点的栈类型保存只处理引用, int 与 float 栈项; long / double 栈项保持原来的无类型保存 (生成器不做数值优化, 目前不会出现).
 
 ## 9. 退役记录
 

@@ -116,6 +116,7 @@ public class CodeGenUtils {
 
         builder.sourceStart = scriptOrFn.getRawSourceStart();
         builder.sourceEnd = scriptOrFn.getRawSourceEnd();
+        builder.classCode = ClassLowering.isClassCode(scriptOrFn); // AutoJs6: class syntax
     }
 
     /** Configure the constructor appropriately based on a function's type. */
@@ -124,6 +125,11 @@ public class CodeGenUtils {
         if (scriptOrFn instanceof FunctionNode) {
             FunctionNode f = (FunctionNode) scriptOrFn;
             boolean isArrow = f.getFunctionType() == FunctionNode.ARROW_FUNCTION;
+            if (ClassLowering.isClassConstructor(f)) { // AutoJs6: class syntax
+                builder.constructor = builder.code; // AutoJs6: class syntax
+                builder.derivedConstructor = ClassLowering.isDerived(f); // AutoJs6: class syntax
+                return; // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             if (isArrow || f.isMethodDefinition() || f.isGenerator()) {
                 builder.constructor = new JSCode.NullBuilder<T>();
             } else {

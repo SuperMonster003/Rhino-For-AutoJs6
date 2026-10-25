@@ -77,6 +77,9 @@ final class ClassParser {
     private boolean pendingGenerator;
     private PrivateScope privateScope;
 
+    /** How many class definitions {@link ClassLowering} is lowering, innermost included. */
+    int lowering;
+
     /** The private names declared by one class body, and the references found inside it. */
     private static final class PrivateScope {
         final PrivateScope outer;
@@ -185,6 +188,13 @@ final class ClassParser {
     // Expression hooks (Parser)
     // ------------------------------------------------------------------
 
+    /** Rejects {@code new super()}: a super call is not a constructor reference. */
+    void checkNewSuper(AstNode target) {
+        if (target.getType() == Token.SUPER) {
+            parser.reportError("msg.class.new.super");
+        }
+    }
+
     /**
      * Checks a {@code super} keyword that was just consumed: a following {@code (} makes it a
      * {@code super()} call, which is only valid in the constructor of a derived class (arrow
@@ -204,6 +214,50 @@ final class ClassParser {
             default:
                 break;
         }
+    }
+
+    /**
+     * Whether {@code tt} is a yield that has to be parenthesized after a comma or as an argument:
+     * the restriction of JavaScript 1.7 generators. An ES6 generator takes a YieldExpression
+     * wherever an AssignmentExpression goes (ROADMAP Q10).
+     */
+    boolean isLegacyYield(int tt) {
+        return tt == Token.YIELD && !inES6Generator();
+    }
+
+    /** Whether {@code tt} is a yield in an ES6 generator. */
+    boolean isES6Yield(int tt) {
+        return tt == Token.YIELD && inES6Generator();
+    }
+
+    /** The operand of return, or of yield: an AssignmentExpression in an ES6 generator. */
+    AstNode returnOrYieldOperand(int tt) throws IOException {
+        if (tt == Token.YIELD && inES6Generator()) {
+            return parser.assignExpr();
+        }
+        return parser.expr(false);
+    }
+
+    /**
+     * A statement that starts with yield in an ES6 generator: an expression statement, which may go
+     * on after the YieldExpression ({@code yield a, yield b;}).
+     */
+    AstNode yieldStatement() throws IOException {
+        TokenStream ts = parser.ts;
+        int lineno = ts.getLineno(), column = ts.getTokenColumn();
+        ExpressionStatement pn = new ExpressionStatement(parser.expr(false), false);
+        pn.setLineColumnNumber(lineno, column);
+        return pn;
+    }
+
+    /** An object literal method: a generator is known before its body is parsed. */
+    void generatorMethod(boolean isGenerator) {
+        pendingGenerator = isGenerator;
+    }
+
+    private boolean inES6Generator() {
+        return parser.currentScriptOrFn instanceof FunctionNode
+                && ((FunctionNode) parser.currentScriptOrFn).isES6Generator();
     }
 
     /** Rejects an {@code arguments} reference in field initializers and static blocks. */

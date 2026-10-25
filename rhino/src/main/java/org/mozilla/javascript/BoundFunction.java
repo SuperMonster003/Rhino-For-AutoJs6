@@ -86,6 +86,11 @@ public class BoundFunction extends BaseFunction {
         throw ScriptRuntime.typeErrorById("msg.not.ctor");
     }
 
+    @Override // AutoJs6: class syntax
+    public boolean isConstructor() { // AutoJs6: class syntax
+        return ClassRuntime.isConstructor(targetFunction); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     @Override
     public boolean hasInstance(Scriptable instance) {
         if (targetFunction instanceof Function) {

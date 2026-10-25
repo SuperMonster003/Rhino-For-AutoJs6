@@ -285,6 +285,9 @@ public class ClassFileWriter {
         StackMapTable stackMap = null;
         if (GenerateStackMap) {
             finalizeSuperBlockStarts();
+            if (itsStackSpills != null) { // AutoJs6: class syntax
+                new StackMapTable().resolveSpills(); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             stackMap = new StackMapTable();
             stackMap.generate();
         }
@@ -431,6 +434,7 @@ public class ClassFileWriter {
         itsLineNumberTableTop = 0;
         itsCodeBufferTop = 0;
         itsCurrentMethod = null;
+        itsStackSpills = null; // AutoJs6: class syntax
         itsMaxStack = 0;
         itsStackTop = 0;
         itsLabelTableTop = 0;
@@ -1373,6 +1377,13 @@ public class ClassFileWriter {
         return itsCodeBufferTop;
     }
 
+    public StackSpills getStackSpills() { // AutoJs6: class syntax
+        if (itsStackSpills == null) { // AutoJs6: class syntax
+            itsStackSpills = new StackSpills(this, itsConstantPool); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
+        return itsStackSpills; // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     public int getStackTop() {
         return itsStackTop;
     }
@@ -1505,6 +1516,11 @@ public class ClassFileWriter {
             wide = false;
         }
 
+        void resolveSpills() { // AutoJs6: class syntax
+            spillAnalysis = true; // AutoJs6: class syntax
+            generate(); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
+
         void generate() {
             superBlocks = new SuperBlock[itsSuperBlockStartsTop];
             int[] initialLocals = createInitialLocals();
@@ -1535,6 +1551,10 @@ public class ClassFileWriter {
             }
 
             verify();
+            if (spillAnalysis) { // AutoJs6: class syntax
+                itsStackSpills.patch(itsCodeBuffer); // AutoJs6: class syntax
+                return; // AutoJs6: class syntax
+            } // AutoJs6: class syntax
 
             if (DEBUGSTACKMAP) {
                 System.err.println("type information:");
@@ -1662,6 +1682,7 @@ public class ClassFileWriter {
             workList = new SuperBlock[] {superBlocks[0]};
             workListTop = 1;
             executeWorkList();
+            if (spillAnalysis) return; // AutoJs6: class syntax
 
             // Replace dead code with no-ops.
             for (SuperBlock sb : superBlocks) {
@@ -1808,6 +1829,7 @@ public class ClassFileWriter {
 
             for (int bci = work.getStart(); bci < work.getEnd(); bci += next) {
                 bc = itsCodeBuffer[bci] & 0xFF;
+                if (spillAnalysis && !stepSpill(bci)) return; // AutoJs6: class syntax
                 next = execute(bci);
 
                 // If we have a branch to some super block, we need to merge
@@ -1907,6 +1929,16 @@ public class ClassFileWriter {
                 }
             }
         }
+
+        private boolean stepSpill(int bci) { // AutoJs6: class syntax
+            int load = itsStackSpills.visit(bci, stack, stackTop); // AutoJs6: class syntax
+            if (load == StackSpills.UNKNOWN) return false; // AutoJs6: class syntax
+            if (load != StackSpills.NONE) { // AutoJs6: class syntax
+                SuperBlock sb = getSuperBlockFromOffset(load); // AutoJs6: class syntax
+                if (sb.isInitialized()) addToWorkList(sb); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
+            return true; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
 
         /**
          * Perform a merge of type state and add the super block to the work list if the merge
@@ -2670,6 +2702,8 @@ public class ClassFileWriter {
         private int rawStackMapTop;
 
         private boolean wide;
+
+        private boolean spillAnalysis; // AutoJs6: class syntax
 
         static final boolean DEBUGSTACKMAP = false;
     }
@@ -4617,6 +4651,7 @@ public class ClassFileWriter {
     private ConstantPool itsConstantPool;
 
     private ClassFileMethod itsCurrentMethod;
+    private StackSpills itsStackSpills; // AutoJs6: class syntax
     private int itsStackTop;
 
     private int itsMaxStack;

@@ -534,7 +534,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
 
     private static final Object undefined = Undefined.instance;
 
-    private static class NewState {}
+    static class NewState {} // AutoJs6: class syntax
 
     private abstract static class InterpreterResult extends NewState {}
 
@@ -580,7 +580,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
 
     private static final NewState BREAK_WITHOUT_EXTENSION = new NewState() {};
 
-    private static class InterpreterState {
+    static class InterpreterState { // AutoJs6: class syntax
         int indexReg;
         BigInteger bigIntReg;
         String stringReg;
@@ -594,7 +594,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         }
     }
 
-    private static class ICodeDumpContext {
+    static class ICodeDumpContext { // AutoJs6: class syntax
         final PrintStream out;
         final InterpreterData.Builder<?> compilerData;
 
@@ -619,7 +619,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         }
     }
 
-    private abstract static class InstructionClass {
+    abstract static class InstructionClass { // AutoJs6: class syntax
         abstract NewState execute(Context cx, CallFrame frame, InterpreterState state, int op);
 
         void dumpICode(int op, String tname, ICodeDumpContext ctx) {
@@ -762,6 +762,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         instructionObjs[base + Token.LEAVE_SCOPE] = new DoLeaveScope();
         instructionObjs[base + Icode.DEF_CONST] = new DoDefConst();
         instructionObjs[base + Icode.SCOPE_REPLACE] = new DoScopeReplace();
+        ClassInterpreter.register(instructionObjs, base); // AutoJs6: class syntax
         instructionObjs[base + Token.CATCH_SCOPE] = new DoCatchScope();
         instructionObjs[base + Token.ENUM_INIT_KEYS] = new DoEnumInit();
         instructionObjs[base + Token.ENUM_INIT_VALUES] = new DoEnumInit();
@@ -2661,7 +2662,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
                 // used to lookup the function. Now that that's done, we
                 // discard it and invoke the function with the current
                 // "this".
-                funThisObj = frame.thisObj;
+                funThisObj = ClassRuntime.receiver(frame.thisObj); // AutoJs6: class syntax
             }
 
             if (op == Token.REF_CALL) {
@@ -2905,7 +2906,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             frame.stackTop -= state.indexReg;
 
             Object lhs = frame.stack[frame.stackTop];
-            if (lhs instanceof JSFunction
+            if (ClassRuntime.inlinesNew(lhs) // AutoJs6: class syntax
                     && ((JSFunction) lhs).getConstructor() instanceof InterpreterData) {
                 JSFunction f = (JSFunction) lhs;
 
@@ -2914,14 +2915,14 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
                 if (frame.fnOrScript.getDescriptor().getSecurityDomain()
                         == desc.getSecurityDomain()) {
                     if (cx.getLanguageVersion() >= Context.VERSION_ES6
-                            && f.getHomeObject() != null) {
+                            && ClassRuntime.isMethod(f)) { // AutoJs6: class syntax
                         // Only methods have home objects associated with
                         // them
                         throw ScriptRuntime.typeErrorById("msg.not.ctor", f.getFunctionName());
                     }
 
                     Scriptable newInstance =
-                            f.getHomeObject() == null ? f.createObject(cx, frame.scope) : null;
+                            f.createObject(cx, frame.scope); // AutoJs6: class syntax
                     CallFrame calleeFrame =
                             initFrame(
                                     cx,

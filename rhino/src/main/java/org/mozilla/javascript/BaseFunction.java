@@ -103,6 +103,12 @@ public class BaseFunction extends ScriptableObject implements Function {
                                 BaseFunction::js_protoArgumentsGetter,
                                 BaseFunction::js_protoArgumentsSetter,
                                 DONTENUM | READONLY)
+                        .withProp( // AutoJs6: class syntax
+                                PROTO, // AutoJs6: class syntax
+                                "caller", // AutoJs6: class syntax
+                                ClassRuntime::restrictedCallerGetter, // AutoJs6: class syntax
+                                ClassRuntime::restrictedCallerSetter, // AutoJs6: class syntax
+                                DONTENUM | READONLY) // AutoJs6: class syntax
                         .build();
 
         APPLY_DESCRIPTOR = DESCRIPTOR.findProtoDesc("apply");
@@ -664,10 +670,12 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     private static Object js_protoArgumentsGetter(Scriptable thisObj) {
+        ClassRuntime.checkRestricted(thisObj, "arguments"); // AutoJs6: class syntax
         return LambdaConstructor.convertThisObject(thisObj, BaseFunction.class).getArguments();
     }
 
     private static void js_protoArgumentsSetter(Scriptable thisObj, Object value) {
+        ClassRuntime.checkRestricted(thisObj, "arguments"); // AutoJs6: class syntax
         LambdaConstructor.convertThisObject(thisObj, BaseFunction.class).setArguments(value);
     }
 

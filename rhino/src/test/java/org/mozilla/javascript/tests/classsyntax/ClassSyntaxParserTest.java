@@ -374,16 +374,73 @@ class ClassSyntaxParserTest {
         assertEquals(message("msg.illegal.character", "#"), parseError("class A { # x; }"));
     }
 
-    @Test
-    void classesAreNotExecutableYet() {
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "class A { x = 1; }",
+                "class A { static { } }",
+                "class A { #m() {} }",
+                "var A = class { static y; };"
+            })
+    void laterClassFeaturesAreNotExecutableYet(String source) {
+        // P2 runs the ES2015 core; fields, static blocks and private names follow in P3.
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_ECMASCRIPT);
             EvaluatorException e =
                     assertThrows(
                             EvaluatorException.class,
-                            () -> cx.compileString("class A {}", "test.js", 1, null));
+                            () -> cx.compileString(source, "test.js", 1, null));
             assertEquals(ScriptRuntime.getMessageById("msg.class.not.supported"), e.details());
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "function* g() { yield 1, yield 2; }",
+                "function* g() { f(yield 1, yield); }",
+                "function* g() { x ? yield : yield 1; }",
+                "function* g() { ({...yield, y: 1, ...yield yield}); }",
+                "function* g() { [yield 1, yield]; }",
+                "function* g() { ({[yield 9]: 1}); }",
+                "function* g() { class C { [yield 8]() {} } }",
+                "function* g() {\n  yield *\n  g();\n}",
+                "var o = { *m() { yield 1, yield 2; } };",
+                "class C { *m() { return yield, yield 1; } }"
+            })
+    void yieldIsAnAssignmentExpressionInES6Generators(String source) {
+        // ROADMAP appendix C Q10: no parentheses needed after a comma or in an argument list.
+        parse(source);
+    }
+
+    @Test
+    void yieldOperandEndsAtComma() {
+        AstRoot root = parse("function* g() { yield a, b; }");
+        FunctionNode fn = (FunctionNode) root.getFirstChild();
+        ExpressionStatement statement = (ExpressionStatement) fn.getBody().getFirstChild();
+        InfixExpression comma = (InfixExpression) statement.getExpression();
+        assertEquals(Token.COMMA, comma.getType());
+        assertEquals(Token.YIELD, comma.getLeft().getType());
+        assertEquals("b", ((Name) comma.getRight()).getIdentifier());
+    }
+
+    @Test
+    void legacyGeneratorsKeepParenthesizedYield() {
+        EvaluatorException e =
+                assertThrows(
+                        EvaluatorException.class,
+                        () -> parse("function g() { f(yield 1, 2); }", Context.VERSION_1_8, true));
+        assertEquals(message("msg.yield.parenthesized"), e.details());
+        assertEquals(
+                message("msg.yield.parenthesized"),
+                assertThrows(
+                                EvaluatorException.class,
+                                () ->
+                                        parse(
+                                                "function g() { yield 1, yield 2; }",
+                                                Context.VERSION_1_8,
+                                                true))
+                        .details());
     }
 
     @Test

@@ -100,7 +100,7 @@ public final class IRFactory {
 
     private Parser parser;
     private AstNodePosition astNodePos;
-    private boolean outerScopeIsStrict;
+    boolean outerScopeIsStrict; // AutoJs6: class syntax
 
     public IRFactory(CompilerEnvirons env, String sourceString) {
         this(env, null, sourceString, env.getErrorReporter());
@@ -148,7 +148,7 @@ public final class IRFactory {
     // functions into the AstNode subclasses.  OTOH that would make
     // IR transformation part of the public AST API - desirable?
     // Another possibility:  create AstTransformer interface and adapter.
-    private Node transform(AstNode node) {
+    Node transform(AstNode node) { // AutoJs6: class syntax
         switch (node.getType()) {
             case Token.ARRAYCOMP:
                 return transformArrayComp((ArrayComprehension) node);
@@ -163,7 +163,7 @@ public final class IRFactory {
             case Token.CALL:
                 return transformFunctionCall((FunctionCall) node);
             case Token.CLASS: // AutoJs6: class syntax
-                return ClassLowering.transform(parser, node); // AutoJs6: class syntax
+                return ClassLowering.transform(this, parser, node); // AutoJs6: class syntax
             case Token.CONTINUE:
                 return transformContinue((ContinueStatement) node);
             case Token.DO:
@@ -598,6 +598,7 @@ public final class IRFactory {
         }
         if (target.getType() == Token.SUPER) {
             getElem.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+            ClassLowering.checkSuperThis(parser, getElem); // AutoJs6: class syntax
         }
         return getElem;
     }
@@ -660,6 +661,7 @@ public final class IRFactory {
             int lineno = fn.getBody().getLineno(), column = fn.getBody().getColumn();
             ++parser.nestingOfFunction; // only for body, not params
             Node body = transform(fn.getBody());
+            var paramScope = new BindingLowering.ParamScope(fn, body); // AutoJs6: class syntax
 
             /* Process simple default parameters */
             List<Object> defaultParams = fn.getDefaultParams();
@@ -687,6 +689,7 @@ public final class IRFactory {
                                         null,
                                         body.getLineno(),
                                         body.getColumn());
+                        BindingLowering.paramTdz(fn, name, paramInit); // AutoJs6: class syntax
                         if (fn.isGenerator()) {
                             if (paramInitBlock == null) {
                                 paramInitBlock = new Node(Token.BLOCK);
@@ -710,14 +713,16 @@ public final class IRFactory {
                     Node a = i[0];
                     if (i[1] instanceof AstNode) {
                         AstNode b = (AstNode) i[1];
-                        a.replaceChild(b, transform(b));
+                        a.replaceChild(b, parser.bindings.named(this, b)); // AutoJs6: class syntax
                     }
                 }
             }
 
+            destructuring = BindingLowering.genParams(fn, destructuring); // AutoJs6: class syntax
             if (destructuring != null) {
                 body.addChildToFront(new Node(Token.EXPR_VOID, destructuring, lineno, column));
             }
+            paramScope.apply(); // AutoJs6: class syntax
 
             int syntheticType = fn.getFunctionType();
             Node pn = initFunction(fn, index, body, syntheticType);
@@ -744,6 +749,9 @@ public final class IRFactory {
     private Node transformFunctionCall(FunctionCall node) {
         astNodePos.push(node);
         try {
+            if (ClassLowering.isSuperCall(parser, node)) { // AutoJs6: class syntax
+                return ClassLowering.transformSuperCall(this, node); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             Node transformedTarget = transform(node.getTarget());
             Node call = createCallOrNew(Token.CALL, transformedTarget);
             call.setLineColumnNumber(node.getLineno(), node.getColumn());
@@ -959,10 +967,17 @@ public final class IRFactory {
         // constructor calling "super()" _is_ allowed.
         if (node.getParent() instanceof FunctionCall && node.getType() == Token.SUPER)
             parser.reportError("msg.super.shorthand.function");
+        if (ClassLowering.isDerivedThis(parser, node)) { // AutoJs6: class syntax
+            return ClassLowering.derivedThis(node); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         return node;
     }
 
     private Node transformName(Name node) {
+        Node tdz = ClassLowering.transformName(parser, node); // AutoJs6: class syntax
+        if (tdz != null) { // AutoJs6: class syntax
+            return tdz; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         return node;
     }
 
@@ -1891,6 +1906,7 @@ public final class IRFactory {
             loop = createLoop((Jump) loop, LOOP_WHILE, newBody, cond, null, null, false);
             loop.addChildToFront(init);
             if (type == Token.VAR || type == Token.LET) loop.addChildToFront(lhs);
+            loop = parser.bindings.forOf(this, ast, localBlock, loop); // AutoJs6: class syntax
             localBlock.addChildToBack(loop);
 
             return localBlock;
@@ -1913,7 +1929,7 @@ public final class IRFactory {
      *
      * <p>... and a goto to GOTO around these handlers.
      */
-    private Node createTryCatchFinally(
+    Node createTryCatchFinally( // AutoJs6: class syntax
             Node tryBlock, Node catchBlocks, Node finallyBlock, int lineno, int column) {
         boolean hasFinally =
                 (finallyBlock != null)
@@ -2404,6 +2420,7 @@ public final class IRFactory {
             }
             if (target.getType() == Token.SUPER) {
                 node.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+                ClassLowering.checkSuperThis(parser, node); // AutoJs6: class syntax
             }
             return node;
         }
@@ -2698,6 +2715,9 @@ public final class IRFactory {
         if (parser.compilerEnv.getLanguageVersion() < Context.VERSION_ES6) {
             return;
         }
+        if (ClassLowering.inferClassName(parser, left, right, prefix)) { // AutoJs6: class syntax
+            return; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
 
         if (left instanceof Name && right != null && right.type == Token.FUNCTION) {
             Name name = (Name) left;

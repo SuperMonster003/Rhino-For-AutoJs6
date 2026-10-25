@@ -28,9 +28,8 @@ import org.mozilla.javascript.testutils.TestSource;
 
 /**
  * AutoJs6 class syntax (ROADMAP P1.6): every parse-phase SyntaxError test in the two test262 class
- * directories is rejected by the parser, and every other test in them parses, except the listed
- * gaps of the shared generator parsing. This runs the parser only; the full {@code
- * Test262SuiteTest} unlocks these directories in P6.1.
+ * directories is rejected by the parser, and every other test in them parses. This runs the parser
+ * only; the full {@code Test262SuiteTest} unlocks these directories in P6.1.
  *
  * <p>Tests whose features are outside the roadmap (T10: decorators and the like) and module tests
  * are skipped, as in appendix E of the roadmap.
@@ -51,38 +50,10 @@ class ClassSyntaxTest262ParseTest {
                     "source-phase-imports");
 
     /**
-     * Positive tests that do not parse yet because of the shared generator parsing (yield in a
-     * comma expression or an argument list must be parenthesized; yield inside an object spread);
-     * the same tests fail for plain generator functions. To be fixed by P6 (ROADMAP appendix C).
+     * Positive tests that do not parse yet. Empty since P2 fixed the shared generator parsing
+     * (yield in a comma expression, an argument list or an object spread; ROADMAP appendix C Q10).
      */
-    private static final Set<String> KNOWN_PARSE_GAPS =
-            Set.of(
-                    "language/statements/class/async-gen-method-static/yield-spread-obj.js",
-                    "language/statements/class/async-gen-method/yield-spread-obj.js",
-                    "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-yield-expression.js",
-                    "language/statements/class/cpn-class-decl-computed-property-name-from-yield-expression.js",
-                    "language/statements/class/cpn-class-decl-fields-computed-property-name-from-yield-expression.js",
-                    "language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-yield-expression.js",
-                    "language/statements/class/definition/methods-gen-yield-as-expression-with-rhs.js",
-                    "language/statements/class/definition/methods-gen-yield-as-expression-without-rhs.js",
-                    "language/statements/class/elements/async-gen-private-method-static/yield-spread-obj.js",
-                    "language/statements/class/elements/async-gen-private-method/yield-spread-obj.js",
-                    "language/statements/class/elements/gen-private-method-static/yield-spread-obj.js",
-                    "language/statements/class/elements/gen-private-method/yield-spread-obj.js",
-                    "language/statements/class/gen-method-static/yield-spread-obj.js",
-                    "language/statements/class/gen-method/yield-spread-obj.js",
-                    "language/expressions/class/async-gen-method-static/yield-spread-obj.js",
-                    "language/expressions/class/async-gen-method/yield-spread-obj.js",
-                    "language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-yield-expression.js",
-                    "language/expressions/class/cpn-class-expr-computed-property-name-from-yield-expression.js",
-                    "language/expressions/class/cpn-class-expr-fields-computed-property-name-from-yield-expression.js",
-                    "language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-yield-expression.js",
-                    "language/expressions/class/elements/async-gen-private-method-static/yield-spread-obj.js",
-                    "language/expressions/class/elements/async-gen-private-method/yield-spread-obj.js",
-                    "language/expressions/class/elements/gen-private-method-static/yield-spread-obj.js",
-                    "language/expressions/class/elements/gen-private-method/yield-spread-obj.js",
-                    "language/expressions/class/gen-method-static/yield-spread-obj.js",
-                    "language/expressions/class/gen-method/yield-spread-obj.js");
+    private static final Set<String> KNOWN_PARSE_GAPS = Set.of();
 
     private static final Pattern FRONT_MATTER =
             Pattern.compile("/\\*---(.*?)---\\*/", Pattern.DOTALL);

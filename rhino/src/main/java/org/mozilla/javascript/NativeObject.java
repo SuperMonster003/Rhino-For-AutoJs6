@@ -120,6 +120,7 @@ public class NativeObject extends ScriptableObject implements Map {
 
     private static Scriptable js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        if (nt != f) args = ScriptRuntime.emptyArgs; // AutoJs6: class syntax
         if (args.length == 0 || args[0] == null || Undefined.isUndefined(args[0])) {
             var res = new NativeObject();
             ScriptRuntime.setBuiltinProtoAndParent(res, f, nt, s, TopLevel.Builtins.Object);

@@ -688,7 +688,7 @@ class BodyCodegen {
                     boolean prevLocal = inLocalBlock;
                     inLocalBlock = true;
                     int local = getNewWordLocal();
-                    if (isGenerator) {
+                    if (ClassBodyCodegen.clearsLocal(this, node)) { // AutoJs6: class syntax
                         cfw.add(ByteCode.ACONST_NULL);
                         cfw.addAStore(local);
                     }
@@ -1005,7 +1005,7 @@ class BodyCodegen {
         return nodeIndex + GENERATOR_YIELD_START;
     }
 
-    private void generateExpression(Node node, Node parent) {
+    void generateExpression(Node node, Node parent) { // AutoJs6: class syntax
         int type = node.getType();
         Node child = node.getFirstChild();
         switch (type) {
@@ -1092,6 +1092,7 @@ class BodyCodegen {
                         // same-class INVOKESTATIC, so it's only valid when the caller and the
                         // target ended up in the same (possibly split) generated class.
                         if (target != null
+                                && !ClassBodyCodegen.yieldsIn(this, node) // AutoJs6: class syntax
                                 && cfw.getClassName()
                                         .equals(codegen.getClassNameForNode(target.fnode))) {
                             visitOptimizedCall(node, target, type, child);
@@ -1201,6 +1202,10 @@ class BodyCodegen {
             case Token.THISFN:
                 cfw.addALoad(funObjLocal);
                 break;
+
+            case Token.CLASS: // AutoJs6: class syntax
+                ClassBodyCodegen.generate(this, node); // AutoJs6: class syntax
+                break; // AutoJs6: class syntax
 
             case Token.NEW_TARGET:
                 if (isGenerator) {
@@ -1942,6 +1947,7 @@ class BodyCodegen {
         // save stack state from the top to the bottom
         final int top = cfw.getStackTop();
         maxStack = maxStack > top ? maxStack : top;
+        final int spill = top == 0 ? 0 : cfw.getStackSpills().begin(top); // AutoJs6: class syntax
         if (top != 0) {
             generateGetGeneratorStackState();
             for (int i = 0; i < top; i++) {
@@ -1949,6 +1955,7 @@ class BodyCodegen {
                 cfw.add(ByteCode.SWAP);
                 cfw.addLoadConstant(i);
                 cfw.add(ByteCode.SWAP);
+                cfw.getStackSpills().store(spill, i); // AutoJs6: class syntax
                 cfw.add(ByteCode.AASTORE);
             }
             // pop the array object
@@ -1991,6 +1998,7 @@ class BodyCodegen {
                 cfw.add(ByteCode.DUP);
                 cfw.addLoadConstant(i);
                 cfw.add(ByteCode.AALOAD);
+                cfw.getStackSpills().load(spill, i); // AutoJs6: class syntax
                 cfw.add(ByteCode.SWAP);
             }
             cfw.add(ByteCode.POP);
@@ -2894,6 +2902,7 @@ class BodyCodegen {
                     "getCallable",
                     "()Lorg/mozilla/javascript/Callable;");
             cfw.addALoad(thisObjLocal);
+            ClassBodyCodegen.receiver(cfw); // AutoJs6: class syntax
         } else {
             popFunctionAndThis();
         }
@@ -3129,6 +3138,10 @@ class BodyCodegen {
 
         cfw.markLabel(beyond);
     }
+
+    void callArgArray(Node node, Node argChild) { // AutoJs6: class syntax
+        generateCallArgArray(node, argChild, false); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
 
     private void generateCallArgArray(Node node, Node argChild, boolean directCall) {
         int argCount = countArguments(argChild);
@@ -5128,21 +5141,21 @@ class BodyCodegen {
 
     // special known locals. If you add a new local here, be sure
     // to initialize it to -1 in initBodyGeneration
-    private int variableObjectLocal;
+    int variableObjectLocal; // AutoJs6: class syntax
     private int popvLocal;
-    private int contextLocal;
+    int contextLocal; // AutoJs6: class syntax
     private int argsLocal;
     private int operationLocal;
-    private int thisObjLocal;
-    private int funObjLocal;
+    int thisObjLocal; // AutoJs6: class syntax
+    int funObjLocal; // AutoJs6: class syntax
     private int itsZeroArgArray;
     private int itsOneArgArray;
     private int generatorStateLocal;
     private int savedHomeObjectLocal;
-    private int newTargetLocal;
+    int newTargetLocal; // AutoJs6: class syntax
     private int parentStrictnessLocal;
 
-    private boolean isGenerator;
+    boolean isGenerator; // AutoJs6: class syntax
     private int generatorSwitch;
     private int maxLocals = 0;
     private int maxStack = 0;

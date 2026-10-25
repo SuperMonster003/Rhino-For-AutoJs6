@@ -174,6 +174,7 @@ public class Parser {
     private int lastTokenColumn = -1;
 
     final ClassParser classSyntax = new ClassParser(this); // AutoJs6: class syntax
+    final BindingLowering bindings = new BindingLowering(this); // AutoJs6: class syntax
     final AsyncParser asyncSyntax = new AsyncParser(this); // AutoJs6: async
 
     // Exception to unwind
@@ -1535,6 +1536,10 @@ public class Parser {
 
             case Token.RETURN:
             case Token.YIELD:
+                if (classSyntax.isES6Yield(tt)) { // AutoJs6: class syntax
+                    pn = classSyntax.yieldStatement(); // AutoJs6: class syntax
+                    break; // AutoJs6: class syntax
+                } // AutoJs6: class syntax
                 pn = returnOrYield(tt, false);
                 break;
 
@@ -2412,13 +2417,15 @@ public class Parser {
 
         AstNode e = null;
         // This is ugly, but we don't want to require a semicolon.
-        switch (peekTokenOrEOL()) {
+        switch (yieldStar ? peekToken() : peekTokenOrEOL()) { // AutoJs6: class syntax
             case Token.SEMI:
             case Token.RC:
             case Token.RB:
             case Token.RP:
             case Token.EOF:
             case Token.EOL:
+            case Token.COMMA: // AutoJs6: class syntax
+            case Token.COLON: // AutoJs6: class syntax
             case Token.ERROR:
                 break;
             case Token.YIELD:
@@ -2428,7 +2435,7 @@ public class Parser {
                 }
             // fallthrough
             default:
-                e = expr(false);
+                e = classSyntax.returnOrYieldOperand(tt); // AutoJs6: class syntax
                 end = getNodeEnd(e);
         }
 
@@ -3015,14 +3022,16 @@ public class Parser {
                 && newDeclType != oldDeclType;
     }
 
-    private AstNode expr(boolean allowTrailingComma) throws IOException {
+    AstNode expr(boolean allowTrailingComma) throws IOException { // AutoJs6: class syntax
         AstNode pn = assignExpr();
         int pos = pn.getPosition();
         while (matchToken(Token.COMMA, true)) {
             int opPos = ts.tokenBeg;
             if (compilerEnv.isStrictMode() && !pn.hasSideEffects())
                 addStrictWarning("msg.no.side.effects", "", pos, nodeEnd(pn) - pos);
-            if (peekToken() == Token.YIELD) reportError("msg.yield.parenthesized");
+            if (classSyntax.isLegacyYield(peekToken())) { // AutoJs6: class syntax
+                reportError("msg.yield.parenthesized"); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             if (allowTrailingComma && peekToken() == Token.RP) {
                 pn.putIntProp(Node.TRAILING_COMMA, 1);
                 return pn;
@@ -3432,7 +3441,7 @@ public class Parser {
                     // Quick fix to handle scenario like f1(a,); but not f1(a,b
                     break;
                 }
-                if (peekToken() == Token.YIELD) {
+                if (classSyntax.isLegacyYield(peekToken())) { // AutoJs6: class syntax
                     reportError("msg.yield.parenthesized");
                 }
                 AstNode en = assignExpr();
@@ -3488,6 +3497,7 @@ public class Parser {
             NewExpression nx = new NewExpression(pos);
 
             AstNode target = memberExpr(false);
+            classSyntax.checkNewSuper(target); // AutoJs6: class syntax
             int end = getNodeEnd(target);
             nx.setTarget(target);
             nx.setLineColumnNumber(lineno, column);
@@ -4701,6 +4711,7 @@ public class Parser {
     private ObjectProperty methodDefinition(
             int pos, AstNode propName, int entryKind, boolean isGenerator, boolean isShorthand)
             throws IOException {
+        classSyntax.generatorMethod(isGenerator); // AutoJs6: class syntax
         FunctionNode fn = function(FunctionNode.FUNCTION_EXPRESSION, true);
         // We've already parsed the function name, so fn should be anonymous.
         Name name = fn.getFunctionName();
@@ -4857,6 +4868,7 @@ public class Parser {
             // we might not be in a function body, because we could be inside a function's
             // default arguments. So, we do this check first, before the "insideFunctionBody"
             ((FunctionNode) currentScriptOrFn).setRequiresArgumentObject();
+            bindings.requireArguments(); // AutoJs6: class syntax
         }
 
         if (!insideFunctionBody()) {
@@ -5238,9 +5250,10 @@ public class Parser {
         boolean iteratorSetup = false;
         String iteratorName = null;
         String lastResultName = null;
+        boolean iterates = bindings.iterates(isFunctionParameter); // AutoJs6: class syntax
 
         for (AstNode n : array.getElements()) {
-            if (n.getType() == Token.EMPTY) {
+            if (n.getType() == Token.EMPTY && !iterates) { // AutoJs6: class syntax
                 index++;
                 continue;
             }
@@ -5282,8 +5295,16 @@ public class Parser {
                 empty = false;
             }
 
+            if (n.getType() == Token.EMPTY) { // AutoJs6: class syntax
+                bindings.step(parent, iteratorName, lastResultName); // AutoJs6: class syntax
+                index++; // AutoJs6: class syntax
+                continue; // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             // Generate code to get element
-            if (isFunctionParameter && iteratorName != null) {
+            if (iterates && n instanceof Spread) { // AutoJs6: class syntax
+                rightElem = bindings.rest(iteratorName); // AutoJs6: class syntax
+                lastResultName = null; // AutoJs6: class syntax
+            } else if (isFunctionParameter && iteratorName != null) { // AutoJs6: class syntax
                 // ES6+: Call iterator.next() and store the full result to check done later
                 Node getNextProp =
                         new Node(Token.GETPROP, createName(iteratorName), Node.newString("next"));
@@ -5353,6 +5374,7 @@ public class Parser {
                                         createName(tempName),
                                         Node.newString("slice")));
                 sliceCall.addChildToBack(createNumber(index));
+                if (iterates) sliceCall = rightElem; // AutoJs6: class syntax
 
                 if (restTarget.getType() == Token.NAME) {
                     // [...rest]
@@ -5415,6 +5437,7 @@ public class Parser {
             //          : x
 
             right = (transformer != null) ? transformer.transform(n.getRight()) : n.getRight();
+            bindings.inferName(left, right, transformer != null); // AutoJs6: class syntax
 
             Node cond_inner =
                     new Node(
@@ -5499,7 +5522,7 @@ public class Parser {
         return key;
     }
 
-    private void setupDefaultValues(
+    void setupDefaultValues( // AutoJs6: class syntax
             String tempName,
             Node parent,
             AstNode defaultValue,
@@ -5702,6 +5725,11 @@ public class Parser {
             empty = false;
             elementIndex++;
         }
+        if (elements.isEmpty() && defaultValue != null) { // AutoJs6: class syntax
+            setupDefaultValues( // AutoJs6: class syntax
+                    tempName, parent, defaultValue, setOp, transformer); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
+        if (elements.isEmpty()) bindings.requireObject(parent, tempName); // AutoJs6: class syntax
         return empty;
     }
 

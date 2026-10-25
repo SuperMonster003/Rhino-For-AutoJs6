@@ -625,7 +625,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         stackChange(-1);
     }
 
-    private void visitExpression(Node node, int contextFlags) {
+    void visitExpression(Node node, int contextFlags) { // AutoJs6: class syntax
         int type = node.getType();
         Node child = node.getFirstChild();
         int savedStackDepth = stackDepth;
@@ -655,6 +655,10 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
                     stackChange(1);
                 }
                 break;
+
+            case Token.CLASS: // AutoJs6: class syntax
+                ClassInterpreter.generate(this, node); // AutoJs6: class syntax
+                break; // AutoJs6: class syntax
 
             case Token.COMMA:
                 {
@@ -1856,13 +1860,13 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         addUint8(token);
     }
 
-    private void addIcode(int icode) {
+    void addIcode(int icode) { // AutoJs6: class syntax
         if (!Icode.validIcode(icode)) throw Kit.codeBug();
         // Write negative icode as uint8 bits
         addUint8(icode & 0xFF);
     }
 
-    private void addUint8(int value) {
+    void addUint8(int value) { // AutoJs6: class syntax
         if ((value & ~0xFF) != 0) throw Kit.codeBug();
         byte[] array = itsData.itsICode;
         int top = iCodeTop;
@@ -1954,7 +1958,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         throw Kit.codeBug();
     }
 
-    private void addStringOp(int op, String str) {
+    void addStringOp(int op, String str) { // AutoJs6: class syntax
         addStringPrefix(str);
         if (Icode.validIcode(op)) {
             addIcode(op);
@@ -1963,7 +1967,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         }
     }
 
-    private void addIndexOp(int op, int index) {
+    void addIndexOp(int op, int index) { // AutoJs6: class syntax
         addIndexPrefix(index);
         if (Icode.validIcode(op)) {
             addIcode(op);
@@ -2071,7 +2075,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         return array;
     }
 
-    private void stackChange(int change) {
+    void stackChange(int change) { // AutoJs6: class syntax
         if (change <= 0) {
             stackDepth += change;
         } else {

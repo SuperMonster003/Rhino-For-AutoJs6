@@ -71,7 +71,9 @@ public class Node implements Iterable<Node> {
             NUMBER_OF_SPREAD = 32,
             OBJECT_REST_PROP = 33, // marks a CALL node as object rest operation
             CONST_IDS_PROP = 34, // boolean[] flagging which declarations or names are consts
-            LAST_PROP = CONST_IDS_PROP,
+            CLASS_PROP = 35, // AutoJs6: class syntax (the ClassOp of a Token.CLASS node)
+            DEFAULT_NAME_PROP = 36, // AutoJs6: class syntax (BindingLowering.inferName)
+            LAST_PROP = DEFAULT_NAME_PROP, // AutoJs6: class syntax
             FIRST_PROP = FUNCTION_PROP;
 
     // values of ISNUMBER_PROP to specify
@@ -462,6 +464,10 @@ public class Node implements Iterable<Node> {
                 return "object_rest_prop";
             case CONST_IDS_PROP:
                 return "const_ids";
+            case CLASS_PROP: // AutoJs6: class syntax
+                return "class"; // AutoJs6: class syntax
+            case DEFAULT_NAME_PROP: // AutoJs6: class syntax
+                return "default_name"; // AutoJs6: class syntax
 
             default:
                 Kit.codeBug();
