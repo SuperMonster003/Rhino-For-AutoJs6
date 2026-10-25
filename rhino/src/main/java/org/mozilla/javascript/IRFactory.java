@@ -164,6 +164,8 @@ public final class IRFactory {
                 return transformFunctionCall((FunctionCall) node);
             case Token.CLASS: // AutoJs6: class syntax
                 return ClassLowering.transform(this, parser, node); // AutoJs6: class syntax
+            case Token.PRIVATE_NAME: // AutoJs6: class syntax
+                return ClassLowering.privateReference(node); // AutoJs6: class syntax
             case Token.CONTINUE:
                 return transformContinue((ContinueStatement) node);
             case Token.DO:
@@ -967,10 +969,7 @@ public final class IRFactory {
         // constructor calling "super()" _is_ allowed.
         if (node.getParent() instanceof FunctionCall && node.getType() == Token.SUPER)
             parser.reportError("msg.super.shorthand.function");
-        if (ClassLowering.isDerivedThis(parser, node)) { // AutoJs6: class syntax
-            return ClassLowering.derivedThis(node); // AutoJs6: class syntax
-        } // AutoJs6: class syntax
-        return node;
+        return ClassLowering.transformLiteral(parser, node); // AutoJs6: class syntax
     }
 
     private Node transformName(Name node) {
@@ -1079,6 +1078,9 @@ public final class IRFactory {
     }
 
     private Node transformPropertyGet(PropertyGet node) {
+        if (ClassLowering.isPrivateMember(node)) { // AutoJs6: class syntax
+            return ClassLowering.privateMember(this, node); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         Node target = transform(node.getTarget());
         String name = node.getProperty().getIdentifier();
         return createPropertyGet(target, null, name, 0, node.type);

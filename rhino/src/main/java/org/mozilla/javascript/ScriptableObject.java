@@ -120,6 +120,8 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
 
     private boolean isExtensible = true;
 
+    volatile PrivateElements privateElements; // AutoJs6: class syntax
+
     private static final Method GET_ARRAY_LENGTH;
 
     static {

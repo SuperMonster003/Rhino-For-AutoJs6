@@ -46,8 +46,30 @@ public final class ClassOp {
      */
     public static final int PARAM_SCOPE = 8;
 
+    /**
+     * A new private name ({@link PrivateNameKey}) for the class definition being evaluated: the
+     * initial value of its hidden binding in the class scope. {@link #name} is the identifier.
+     */
+    public static final int PRIVATE_NAME = 9;
+
+    /**
+     * InitializeInstanceElements at the top of the constructor of a base class: the private methods
+     * and the fields of the class are added to the this value.
+     */
+    public static final int INIT_FIELDS = 10;
+
+    /**
+     * The end of ClassDefinitionEvaluation, once the class binding is initialized: the static
+     * private methods, static fields and static blocks of the class whose constructor the only
+     * child evaluates to. The value is the constructor.
+     */
+    public static final int STATIC_INIT = 11;
+
     /** Element kinds, in the low bits of the int {@link Node#CLASS_PROP} of an element. */
     public static final int ELEMENT_METHOD = 0, ELEMENT_GETTER = 1, ELEMENT_SETTER = 2;
+
+    /** A field, or a static block with {@link #ELEMENT_BLOCK}. */
+    public static final int ELEMENT_FIELD = 3;
 
     public static final int ELEMENT_KIND_MASK = 0x3;
 
@@ -56,6 +78,21 @@ public final class ClassOp {
 
     /** The key is computed: the method gets its name once the key is known. */
     public static final int ELEMENT_COMPUTED = 0x8;
+
+    /** The key is a private name. */
+    public static final int ELEMENT_PRIVATE = 0x10;
+
+    /**
+     * A field whose initializer is an anonymous function or class definition with a computed key:
+     * the value gets its name from the key at run time (NamedEvaluation).
+     */
+    public static final int ELEMENT_NAMED = 0x20;
+
+    /** A field without an initializer: the element has no function. */
+    public static final int ELEMENT_NO_VALUE = 0x40;
+
+    /** A static block (with {@link #ELEMENT_FIELD} and {@link #ELEMENT_STATIC}). */
+    public static final int ELEMENT_BLOCK = 0x80;
 
     final int kind;
 
@@ -67,7 +104,8 @@ public final class ClassOp {
 
     /**
      * {@link #TDZ}: the name of the class binding or of the parameter. {@link #PARAM_SCOPE}: the
-     * names that resolve outside the function, joined by commas.
+     * names that resolve outside the function, joined by commas. {@link #PRIVATE_NAME}: the
+     * identifier of the private name, without {@code #}.
      */
     String name;
 

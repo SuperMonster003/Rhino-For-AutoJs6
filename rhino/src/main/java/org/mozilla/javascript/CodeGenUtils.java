@@ -117,6 +117,7 @@ public class CodeGenUtils {
         builder.sourceStart = scriptOrFn.getRawSourceStart();
         builder.sourceEnd = scriptOrFn.getRawSourceEnd();
         builder.classCode = ClassLowering.isClassCode(scriptOrFn); // AutoJs6: class syntax
+        builder.classElement = ClassLowering.elementKind(scriptOrFn); // AutoJs6: class syntax
     }
 
     /** Configure the constructor appropriately based on a function's type. */

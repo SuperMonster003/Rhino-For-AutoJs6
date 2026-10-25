@@ -1929,6 +1929,9 @@ public class ScriptRuntime {
 
     /** Call obj.[[Get]](id) */
     public static Object getObjectElem(Object obj, Object elem, Context cx, VarScope scope) {
+        if (elem instanceof PrivateNameKey) { // AutoJs6: class syntax
+            return ClassRuntime.privateGet(obj, elem, cx, scope); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         Scriptable sobj = asScriptableOrThrowUndefReadError(cx, scope, obj, elem);
         return getObjectElem(sobj, elem, cx);
     }
@@ -2151,6 +2154,9 @@ public class ScriptRuntime {
     /** Call obj.[[Put]](id, value) */
     public static Object setObjectElem(
             Object obj, Object elem, Object value, Context cx, VarScope scope) {
+        if (elem instanceof PrivateNameKey) { // AutoJs6: class syntax
+            return ClassRuntime.privateSet(obj, elem, value, cx, scope); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         verifyIsScriptableOrComplainWriteErrorInEs5Strict(obj, elem, value, cx);
         Scriptable sobj = asScriptableOrThrowUndefWriteError(cx, scope, obj, elem, value);
         return setObjectElem(sobj, elem, value, cx);
@@ -3245,11 +3251,17 @@ public class ScriptRuntime {
      * properly converted to Scriptable available in the result.
      */
     public static LookupResult getElemAndThis(Object obj, Object elem, Context cx, VarScope scope) {
+        if (elem instanceof PrivateNameKey) { // AutoJs6: class syntax
+            return ClassRuntime.privateCall(obj, elem, cx, scope, false); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         return getElemAndThisInner(obj, elem, cx, scope, false);
     }
 
     public static LookupResult getElemAndThisOptional(
             Object obj, Object elem, Context cx, VarScope scope) {
+        if (elem instanceof PrivateNameKey) { // AutoJs6: class syntax
+            return ClassRuntime.privateCall(obj, elem, cx, scope, true); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         return getElemAndThisInner(obj, elem, cx, scope, true);
     }
 
@@ -3736,6 +3748,7 @@ public class ScriptRuntime {
         }
 
         var homeObject = scope instanceof NativeCall ? ((NativeCall) scope).getHomeObject() : null;
+        var classEval = ClassRuntime.evalContext(scope, x.toString()); // AutoJs6: class syntax
 
         // Compile with explicit interpreter instance to force interpreter
         // mode.
@@ -3753,6 +3766,7 @@ public class ScriptRuntime {
                     compilerEnvs.setAllowSuper(isInsideMethod);
                     compilerEnvs.setInEval(true);
                     compilerEnvs.setHomeObject(homeObject);
+                    compilerEnvs.classEvalContext = classEval; // AutoJs6: class syntax
                 };
 
         Script script =
@@ -4925,6 +4939,9 @@ public class ScriptRuntime {
      * @return true if property name or element number a is a property of b
      */
     public static boolean in(Object a, Object b, Context cx) {
+        if (a instanceof PrivateNameKey) { // AutoJs6: class syntax
+            return ClassRuntime.privateIn(a, b); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         if (!(b instanceof Scriptable)) {
             throw typeErrorById("msg.in.not.object");
         }

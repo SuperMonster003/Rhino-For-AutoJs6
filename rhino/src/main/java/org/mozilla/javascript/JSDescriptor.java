@@ -38,6 +38,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
     private final JSDescriptor<?> parent;
     public List<JSDescriptor<JSFunction>> nestedFunctions;
     boolean classCode; // AutoJs6: class syntax
+    int classElement; // AutoJs6: class syntax
     private final String[] paramAndVarNames;
     private final boolean[] paramIsConst;
     private final int flags;
@@ -338,6 +339,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         public boolean declaredAsFunctionExpression;
         public boolean derivedConstructor; // AutoJs6: class syntax
         public boolean classCode; // AutoJs6: class syntax
+        public int classElement; // AutoJs6: class syntax
         public SecurityController securityController;
         public Object securityDomain;
         public int functionType;
@@ -413,6 +415,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
                             securityDomain,
                             functionType);
             result.classCode = classCode; // AutoJs6: class syntax
+            result.classElement = classElement; // AutoJs6: class syntax
             consumer.accept(result);
             result.nestedFunctions =
                     Collections.unmodifiableList(

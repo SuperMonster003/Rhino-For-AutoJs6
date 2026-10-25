@@ -14,8 +14,13 @@ import org.mozilla.javascript.Token;
  * operand of a private brand check ({@code #x in o}). Node type is {@link Token#PRIVATE_NAME}.
  *
  * <p>The identifier is stored without the leading {@code #}; the node bounds include it.
+ *
+ * <p>Once the parser has resolved the name, {@link #getBinding()} is the hidden binding of the
+ * declaring class scope that holds the private name at run time (ROADMAP P3).
  */
 public class PrivateName extends Name {
+
+    private String binding;
 
     {
         type = Token.PRIVATE_NAME;
@@ -25,6 +30,15 @@ public class PrivateName extends Name {
 
     public PrivateName(int pos, int len, String identifier) {
         super(pos, len, identifier);
+    }
+
+    /** The binding that holds the private name, or {@code null} while it is unresolved. */
+    public String getBinding() {
+        return binding;
+    }
+
+    public void setBinding(String binding) {
+        this.binding = binding;
     }
 
     @Override

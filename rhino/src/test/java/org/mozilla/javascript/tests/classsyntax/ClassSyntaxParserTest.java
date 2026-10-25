@@ -382,15 +382,11 @@ class ClassSyntaxParserTest {
                 "class A { #m() {} }",
                 "var A = class { static y; };"
             })
-    void laterClassFeaturesAreNotExecutableYet(String source) {
-        // P2 runs the ES2015 core; fields, static blocks and private names follow in P3.
+    void fieldsStaticBlocksAndPrivateNamesCompile(String source) {
+        // Executable since P3; ClassFieldsTest and PrivateNamesTest run them.
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_ECMASCRIPT);
-            EvaluatorException e =
-                    assertThrows(
-                            EvaluatorException.class,
-                            () -> cx.compileString(source, "test.js", 1, null));
-            assertEquals(ScriptRuntime.getMessageById("msg.class.not.supported"), e.details());
+            assertNotNull(cx.compileString(source, "test.js", 1, null));
         }
     }
 

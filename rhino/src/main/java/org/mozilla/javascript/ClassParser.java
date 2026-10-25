@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.mozilla.javascript.ast.AstNode;
 import org.mozilla.javascript.ast.Block;
 import org.mozilla.javascript.ast.ClassElement;
@@ -70,6 +71,13 @@ final class ClassParser {
     private static final int PRIVATE_SETTER = 8;
     private static final int PRIVATE_STATIC = 16;
 
+    /**
+     * Numbers the hidden bindings of private names: {@code #x@12} is the binding that holds the
+     * private name {@code #x} of one class (see {@link #privateBinding}). The number is unique in
+     * the process, so a binding never shadows the one of another class, eval code included.
+     */
+    private static final AtomicInteger PRIVATE_BINDINGS = new AtomicInteger();
+
     private final Parser parser;
     private int[] kinds = new int[16];
     private int depth;
@@ -83,11 +91,14 @@ final class ClassParser {
     /** The private names declared by one class body, and the references found inside it. */
     private static final class PrivateScope {
         final PrivateScope outer;
+        final ClassNode cls;
         final Map<String, Integer> declared = new HashMap<>();
+        final Map<String, String> bindings = new HashMap<>();
         final List<PrivateName> references = new ArrayList<>();
 
-        PrivateScope(PrivateScope outer) {
+        PrivateScope(PrivateScope outer, ClassNode cls) {
             this.outer = outer;
+            this.cls = cls;
         }
     }
 
@@ -174,14 +185,39 @@ final class ClassParser {
         return depth == 0 ? -1 : kinds[depth - 1];
     }
 
-    /** Returns the kind of the nearest enclosing non-arrow function, or -1 at script level. */
+    /**
+     * Returns the kind of the nearest enclosing non-arrow function. At script level it is -1, or in
+     * direct eval code the kind of the class element the eval is called from (see {@link
+     * ClassRuntime.EvalContext}).
+     */
     private int nearestNonArrowKind() {
         for (int i = depth - 1; i >= 0; i--) {
             if (kinds[i] != FN_ARROW) {
                 return kinds[i];
             }
         }
-        return -1;
+        ClassRuntime.EvalContext eval = evalContext();
+        return eval != null ? eval.kind : -1;
+    }
+
+    private ClassRuntime.EvalContext evalContext() {
+        return (ClassRuntime.EvalContext) parser.compilerEnv.classEvalContext;
+    }
+
+    /**
+     * Whether {@code new.target} is allowed: inside a function other than an arrow function (an
+     * arrow function has the new.target of the code around it), and outside any such function in
+     * direct eval code called from a method, a field initializer or a static block, functions that
+     * are never constructed and whose new.target is undefined (ROADMAP appendix C Q13).
+     */
+    boolean newTargetAllowed(int nestingOfFunction) {
+        for (int i = nestingOfFunction > 0 ? depth - 1 : -1; i >= 0; i--) {
+            if (kinds[i] != FN_ARROW) {
+                return true;
+            }
+        }
+        ClassRuntime.EvalContext eval = evalContext();
+        return eval != null && eval.kind >= 0;
     }
 
     // ------------------------------------------------------------------
@@ -336,13 +372,23 @@ final class ClassParser {
 
     private void referencePrivate(PrivateName ref) {
         if (privateScope == null) {
-            reportUndeclared(ref);
+            resolveOutside(ref);
         } else {
             privateScope.references.add(ref);
         }
     }
 
-    private void reportUndeclared(PrivateName ref) {
+    /**
+     * Resolves a reference that no enclosing class of this source declares: in direct eval code it
+     * may name a private name of the classes around the eval call.
+     */
+    private void resolveOutside(PrivateName ref) {
+        ClassRuntime.EvalContext eval = evalContext();
+        String binding = eval != null ? eval.privateBinding(ref.getIdentifier()) : null;
+        if (binding != null) {
+            ref.setBinding(binding);
+            return;
+        }
         parser.reportError(
                 "msg.class.private.undeclared",
                 "#" + ref.getIdentifier(),
@@ -430,7 +476,7 @@ final class ClassParser {
                     cls.setLc(ts.tokenBeg - pos);
                 }
 
-                PrivateScope scope = new PrivateScope(privateScope);
+                PrivateScope scope = new PrivateScope(privateScope, cls);
                 privateScope = scope;
                 try {
                     classBody(cls);
@@ -947,6 +993,10 @@ final class ClassParser {
         Integer previous = privateScope.declared.get(id);
         if (previous == null) {
             privateScope.declared.put(id, bits);
+            String binding = privateBinding(id);
+            privateScope.bindings.put(id, binding);
+            privateScope.cls.putSymbol(new Symbol(Symbol.Type.LET, binding));
+            name.setBinding(binding);
             return;
         }
         int prev = previous;
@@ -957,23 +1007,39 @@ final class ClassParser {
                 && ((prevKind == PRIVATE_GETTER && kindBits == PRIVATE_SETTER)
                         || (prevKind == PRIVATE_SETTER && kindBits == PRIVATE_GETTER))) {
             privateScope.declared.put(id, prev | bits);
+            name.setBinding(privateScope.bindings.get(id));
             return;
         }
         parser.reportError(
                 "msg.class.private.dup", "#" + id, name.getAbsolutePosition(), name.getLength());
     }
 
-    /** Checks the references of a finished class body, passing unknown names outwards. */
+    /** Resolves the references of a finished class body, passing unknown names outwards. */
     private void resolvePrivateReferences(PrivateScope scope) {
         for (PrivateName ref : scope.references) {
-            if (scope.declared.containsKey(ref.getIdentifier())) {
-                continue;
-            }
-            if (scope.outer != null) {
+            String binding = scope.bindings.get(ref.getIdentifier());
+            if (binding != null) {
+                ref.setBinding(binding);
+            } else if (scope.outer != null) {
                 scope.outer.references.add(ref);
             } else {
-                reportUndeclared(ref);
+                resolveOutside(ref);
             }
         }
+    }
+
+    /** A new hidden binding for the private name {@code #id}: {@code #id@n}. */
+    static String privateBinding(String id) {
+        return "#" + id + "@" + PRIVATE_BINDINGS.incrementAndGet();
+    }
+
+    /** Returns whether a binding name is the hidden binding of a private name. */
+    static boolean isPrivateBinding(String name) {
+        return name.length() > 2 && name.charAt(0) == '#' && name.lastIndexOf('@') > 1;
+    }
+
+    /** The identifier of the private name a hidden binding holds: {@code x} for {@code #x@n}. */
+    static String privateDescription(String binding) {
+        return binding.substring(1, binding.lastIndexOf('@'));
     }
 }

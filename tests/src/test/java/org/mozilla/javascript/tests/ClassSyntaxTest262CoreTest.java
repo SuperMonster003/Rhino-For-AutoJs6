@@ -36,12 +36,12 @@ import org.mozilla.javascript.testutils.TestSource;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * AutoJs6 class syntax (ROADMAP P2.5): runs the ES2015 core of the two test262 class directories
- * (everything but fields, static blocks, private names and async functions, which belong to P3 and
- * P9) in the interpreted and the compiled mode, and expects every test to pass. {@code
- * Test262SuiteTest} keeps skipping the class features until P6.1 regenerates {@code
- * test262.properties} (ROADMAP appendix C Q9). Tests that need later phases are listed in {@link
- * #KNOWN_FAILURES}.
+ * AutoJs6 class syntax (ROADMAP P2.5, P3.5): runs the two test262 class directories (everything but
+ * async functions, which belong to P9) in the interpreted and the compiled mode, and expects every
+ * test to pass; the counts are reported for the ES2015 core, the public fields and static blocks,
+ * and the private names (ROADMAP 1.4). {@code Test262SuiteTest} keeps skipping the class features
+ * until P6.1 regenerates {@code test262.properties} (ROADMAP appendix C Q9). Tests that need later
+ * phases are listed in {@link #KNOWN_FAILURES}.
  *
  * <p>Like {@code Test262SuiteTest}, module and async tests are not run, nor are features Rhino does
  * not support at all (T10).
@@ -51,19 +51,21 @@ class ClassSyntaxTest262CoreTest {
     private static final List<String> DIRECTORIES =
             List.of("language/statements/class", "language/expressions/class");
 
-    /** Class features of later phases: P3 (fields, static blocks, private names), P9 (async). */
-    static final Set<String> LATER_PHASES =
+    /** Class features of later phases: P9 (async). */
+    static final Set<String> LATER_PHASES = Set.of("async-functions", "async-iteration");
+
+    /** The features of the public fields and static blocks (P3.1, P3.2). */
+    private static final Set<String> FIELDS =
+            Set.of("class-fields-public", "class-static-fields-public", "class-static-block");
+
+    /** The features of the private names (P3.3). */
+    private static final Set<String> PRIVATE_NAMES =
             Set.of(
-                    "class-fields-public",
                     "class-fields-private",
-                    "class-static-fields-public",
                     "class-static-fields-private",
                     "class-methods-private",
                     "class-static-methods-private",
-                    "class-static-block",
-                    "class-fields-private-in",
-                    "async-functions",
-                    "async-iteration");
+                    "class-fields-private-in");
 
     /** Features outside the roadmap or not supported by Rhino at all (ROADMAP T10). */
     static final Set<String> UNSUPPORTED =
@@ -80,7 +82,10 @@ class ClassSyntaxTest262CoreTest {
                     "tail-call-optimization",
                     "Temporal",
                     "upsert",
-                    "u180e");
+                    "u180e",
+                    // A stage 3 proposal that changes PrivateFieldAdd; P3 follows ES2025 (ROADMAP
+                    // appendix C Q14).
+                    "nonextensible-applies-to-private");
 
     /**
      * Known failures: test path to the phase that fixes them. Each is listed in ROADMAP appendix E,
@@ -102,14 +107,32 @@ class ClassSyntaxTest262CoreTest {
                     p9(
                             "statements/class/cpn-class-decl-accessors-computed-property-name-from-async-arrow-function-expression.js"),
                     p9(
-                            "statements/class/cpn-class-decl-computed-property-name-from-async-arrow-function-expression.js"));
+                            "statements/class/cpn-class-decl-computed-property-name-from-async-arrow-function-expression.js"),
+                    p9(
+                            "expressions/class/cpn-class-expr-fields-computed-property-name-from-async-arrow-function-expression.js"),
+                    p9(
+                            "expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-async-arrow-function-expression.js"),
+                    p9(
+                            "statements/class/cpn-class-decl-fields-computed-property-name-from-async-arrow-function-expression.js"),
+                    p9(
+                            "statements/class/cpn-class-decl-fields-methods-computed-property-name-from-async-arrow-function-expression.js"),
+                    p9("expressions/class/elements/private-async-generator-method-name.js"),
+                    p9("expressions/class/elements/private-async-method-name.js"),
+                    p9("expressions/class/elements/private-static-async-generator-method-name.js"),
+                    p9("expressions/class/elements/private-static-async-method-name.js"),
+                    p9("statements/class/elements/private-async-generator-method-name.js"),
+                    p9("statements/class/elements/private-async-method-name.js"),
+                    p9("statements/class/elements/private-static-async-generator-method-name.js"),
+                    p9("statements/class/elements/private-static-async-method-name.js"),
+                    p9("statements/class/static-init-arguments-functions.js"),
+                    p9("statements/class/static-init-arguments-methods.js"));
 
     /** A built-in that does not create its instance from new.target yet (P4). */
     private static Map.Entry<String, String> p4(String path) {
         return Map.entry("language/" + path, "P4");
     }
 
-    /** An async arrow function without the async-functions feature tag (P9). */
+    /** An async function or method without the async feature tags (P9). */
     private static Map.Entry<String, String> p9(String path) {
         return Map.entry("language/" + path, "P9");
     }
@@ -133,6 +156,7 @@ class ClassSyntaxTest262CoreTest {
         Map<String, String> failures = new TreeMap<>();
         Map<String, Integer> skipped = new TreeMap<>();
         Map<String, Script> harnessCache = new HashMap<>();
+        Map<String, String> groups = new HashMap<>();
         int run = 0;
         for (String directory : DIRECTORIES) {
             List<Path> files;
@@ -152,6 +176,7 @@ class ClassSyntaxTest262CoreTest {
                     continue;
                 }
                 run++;
+                groups.put(relative, group(testCase));
                 List<Boolean> strictModes = new ArrayList<>();
                 if (!testCase.hasFlag("onlyStrict") || testCase.hasFlag("raw")) {
                     strictModes.add(false);
@@ -175,6 +200,12 @@ class ClassSyntaxTest262CoreTest {
         System.out.printf(
                 "class test262 core (%s): %d run, %d passed, %d failed, skipped %s%n",
                 mode, run, run - failures.size(), failures.size(), skipped);
+        for (String group : List.of("core", "fields", "private names")) {
+            long groupRun = groups.values().stream().filter(group::equals).count();
+            long groupFailed =
+                    failures.keySet().stream().filter(f -> group.equals(groups.get(f))).count();
+            System.out.printf("  %s: %d run, %d passed%n", group, groupRun, groupRun - groupFailed);
+        }
         StringBuilder report = new StringBuilder();
         for (String path : unexpected) {
             report.append(path).append(": ").append(failures.get(path)).append('\n');
@@ -210,6 +241,21 @@ class ClassSyntaxTest262CoreTest {
             }
         }
         return null;
+    }
+
+    /** The group of ROADMAP 1.4 the test counts in: private names, fields, or the core. */
+    private static String group(Case testCase) {
+        for (String feature : testCase.features) {
+            if (PRIVATE_NAMES.contains(feature)) {
+                return "private names";
+            }
+        }
+        for (String feature : testCase.features) {
+            if (FIELDS.contains(feature)) {
+                return "fields";
+            }
+        }
+        return "core";
     }
 
     /** Runs the test once; returns the failure, or {@code null} when it passes. */

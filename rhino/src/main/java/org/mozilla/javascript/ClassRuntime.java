@@ -6,10 +6,14 @@
 
 package org.mozilla.javascript;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -146,30 +150,23 @@ public final class ClassRuntime {
                 (flags & ClassOp.ELEMENT_STATIC) != 0
                         ? f
                         : (ScriptableObject) f.getPrototypeProperty();
-        Object id = toPropertyKey(key);
-        JSFunction fn = new JSFunction(cx, scope, method, null, Undefined.instance, home);
-        removeLegacyProperties(fn);
         int kind = flags & ClassOp.ELEMENT_KIND_MASK;
+        if (kind == ClassOp.ELEMENT_FIELD) {
+            defineField(f, home, key, method, flags, cx, scope);
+            return f;
+        }
+        if ((flags & ClassOp.ELEMENT_PRIVATE) != 0) {
+            definePrivateMethod(f, home, (PrivateNameKey) key, method, flags, cx, scope);
+            return f;
+        }
+        Object id = toPropertyKey(key);
+        JSFunction fn = newMethod(home, method, cx, scope);
         if ((flags & ClassOp.ELEMENT_COMPUTED) != 0) {
             String prefix =
                     kind == ClassOp.ELEMENT_GETTER
                             ? "get "
                             : kind == ClassOp.ELEMENT_SETTER ? "set " : "";
             fn.setFunctionName(prefix + functionName(id));
-        }
-        if (method.isES6Generator()) {
-            // A generator method gets a fresh prototype for its generator objects, without a
-            // constructor property (MethodDefinitionEvaluation of a GeneratorMethod).
-            NativeObject generatorProto = new NativeObject();
-            generatorProto.setParentScope(scope);
-            VarScope top = ScriptableObject.getTopLevelScope(scope);
-            Object parent = ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
-            if (parent instanceof Scriptable) {
-                generatorProto.setPrototype((Scriptable) parent);
-            }
-            fn.setPrototypePropertyAttributes(
-                    ScriptableObject.DONTENUM | ScriptableObject.PERMANENT);
-            fn.setPrototypeProperty(generatorProto);
         }
         ScriptableObject.DescriptorInfo desc;
         if (kind == ClassOp.ELEMENT_GETTER) {
@@ -198,6 +195,439 @@ public final class ClassRuntime {
         }
         home.defineOwnProperty(cx, id, desc);
         return f;
+    }
+
+    /** A method of a class with its home object, a generator method with its prototype. */
+    private static JSFunction newMethod(
+            ScriptableObject home, JSDescriptor<JSFunction> method, Context cx, VarScope scope) {
+        JSFunction fn = new JSFunction(cx, scope, method, null, Undefined.instance, home);
+        removeLegacyProperties(fn);
+        if (method.isES6Generator()) {
+            // A generator method gets a fresh prototype for its generator objects, without a
+            // constructor property (MethodDefinitionEvaluation of a GeneratorMethod).
+            NativeObject generatorProto = new NativeObject();
+            generatorProto.setParentScope(scope);
+            VarScope top = ScriptableObject.getTopLevelScope(scope);
+            Object parent = ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
+            if (parent instanceof Scriptable) {
+                generatorProto.setPrototype((Scriptable) parent);
+            }
+            fn.setPrototypePropertyAttributes(
+                    ScriptableObject.DONTENUM | ScriptableObject.PERMANENT);
+            fn.setPrototypeProperty(generatorProto);
+        }
+        return fn;
+    }
+
+    // ------------------------------------------------------------------
+    // Fields, static blocks and private names (ROADMAP P3)
+    // ------------------------------------------------------------------
+
+    /**
+     * The internal slots of a class constructor F that the definition fills in: [[Fields]], the
+     * brands of [[PrivateMethods]] and of the static private methods, and the static elements that
+     * {@link #staticInit} runs once.
+     */
+    static final class ClassData implements Serializable {
+        @Serial private static final long serialVersionUID = 1L;
+
+        final List<FieldRecord> instanceFields = new ArrayList<>();
+        List<Object> staticElements = new ArrayList<>();
+        PrivateNameKey instanceBrand;
+        PrivateNameKey staticBrand;
+        final String className;
+
+        ClassData(String className) {
+            this.className = className;
+        }
+    }
+
+    /** A ClassFieldDefinition Record: the key (a property key or private name), the initializer. */
+    static final class FieldRecord implements Serializable {
+        @Serial private static final long serialVersionUID = 1L;
+
+        final Object key;
+        final JSFunction initializer;
+
+        /** The initializer is an anonymous function definition named by a computed key. */
+        final boolean named;
+
+        FieldRecord(Object key, JSFunction initializer, boolean named) {
+            this.key = key;
+            this.initializer = initializer;
+            this.named = named;
+        }
+    }
+
+    private static ClassData classData(JSFunction f) {
+        ClassData data = f.classData;
+        if (data == null) {
+            String name = f.getFunctionName();
+            data = new ClassData(name == null || name.isEmpty() ? "anonymous" : name);
+            f.classData = data;
+        }
+        return data;
+    }
+
+    /** A new private name, for the hidden binding {@code #x@n} of a class scope. */
+    public static Object newPrivateName(String description) {
+        return new PrivateNameKey(description);
+    }
+
+    /**
+     * ClassFieldDefinitionEvaluation and ClassStaticBlockDefinitionEvaluation: converts the key and
+     * creates the initializer (or the body of the static block) with its home object, and records
+     * the element on F.
+     */
+    private static void defineField(
+            JSFunction f,
+            ScriptableObject home,
+            Object key,
+            JSDescriptor<JSFunction> initializer,
+            int flags,
+            Context cx,
+            VarScope scope) {
+        ClassData data = classData(f);
+        JSFunction fn =
+                initializer == null
+                        ? null
+                        : new JSFunction(cx, scope, initializer, null, Undefined.instance, home);
+        if ((flags & ClassOp.ELEMENT_BLOCK) != 0) {
+            data.staticElements.add(fn);
+            return;
+        }
+        Object id = (flags & ClassOp.ELEMENT_PRIVATE) != 0 ? key : toPropertyKey(key);
+        FieldRecord field = new FieldRecord(id, fn, (flags & ClassOp.ELEMENT_NAMED) != 0);
+        if ((flags & ClassOp.ELEMENT_STATIC) != 0) {
+            data.staticElements.add(field);
+        } else {
+            data.instanceFields.add(field);
+        }
+    }
+
+    /**
+     * ClassElementEvaluation of a private method or accessor: the function goes on the private
+     * name, and the class brand that {@link #initializeInstanceElements} (or {@link #staticInit})
+     * adds to the objects it applies to.
+     */
+    private static void definePrivateMethod(
+            JSFunction f,
+            ScriptableObject home,
+            PrivateNameKey key,
+            JSDescriptor<JSFunction> method,
+            int flags,
+            Context cx,
+            VarScope scope) {
+        ClassData data = classData(f);
+        JSFunction fn = newMethod(home, method, cx, scope);
+        if ((flags & ClassOp.ELEMENT_STATIC) != 0) {
+            if (data.staticBrand == null) {
+                data.staticBrand = PrivateNameKey.newBrand(data.className);
+            }
+            key.brand = data.staticBrand;
+        } else {
+            if (data.instanceBrand == null) {
+                data.instanceBrand = PrivateNameKey.newBrand(data.className);
+            }
+            key.brand = data.instanceBrand;
+        }
+        switch (flags & ClassOp.ELEMENT_KIND_MASK) {
+            case ClassOp.ELEMENT_GETTER:
+                key.kind = PrivateNameKey.ACCESSOR;
+                key.getter = fn;
+                break;
+            case ClassOp.ELEMENT_SETTER:
+                key.kind = PrivateNameKey.ACCESSOR;
+                key.setter = fn;
+                break;
+            default:
+                key.kind = PrivateNameKey.METHOD;
+                key.method = fn;
+                break;
+        }
+    }
+
+    /**
+     * InitializeInstanceElements: adds the brand of the private methods of the class F, then
+     * defines its fields on the new object. Called at the top of a base constructor ({@link
+     * ClassOp#INIT_FIELDS}) and after {@code super()} returns in a derived one.
+     */
+    public static Object initializeInstanceElements(Object thisObj, Object f, Context cx) {
+        ClassData data = ((JSFunction) f).classData;
+        if (data != null) {
+            Scriptable receiver = (Scriptable) thisObj;
+            VarScope scope = ((JSFunction) f).getDeclarationScope();
+            if (data.instanceBrand != null) {
+                addBrand(receiver, data.instanceBrand, cx, scope);
+            }
+            for (FieldRecord field : data.instanceFields) {
+                defineField(receiver, field, cx, scope);
+            }
+        }
+        return Undefined.instance;
+    }
+
+    /**
+     * The end of ClassDefinitionEvaluation, once the class binding is initialized: adds the brand
+     * of the static private methods to F, then runs the static fields and static blocks in order.
+     * Returns F.
+     */
+    public static Object staticInit(Object classConstructor, Context cx) {
+        JSFunction f = (JSFunction) classConstructor;
+        ClassData data = f.classData;
+        if (data == null) {
+            return f;
+        }
+        VarScope scope = f.getDeclarationScope();
+        if (data.staticBrand != null) {
+            addBrand(f, data.staticBrand, cx, scope);
+        }
+        List<Object> elements = data.staticElements;
+        data.staticElements = null;
+        for (Object element : elements) {
+            if (element instanceof FieldRecord) {
+                defineField(f, (FieldRecord) element, cx, scope);
+            } else {
+                JSFunction block = (JSFunction) element;
+                block.call(cx, block.getDeclarationScope(), f, ScriptRuntime.emptyArgs);
+            }
+        }
+        return f;
+    }
+
+    /** DefineField. */
+    private static void defineField(
+            Scriptable receiver, FieldRecord field, Context cx, VarScope scope) {
+        Object value = Undefined.instance;
+        if (field.initializer != null) {
+            JSFunction init = field.initializer;
+            value = init.call(cx, init.getDeclarationScope(), receiver, ScriptRuntime.emptyArgs);
+            if (field.named) {
+                nameAnonymous(value, field.key);
+            }
+        }
+        if (field.key instanceof PrivateNameKey) {
+            PrivateNameKey key = (PrivateNameKey) field.key;
+            if (!PrivateElements.add(receiver, key, value)) {
+                throw privateError(cx, scope, "msg.class.private.twice", key);
+            }
+            return;
+        }
+        createDataPropertyOrThrow(receiver, field.key, value, cx);
+    }
+
+    /** NamedEvaluation of an anonymous function or class definition with a computed key. */
+    private static void nameAnonymous(Object value, Object key) {
+        if (value instanceof BaseFunction
+                && "".equals(ScriptableObject.getProperty((BaseFunction) value, "name"))) {
+            ((BaseFunction) value).setFunctionName(functionName(key));
+        }
+    }
+
+    /** CreateDataPropertyOrThrow, for a public field. */
+    private static void createDataPropertyOrThrow(
+            Scriptable receiver, Object key, Object value, Context cx) {
+        if (receiver instanceof ScriptableObject) {
+            ScriptableObject.DescriptorInfo desc =
+                    new ScriptableObject.DescriptorInfo(true, true, true, value);
+            if (!((ScriptableObject) receiver).defineOwnProperty(cx, key, desc)) {
+                throw ScriptRuntime.typeErrorById(
+                        "msg.class.field.define", ScriptRuntime.toString(key));
+            }
+        } else if (key instanceof Symbol) {
+            ScriptableObject.putProperty(receiver, (Symbol) key, value);
+        } else {
+            ScriptRuntime.StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
+            if (s.stringId == null) {
+                ScriptableObject.putProperty(receiver, s.index, value);
+            } else {
+                ScriptableObject.putProperty(receiver, s.stringId, value);
+            }
+        }
+    }
+
+    /** PrivateMethodOrAccessorAdd for all the private methods of a class at once. */
+    private static void addBrand(
+            Scriptable receiver, PrivateNameKey brand, Context cx, VarScope scope) {
+        if (!PrivateElements.add(receiver, brand, Boolean.TRUE)) {
+            throw privateError(cx, scope, "msg.class.private.methods.twice", brand);
+        }
+    }
+
+    /**
+     * The TypeError of a failed private element operation, an object of the realm of the code that
+     * runs it (the scope of the access, or of the class for an initialization): an EcmaError would
+     * become an error of the realm that catches it.
+     */
+    private static JavaScriptException privateError(
+            Context cx, VarScope scope, String messageId, PrivateNameKey key) {
+        String message = ScriptRuntime.getMessageById(messageId, key.toString());
+        return ScriptRuntime.throwCustomError(cx, scope, "TypeError", message);
+    }
+
+    /** ToObject of the base of a private reference. */
+    private static Scriptable privateBase(
+            Object obj, PrivateNameKey key, Context cx, VarScope scope, boolean write) {
+        Scriptable base = ScriptRuntime.toObjectOrNull(cx, obj, scope);
+        if (base == null) {
+            throw write
+                    ? ScriptRuntime.undefWriteError(obj, key, Undefined.instance)
+                    : ScriptRuntime.undefReadError(obj, key);
+        }
+        return base;
+    }
+
+    /** PrivateElementFind for a key of the object: whether it has the field or the brand. */
+    private static boolean hasPrivate(Object object, PrivateNameKey key) {
+        return PrivateElements.has(object, key.kind == PrivateNameKey.FIELD ? key : key.brand);
+    }
+
+    /** {@code o.#x}: PrivateGet. */
+    public static Object privateGet(Object obj, Object name, Context cx, VarScope scope) {
+        PrivateNameKey key = (PrivateNameKey) name;
+        Scriptable base = privateBase(obj, key, cx, scope, false);
+        return privateGet(base, key, cx, scope);
+    }
+
+    private static Object privateGet(
+            Scriptable base, PrivateNameKey key, Context cx, VarScope scope) {
+        if (key.kind == PrivateNameKey.FIELD) {
+            PrivateElements elements = PrivateElements.of(base);
+            int index = elements == null ? -1 : elements.indexOf(key);
+            if (index < 0) {
+                throw privateError(cx, scope, "msg.class.private.read", key);
+            }
+            return elements.values[index];
+        }
+        if (!PrivateElements.has(base, key.brand)) {
+            throw privateError(cx, scope, "msg.class.private.read", key);
+        }
+        if (key.kind == PrivateNameKey.METHOD) {
+            return key.method;
+        }
+        if (key.getter == null) {
+            throw privateError(cx, scope, "msg.class.private.no.getter", key);
+        }
+        return ((Callable) key.getter).call(cx, scope, base, ScriptRuntime.emptyArgs);
+    }
+
+    /** {@code o.#x = value}: PrivateSet. Returns the value. */
+    public static Object privateSet(
+            Object obj, Object name, Object value, Context cx, VarScope scope) {
+        PrivateNameKey key = (PrivateNameKey) name;
+        Scriptable base = privateBase(obj, key, cx, scope, true);
+        if (key.kind == PrivateNameKey.FIELD) {
+            PrivateElements elements = PrivateElements.of(base);
+            int index = elements == null ? -1 : elements.indexOf(key);
+            if (index < 0) {
+                throw privateError(cx, scope, "msg.class.private.write", key);
+            }
+            elements.values[index] = value;
+            return value;
+        }
+        if (!PrivateElements.has(base, key.brand)) {
+            throw privateError(cx, scope, "msg.class.private.write", key);
+        }
+        if (key.kind == PrivateNameKey.METHOD) {
+            throw privateError(cx, scope, "msg.class.private.method.write", key);
+        }
+        if (key.setter == null) {
+            throw privateError(cx, scope, "msg.class.private.no.setter", key);
+        }
+        ((Callable) key.setter).call(cx, scope, base, new Object[] {value});
+        return value;
+    }
+
+    /** {@code o.#m(...)}: the value of the private member and the object as the this value. */
+    public static ScriptRuntime.LookupResult privateCall(
+            Object obj, Object name, Context cx, VarScope scope, boolean optional) {
+        PrivateNameKey key = (PrivateNameKey) name;
+        Scriptable base = ScriptRuntime.toObjectOrNull(cx, obj, scope);
+        if (base == null) {
+            // As getPropAndThisOptional does for o?.m(): the optional chain ends.
+            if (optional) {
+                return null;
+            }
+            throw ScriptRuntime.undefCallError(obj, key);
+        }
+        Object value = privateGet(base, key, cx, scope);
+        if (optional && (value == null || Undefined.isUndefined(value))) {
+            return null;
+        }
+        return new ScriptRuntime.LookupResult(value, base, key.toString());
+    }
+
+    /** {@code #x in o}. */
+    public static boolean privateIn(Object name, Object obj) {
+        if (!(obj instanceof Scriptable)) {
+            throw ScriptRuntime.typeErrorById("msg.in.not.object");
+        }
+        return hasPrivate(obj, (PrivateNameKey) name);
+    }
+
+    /**
+     * What the parser of direct eval code needs to know about the code that calls eval (ROADMAP
+     * appendix C Q13): the private names visible there, and the kind of class element the eval is
+     * called from, whose rules for {@code arguments} and {@code new.target} the eval code follows.
+     */
+    static final class EvalContext {
+        /** {@link ClassParser#FN_METHOD}, {@code FN_FIELD}, {@code FN_STATIC_BLOCK} or -1. */
+        final int kind;
+
+        /** The identifier of each visible private name to its hidden binding, innermost first. */
+        final Map<String, String> privateNames;
+
+        EvalContext(int kind, Map<String, String> privateNames) {
+            this.kind = kind;
+            this.privateNames = privateNames;
+        }
+
+        String privateBinding(String identifier) {
+            return privateNames.get(identifier);
+        }
+    }
+
+    /**
+     * The context of a direct eval called in {@code scope}, or {@code null} when nothing about it
+     * concerns classes. The function that calls eval is the nearest activation of a function other
+     * than an arrow function (block scopes and arrow functions are transparent); the private names
+     * are the hidden bindings of the class scopes on the scope chain, which are only looked for
+     * when the source mentions {@code #}.
+     */
+    static EvalContext evalContext(VarScope scope, String source) {
+        int kind = -1;
+        for (VarScope s = scope; s != null; s = s.getParentScope()) {
+            if (s instanceof NativeCall) {
+                JSDescriptor<JSFunction> descriptor = ((NativeCall) s).function.getDescriptor();
+                if (descriptor.hasLexicalThis()) {
+                    continue;
+                }
+                kind = descriptor.classElement;
+                break;
+            }
+            if (!(s instanceof LocalScope) && s.getClass() != ScopeObject.class) {
+                // Block scopes and the variable scope of strict eval code are transparent.
+                break;
+            }
+        }
+        Map<String, String> names = Map.of();
+        if (source.indexOf('#') >= 0) {
+            names = new HashMap<>();
+            for (VarScope s = scope; s != null; s = s.getParentScope()) {
+                if (!(s instanceof LocalScope)) {
+                    continue;
+                }
+                for (Object id : s.getIds()) {
+                    if (id instanceof String && ClassParser.isPrivateBinding((String) id)) {
+                        names.putIfAbsent(ClassParser.privateDescription((String) id), (String) id);
+                    }
+                }
+            }
+        }
+        if (kind < 0 && names.isEmpty()) {
+            return null;
+        }
+        return new EvalContext(kind, names);
     }
 
     /**
@@ -378,6 +808,7 @@ public final class ClassRuntime {
                     ScriptRuntime.getMessageById("msg.class.super.twice"));
         }
         holder.value = result;
+        initializeInstanceElements(result, holder.constructor, cx);
         return result;
     }
 

@@ -20,8 +20,8 @@ import org.mozilla.javascript.Interpreter.NewState;
  * <ul>
  *   <li>{@code CLASS_DEFINE}: index register = constructor function, then a byte, 1 when the
  *       heritage is on the stack. Stack: [heritage] -&gt; F.
- *   <li>{@code CLASS_ELEMENT}: index register = method function, then the element flags byte.
- *       Stack: F, key -&gt; F.
+ *   <li>{@code CLASS_ELEMENT}: index register = method, initializer or static block function
+ *       (unused with {@code ELEMENT_NO_VALUE}), then the element flags byte. Stack: F, key -&gt; F.
  *   <li>{@code CLASS_CTOR_CHECK}, {@code CLASS_THIS}, {@code CLASS_SUPER_FUNC}: no operand, push
  *       one value.
  *   <li>{@code CLASS_TDZ}: string register = the name, then a byte, 1 for a parameter; throws.
@@ -34,6 +34,10 @@ import org.mozilla.javascript.Interpreter.NewState;
  *       of the with scope around the initialization of the parameters.
  *   <li>{@code CLASS_SUPER_CALL}: index register = argument count, then a byte, 1 when the only
  *       argument is an array holding the arguments. Stack: super constructor, arguments -&gt; this.
+ *   <li>{@code CLASS_PRIVATE_NAME}: string register = the identifier. Pushes a new private name.
+ *   <li>{@code CLASS_INIT_FIELDS}: no operand. Initializes the instance elements of the class on
+ *       this, pushes undefined.
+ *   <li>{@code CLASS_STATIC_INIT}: no operand. Stack: F -&gt; F, once the static elements ran.
  * </ul>
  */
 final class ClassInterpreter {
@@ -62,7 +66,8 @@ final class ClassInterpreter {
                         Node method = key.getNext();
                         gen.visitExpression(key, 0);
                         gen.addIndexOp(
-                                Icode.CLASS_ELEMENT, method.getExistingIntProp(Node.FUNCTION_PROP));
+                                Icode.CLASS_ELEMENT,
+                                method == null ? 0 : method.getExistingIntProp(Node.FUNCTION_PROP));
                         gen.addUint8(element.getExistingIntProp(Node.CLASS_PROP));
                         gen.stackChange(-1);
                     }
@@ -116,6 +121,18 @@ final class ClassInterpreter {
                 gen.addIcode(Icode.CLASS_CTOR_CHECK);
                 gen.stackChange(1);
                 break;
+            case ClassOp.PRIVATE_NAME:
+                gen.addStringOp(Icode.CLASS_PRIVATE_NAME, op.name);
+                gen.stackChange(1);
+                break;
+            case ClassOp.INIT_FIELDS:
+                gen.addIcode(Icode.CLASS_INIT_FIELDS);
+                gen.stackChange(1);
+                break;
+            case ClassOp.STATIC_INIT:
+                gen.visitExpression(child, 0);
+                gen.addIcode(Icode.CLASS_STATIC_INIT);
+                break;
             default:
                 throw Kit.codeBug();
         }
@@ -133,6 +150,9 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_REQUIRE_OBJECT] = new DoClassRequireObject();
         instructionObjs[base + Icode.CLASS_ITER_CLOSE] = new DoClassIterClose();
         instructionObjs[base + Icode.CLASS_PARAM_SCOPE] = new DoClassParamScope();
+        instructionObjs[base + Icode.CLASS_PRIVATE_NAME] = new DoClassPrivateName();
+        instructionObjs[base + Icode.CLASS_INIT_FIELDS] = new DoClassInitFields();
+        instructionObjs[base + Icode.CLASS_STATIC_INIT] = new DoClassStaticInit();
     }
 
     static String icodeName(int icode) {
@@ -159,6 +179,12 @@ final class ClassInterpreter {
                 return "CLASS_ITER_CLOSE";
             case Icode.CLASS_PARAM_SCOPE:
                 return "CLASS_PARAM_SCOPE";
+            case Icode.CLASS_PRIVATE_NAME:
+                return "CLASS_PRIVATE_NAME";
+            case Icode.CLASS_INIT_FIELDS:
+                return "CLASS_INIT_FIELDS";
+            case Icode.CLASS_STATIC_INIT:
+                return "CLASS_STATIC_INIT";
             default:
                 return null;
         }
@@ -206,7 +232,9 @@ final class ClassInterpreter {
             ClassRuntime.defineElement(
                     frame.stack[frame.stackTop],
                     key,
-                    function(frame, state.indexReg),
+                    (flags & ClassOp.ELEMENT_NO_VALUE) != 0
+                            ? null
+                            : function(frame, state.indexReg),
                     flags,
                     cx,
                     frame.scope);
@@ -291,6 +319,31 @@ final class ClassInterpreter {
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
             Object value = value(frame, frame.stackTop);
             frame.stack[frame.stackTop] = ClassRuntime.requireObjectCoercible(value);
+            return null;
+        }
+    }
+
+    private static final class DoClassPrivateName extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.stack[++frame.stackTop] = ClassRuntime.newPrivateName(state.stringReg);
+            return null;
+        }
+    }
+
+    private static final class DoClassInitFields extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.stack[++frame.stackTop] =
+                    ClassRuntime.initializeInstanceElements(frame.thisObj, frame.fnOrScript, cx);
+            return null;
+        }
+    }
+
+    private static final class DoClassStaticInit extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.stack[frame.stackTop] = ClassRuntime.staticInit(frame.stack[frame.stackTop], cx);
             return null;
         }
     }

@@ -363,6 +363,7 @@ public class CompilerEnvirons {
     private boolean allowSuper;
     Set<String> activationNames;
     private boolean inEval;
+    Object classEvalContext; // AutoJs6: class syntax
     private Scriptable homeObjecgt;
     private SecurityController securityController;
     private Object securityDomain;

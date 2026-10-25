@@ -190,9 +190,12 @@ abstract class Icode {
             CLASS_REQUIRE_OBJECT = CLASS_ITER_REST - 1, // AutoJs6: class syntax
             CLASS_ITER_CLOSE = CLASS_REQUIRE_OBJECT - 1, // AutoJs6: class syntax
             CLASS_PARAM_SCOPE = CLASS_ITER_CLOSE - 1, // AutoJs6: class syntax
+            CLASS_PRIVATE_NAME = CLASS_PARAM_SCOPE - 1, // AutoJs6: class syntax
+            CLASS_INIT_FIELDS = CLASS_PRIVATE_NAME - 1, // AutoJs6: class syntax
+            CLASS_STATIC_INIT = CLASS_INIT_FIELDS - 1, // AutoJs6: class syntax
 
             // Last icode
-            MIN_ICODE = CLASS_PARAM_SCOPE; // AutoJs6: class syntax
+            MIN_ICODE = CLASS_STATIC_INIT; // AutoJs6: class syntax
 
     static String bytecodeName(int bytecode) {
         if (!validBytecode(bytecode)) {

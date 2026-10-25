@@ -24,7 +24,7 @@
 
 - 以下 parse 阶段反例目前由编译期 "暂不支持" 拦下, 实现执行后必须在解析或降糖阶段补报: 把 class 表达式用作赋值目标 (`(class {}) = 1`, P2); async 函数 / 箭头函数的参数与函数体重名, 严格函数体配非简单参数, 把 async 箭头函数 / async 函数表达式 / `await` 表达式用作赋值目标, 对象 async 方法参数里的 `super()` (P9). test262 用例清单见 P1 会话的统计: 共 25 例, 位于 `language/expressions/assignmenttargettype`, `async-arrow-function`, `async-function`, `await`, `object/method-definition` 与 `language/statements/async-function`.
 - `class A extends new B {}` 被 fork 的 JavaAdapter 扩展语法 `new X {}` 吃掉, test262 范围内没有用例; P5 (Java 继承) 时一并决定是否在 `extends` 后关闭该扩展.
-- eval 代码里引用外层类的私有名目前在解析期报未声明; 直接 eval 的私有名可见性留给 P3.
+- [x] eval 代码里引用外层类的私有名目前在解析期报未声明; 直接 eval 的私有名可见性留给 P3. (P3 已完成: 直接 eval 沿作用域链收集外层私有名, 附录 C Q13; 间接 eval 与 `Function` 构造器仍报未声明, 符合规范)
 - `new super()` 与 `new super.x` 的区分未做, P2 降糖时确认.
 - 解析器只前瞻 1 个 token: 表达式体的 async 箭头函数结束时, 紧随其后的那个 token 已在箭头函数的 await 上下文里扫描过 (`await` 会被当成关键字). 只在换行省略分号且下一行以 `await` 开头时可见, P9 处理.
 - 顺带修好的上游崩溃: 对象字面量 `{ * ; }` 之类 `*` 后键不合法时, 原来把 null 传进 `GeneratorMethodDefinition` 抛 `IllegalArgumentException`, 现在报 `msg.bad.prop` (私有名 token 让 `{ *#m() {} }` 也走到这里, 见 HOOKS.md).
@@ -58,11 +58,11 @@
 - 元素循环: `ClassLowering.define` 里字段 / static block / 私有成员现在报 `msg.class.not.supported`, P3 从这里接. 建议: 实例字段初始化器合成一个以 home object 为 prototype 的方法, 基类在构造器体开头 (CTOR_CHECK 之后) 调用, 派生类在 `ClassRuntime.superCall` 绑定 this 之后调用; static 字段与 static block 在 `defineClass` 之后按源码顺序以 F 为 this 调用; 计算字段名与方法键一起按源码顺序求值一次.
 - 新原语照现有模式加: `ClassOp` 新 kind + `ClassInterpreter` 新 icode (接在 `CLASS_PARAM_SCOPE` 之后, 更新 `MIN_ICODE` 与 `ClassChainUniquenessTest`) + `ClassBodyCodegen` 分支 + V2 指令类 (Q11) + `ClassRuntime` 方法; 新 Node 属性接在 `DEFAULT_NAME_PROP` 之后.
 - 派生构造器的 this 绑定点只有 `ClassRuntime.superCall` / `superCallArray` 一处 (字段初始化挂这里); 箭头函数里的 `super()` 绑定同一个 `DerivedThis`.
-- `msg.class.not.supported` 的文案在 P2 改为 "暂不支持类字段, static 块与私有成员" (10 个 bundle); P3 完成后删除该 key 或改为只报剩余特性.
+- `msg.class.not.supported` 的文案在 P2 改为 "暂不支持类字段, static 块与私有成员" (10 个 bundle); P3 完成后删除该 key 或改为只报剩余特性. (P3 已从 10 个 bundle 与 `CLASS_SYNTAX_KEYS` 删除; `ClassLowering.reportNotSupported` 保留给 `AsyncLowering`)
 
 ### 留给 P3 / P4 / P6 / P8 / P9 的事项
 
-- P3: 字段, static block, 私有名 (含 eval 里引用外层私有名), `ClassSyntaxTest262ParseTest` / `ClassSyntaxTest262CoreTest` 的 `LATER_PHASES` 逐步去掉 P3 特性.
+- [x] P3: 字段, static block, 私有名 (含 eval 里引用外层私有名), `ClassSyntaxTest262ParseTest` / `ClassSyntaxTest262CoreTest` 的 `LATER_PHASES` 逐步去掉 P3 特性. (P3 已完成, `LATER_PHASES` 只剩 async-functions / async-iteration; `ClassSyntaxTest262ParseTest` 本来就不跳过 P3 特性)
 - P4: 内建构造器按 new.target 创建; `ClassSyntaxTest262CoreTest.KNOWN_FAILURES` 里 4 例 P4 (subclass-builtins/subclass-WeakRef ×2, subclass/builtin-objects/ArrayBuffer/regular-subclassing, GeneratorFunction/instance-prototype) 在 P4 修好后删除.
 - P6.1: 重生成 `test262.properties` 时, 下面 "新通过的 test262 用例" 一节的用例从失败登记里去掉; eval 里的 new.target 与 super() (Q12) 相关用例保持失败.
 - P8 上游 PR 候选 (与 class 无关, 可单独提): yield 解析 (Q10), `StackSpills` (编译模式生成器 yield 点), NodeTransformer 展开项二次变换, for-of 的 IteratorClose, 参数作用域与参数 TDZ, 参数数组解构的迭代器协议, rest 参数与 bind, Object 按 new.target 忽略实参.
@@ -113,3 +113,46 @@
 - 参数 TDZ, 参数作用域与参数里的 `arguments`:`expressions/generators/dflt-params-ref-later.js`, `expressions/generators/dflt-params-ref-self.js`, `expressions/generators/scope-paramsbody-var-open.js`, `statements/generators/dflt-params-ref-later.js`, `statements/generators/dflt-params-ref-self.js`, `statements/generators/scope-paramsbody-var-open.js`, `expressions/object/method-definition/gen-meth-dflt-params-ref-later.js`, `expressions/object/method-definition/gen-meth-dflt-params-ref-self.js`, `expressions/object/method-definition/meth-dflt-params-ref-later.js`, `expressions/object/method-definition/meth-dflt-params-ref-self.js`, `expressions/object/method-definition/params-dflt-meth-ref-arguments.js`.
 
 `ClassSyntaxTest262CoreTest` 不受 `test262.properties` 影响, 上面的清单只关系到 `Test262SuiteTest`.
+
+## P3 字段, static block, 私有名 (2026-10-25 完成, 子会话 rhino-p3)
+
+### 运行时结构
+
+- T5 盘点结论: 可行, 不登记推翻. 私有元素表 (新文件 `PrivateElements`) 是 `ScriptableObject` 上一个独立的 volatile 字段 `privateElements`, 与 `SlotMapOwner` 的属性表无关: 按 `PrivateNameKey` 身份查找的两个小数组, 读不加锁, 添加时在 `synchronized (owner)` 里整表复制后发布 (与 fork 在 `SlotMapOwner.ThreadedAccess` 的做法一致, 不用 VarHandle, Android 24 可用). 不是 `ScriptableObject` 的 `Scriptable` (`NativeJavaObject` 等) 用 `PrivateElements` 里的弱引用标识表, Java 对象包装按被包装的 Java 对象记 (同一 Java 对象的不同包装共享私有元素, 与 `===` 一致). 反射, Proxy 陷阱, JSON, for-in, `Object.assign`, 展开都只看属性表, 所以看不到私有元素; freeze / preventExtensions 只改属性表, 安装与写入私有元素不受影响 (现行规范; stage 3 提案见附录 C Q14).
+- 私有名的词法绑定: `ClassParser.declarePrivate` 给每个声明的私有名分配隐藏绑定 `#<名字>@<全局序号>` (源码标识符不可能以 `#` 开头, `@` 不能出现在标识符里; getter / setter 对共用一个), 作为 LET 符号放进 ClassNode 的作用域; 引用在类体结束时解析到本类, 外层类或 eval 上下文的绑定 (`PrivateName.getBinding`). 降糖时类作用域 (LETEXPR) 给每个绑定一个 PRIVATE_NAME 初值, 每次类定义求值新建 `PrivateNameKey`; 匿名类有私有名时同样建类作用域. 闭包, 嵌套类, 直接 eval 都走普通作用域链.
+- 私有成员访问没有新的读写原语: `o.#x` 降为 `GETELEM(o, NAME(#x@n))`, `#x in o` 的左边降为 `NAME(#x@n)`; 赋值, 复合赋值, `++`, 解构目标, for-in / for-of 目标, 可选链, 带 this 的调用, 标签模板都沿用元素访问的 IR. `ScriptRuntime` 的 `getObjectElem` / `setObjectElem` / `getElemAndThis` / `getElemAndThisOptional` / `in` 在键是 `PrivateNameKey` 时转 `ClassRuntime` 的 PrivateGet / PrivateSet / 调用 / 私有 in. 键对象只出现在这些位置, 脚本拿不到.
+- 私有方法与访问器: 函数放在 `PrivateNameKey` 上 (kind METHOD / ACCESSOR), 对象只记录类的品牌 (kind BRAND 的键, 实例品牌与静态品牌各一个, 每次类求值一个); `#m in o`, `o.#m`, `o.#g` 查品牌. 同一个类的实例共用同一个方法函数 (`a.#m === b.#m`).
+- 类的内部槽放在构造器 F 的 `JSFunction.classData` (`ClassRuntime.ClassData`): 实例字段 (`FieldRecord`: 键为属性键或 `PrivateNameKey`, 初始化器方法, 是否按键命名), 待执行的静态元素 (字段与 static block 按源码顺序), 实例 / 静态品牌, 类名 (品牌报错用).
+- 元素: 字段与 static block 沿用 CLASS_ELEMENT, 新标志 `ELEMENT_FIELD` (种类 3), `ELEMENT_PRIVATE` (键是私有名), `ELEMENT_NAMED` (计算键的字段值是匿名函数 / 类, 运行时按键命名; 非计算键在降糖时命名), `ELEMENT_NO_VALUE` (没有初始化器), `ELEMENT_BLOCK` (static block). 初始化器与 static block 各是一个方法 (home object 为 prototype 或 F, 所以 `super.x` 可用), 键与方法一起按源码顺序求值一次.
+- 新原语 (ClassOp 9-11, icode `CLASS_PRIVATE_NAME` / `CLASS_INIT_FIELDS` / `CLASS_STATIC_INIT` 接在链尾): PRIVATE_NAME 新建私有名; INIT_FIELDS 在基类构造器体开头 (CTOR_CHECK 之后, 类有实例字段或私有方法时) 执行 InitializeInstanceElements (先品牌, 再按顺序定义字段); STATIC_INIT 包在定义与类名绑定的 SETCONST 外面, 类名绑定初始化之后加静态品牌并执行静态字段与 static block. 派生类在 `ClassRuntime.superCall` 绑定 this 之后 (重复 `super()` 的 ReferenceError 在此之前) 执行 InitializeInstanceElements. 字段用 [[Define]] (`defineOwnProperty`, 不触发原型上的 setter), 定义失败抛 TypeError.
+- 报错的 realm: 私有元素操作失败 (品牌检查, 重复安装, 写私有方法, 缺 getter / setter) 抛执行该操作的代码所在 realm 的 TypeError 对象 (`ScriptRuntime.throwCustomError`, Java 侧是 `JavaScriptException`); EcmaError 会在 catch 处变成捕获方 realm 的错误, test262 的 `*-multiple-evaluations-of-class-realm*` 用例据此失败过. 基值是 null / undefined 与 `#x in` 非对象时与属性访问一样是 EcmaError.
+- 直接 eval (附录 C Q13): `CodeGenUtils` 把 `ClassLowering.elementKind` (方法, 字段初始化器, static block; 构造器与普通函数为 -1) 写进 `JSDescriptor.classElement`. `ScriptRuntime.evalSpecial` 编译前调 `ClassRuntime.evalContext(scope, source)`: 源码含 `#` 时沿作用域链从 `LocalScope` 收集 `#..@n` 绑定 (内层优先), 并跳过箭头函数的活动对象取第一个非箭头函数的 classElement; 结果经 `CompilerEnvirons.classEvalContext` 交给 `ClassParser`: 私有名引用解析到收集的绑定, 顶层 `new.target` 放行并降为 undefined (这三种函数从不被构造), 字段初始化器与 static block 里引用 `arguments` 报 SyntaxError. 普通函数与构造器里的 eval 仍按 Q12 = A.
+- 顺带修复 (test262 class 目录依赖, 与私有名无关的也一并修): 对象解构赋值里属性值是成员表达式时先求值目标引用再读属性 (`BindingLowering.assignsMember`, 上游先把值存进临时变量); 不在任何非箭头函数里的箭头函数用 `new.target` 报 SyntaxError (上游只看函数嵌套层数, `(0, eval)('() => new.target')` 被放过); `o?.#m()` 在 o 为 null / undefined 时结束可选链 (同样写法的 `o?.[k]()` 是上游缺陷, 未修, 见 HOOKS.md 第 8 节).
+
+### 给 P4 / P5 / P6 / P9 的接口
+
+- P4 (内建按 new.target 创建): 派生类的字段在 `superCall` 拿到父构造器返回的对象后安装 (`initializeInstanceElements(result, holder.constructor, cx)`), 内建子类的实例只要经 `superCall` 返回就得到字段与私有元素; 内建对象都是 `ScriptableObject`, 私有元素走字段表. P4 拆掉 `superCall` 里 "非 JSFunction 构造器按 new.target 改原型" 的 P2 脚手架时, 字段安装的位置不变.
+- P5 (Java 继承, T6: 字段与私有名在 JS self 对象上): Java 父类构造完成后, 钩子层以 JS self 对象 (`ScriptableObject`, 原型为 X.prototype) 调 `ClassRuntime.initializeInstanceElements(self, F, cx)`, 不要传 Java 对象的包装 (公共字段会经 `putProperty` 写到 Java 对象上, 私有元素会进弱引用标识表). Java 回调 JS 方法时 this 要是 self 对象, 否则 `this.#x` 的品牌检查失败.
+- P6.1: 重生成 `test262.properties` 时 `nonextensible-applies-to-private` 按 T10 排除 (附录 C Q14); 字段 / 私有名用例里依赖 eval 的已能通过 (Q13).
+- P9 (async): `ClassSyntaxTest262CoreTest.KNOWN_FAILURES` 新增 14 例 P9 (私有 async 方法 / async 生成器方法 8 例, 字段计算键里的 async 箭头函数 4 例, static block 里的 async 函数 / 方法 2 例), 加上 P2 的 5 例共 19 例; async 方法作为类元素沿用 `defineElement` / `definePrivateMethod` (`newMethod` 已为生成器方法设 prototype, async 生成器方法同理); async 方法的 `elementKind` 返回 FN_METHOD, eval 规则即生效; static block 里的 `await` 已是早期错误. P9 解锁后 class 两目录还有 2078 例 (async 标志) 与 607 例 (async 特性) 要跑, 其中字段 56 例, 私有名 1354 例.
+
+### 已知限制
+
+见 `HOOKS.md` 第 8 节 "P3" (私有元素表的线程语义, Java 对象的私有元素, AOT 编译的 `classElement`, 上游的 `o?.[k]()`, V2 只有指令类).
+
+### 验证
+
+- test262 class 两目录 (`ClassSyntaxTest262CoreTest`, P3 起只跳过 async 与 T10): 解释与编译模式各运行 5700 例, 各通过 5677, 两种模式相同. 按 ROADMAP 1.4 分组: 核心 2428 / 2419 (同 P2), 字段 612 / 606, 私有名 2660 / 2652; 未通过的 23 例全部是 `KNOWN_FAILURES` (P4 4 例, P9 19 例, 其中 P3 新登记 14 例都要 async). 1.4 节的字段 673 例 = 运行 612 + async 标志 56 (P9) + module 5 (T10); 私有名 4016 例 = 运行 2660 + async 标志 1148 与 async 特性 206 (P9) + `nonextensible-applies-to-private` 2 (T10, 附录 C Q14). 首轮 31 例新失败已全部修复 (realm 10 例, eval 里的 new.target 4 例, 解构求值顺序 1 例, nonextensible 2 例按 T10 排除, 余 14 例登记 P9).
+- `ClassSyntaxTest262ParseTest`: 反例 1262 / 1262 拒绝, 正例 7127 / 7127 可解析 (同 P2).
+- 自带测试 (rhino 模块, 最终全量里的计数): ClassFieldsTest 12, PrivateNamesTest 15 (新), ClassSyntaxTest 22, ClassSyntaxParserTest 76, ClassInstructionsTest 18, ClassChainUniquenessTest 2, HooksRegistryTest 2, TokenUniquenessTest 4, AsyncSyntaxParserTest 20, MessageTranslationsTest 36 全部通过 (解释 / 编译两模式; V2 只有指令类单测, 端到端 0 例, 附录 C Q11).
+- 全量 (JDK 21, 五个模块): rhino 4178 (0 失败, 4 跳过), rhino-xml 6, rhino-engine 43, rhino-tools 21 (1 失败, 同基线), tests 121078 (54 失败, 16 跳过); 失败集与 P2 基线 55 项完全相同, 无新增也无修复 (`.python/junit_failures.py` 对照, 记录在 `build/upstream-sync/class-p3-20261025/`: `current-failures.txt`, `full-tests.log`, `unexpectedly-passing*.txt`).
+- 门禁: `spotlessCheck`, `git diff --check`, `.python/generate_markdown.py --check` 通过; 钩子审计 (上游文件新增行全部带标记且不超过 100 字符, 共 368 行) 与 HOOKS.md 一致.
+
+### 新通过的 test262 用例 (P6.1 重生成时去掉失败登记)
+
+`Test262SuiteTest` 报 "Test is marked as failing but it does not" 的文件共 1000 个: P1 47 个, P2 927 个, P3 新增 26 个 (清单 `build/upstream-sync/class-p3-20261025/unexpectedly-passing-new.txt`), P2 的 974 个仍全部通过. P6.1 用 `-DupdateTest262properties` 重生成时由工具去掉. P3 新增的 26 个 (路径省略 `language/` 与 `built-ins/`):
+
+- static block 里 `await` 作绑定 / 引用的早期错误 (`static-init-await-*`, 原来因 "暂不支持" 报错而失败) 17 个: `expressions/{function,generators}/static-init-await-reference.js`, `expressions/object/ident-name-prop-name-literal-await-static-init.js`, `expressions/object/identifier-shorthand-static-init-await-valid.js`, `expressions/object/method-definition/static-init-await-{binding,reference}-{accessor,generator,normal}.js` (6), `statements/{const,function,let,try,variable}/static-init-await-binding-valid.js` (5), `statements/variable/dstr/{ary,obj}-ptrn-elem-id-static-init-await-valid.js`.
+- `#x in obj` 4 个: `expressions/in/private-field-presence-{accessor,method}{,-shadowed}.js`.
+- 私有方法的 `Function.prototype.toString` 4 个: `Function/prototype/toString/private-{,static-}method-class-{expression,statement}.js`.
+- 顶层箭头函数里的 `new.target` 报 SyntaxError 1 个: `global-code/new.target-arrow.js`.

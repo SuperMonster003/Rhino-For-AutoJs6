@@ -44,6 +44,8 @@ import org.mozilla.javascript.ast.SpreadObjectProperty;
  *   <li>A for-of loop that ends early closes its iterator ({@link ClassOp#ITERATOR_CLOSE}).
  *   <li>The initialization of the parameters does not see the declarations of the body ({@link
  *       ClassOp#PARAM_SCOPE}).
+ *   <li>A member expression as the target of an object pattern property is evaluated before the
+ *       property is read (ROADMAP P3.5).
  * </ul>
  *
  * <p>{@link Parser} and {@link IRFactory} keep one-line hooks into this class; they are listed in
@@ -77,6 +79,18 @@ final class BindingLowering {
         Node rest = ClassLowering.newClassNode(ClassOp.ITERATOR_REST);
         rest.addChildToBack(parser.createName(iterator));
         return rest;
+    }
+
+    /**
+     * Whether the value of an object pattern property is a member expression assigned directly,
+     * {@code o.x = value.p} (Parser.destructuringObject): the reference to the target, {@code o}
+     * and the key, is evaluated before the property is read (the DestructuringAssignmentTarget
+     * before GetV), so that {@code ({a: this.#x} = obj)} in a derived constructor fails before the
+     * getter runs. Declarations report the target elsewhere.
+     */
+    boolean assignsMember(AstNode value, int variableType) {
+        return variableType == -1
+                && (value.getType() == Token.GETPROP || value.getType() == Token.GETELEM);
     }
 
     /** An empty object pattern: RequireObjectCoercible of the value. */
@@ -125,7 +139,7 @@ final class BindingLowering {
         }
         // A fresh node: the target stays where it is in the pattern.
         Name name = new Name(0, target.getIdentifier());
-        if (value.getType() == Token.CLASS) {
+        if (ClassLowering.isClassValue(value)) {
             ClassLowering.inferName(parser, value, name, null);
         } else if (value.getType() == Token.FUNCTION) {
             int index = value.getExistingIntProp(Node.FUNCTION_PROP);

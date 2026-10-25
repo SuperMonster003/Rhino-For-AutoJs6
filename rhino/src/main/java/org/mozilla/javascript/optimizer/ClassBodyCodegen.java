@@ -60,7 +60,11 @@ final class ClassBodyCodegen {
                             element = element.getNext()) {
                         Node key = element.getFirstChild();
                         bc.generateExpression(key, element);
-                        pushDescriptor(bc, key.getNext());
+                        if (key.getNext() == null) {
+                            cfw.add(ByteCode.ACONST_NULL);
+                        } else {
+                            pushDescriptor(bc, key.getNext());
+                        }
                         cfw.addPush(element.getExistingIntProp(Node.CLASS_PROP));
                         pushContextAndScope(bc);
                         invoke(
@@ -137,6 +141,27 @@ final class ClassBodyCodegen {
                 pushNewTarget(bc);
                 cfw.addALoad(bc.funObjLocal);
                 invoke(cfw, "checkConstructorCall", "(" + OBJECT + OBJECT + ")" + OBJECT);
+                break;
+            case ClassOp.PRIVATE_NAME:
+                cfw.addPush(op.getName());
+                invoke(cfw, "newPrivateName", "(Ljava/lang/String;)" + OBJECT);
+                break;
+            case ClassOp.INIT_FIELDS:
+                cfw.addALoad(bc.thisObjLocal);
+                cfw.addALoad(bc.funObjLocal);
+                cfw.addALoad(bc.contextLocal);
+                invoke(
+                        cfw,
+                        "initializeInstanceElements",
+                        "(" + OBJECT + OBJECT + "Lorg/mozilla/javascript/Context;)" + OBJECT);
+                break;
+            case ClassOp.STATIC_INIT:
+                bc.generateExpression(child, node);
+                cfw.addALoad(bc.contextLocal);
+                invoke(
+                        cfw,
+                        "staticInit",
+                        "(" + OBJECT + "Lorg/mozilla/javascript/Context;)" + OBJECT);
                 break;
             default:
                 throw Kit.codeBug();

@@ -3482,7 +3482,7 @@ public class Parser {
             if (peekToken() == Token.DOT) {
                 consumeToken(); // consume '.'
 
-                if (nestingOfFunction > 0
+                if (classSyntax.newTargetAllowed(nestingOfFunction) // AutoJs6: class syntax
                         && matchToken(Token.NAME, true)
                         && "target".equals(ts.getString())) {
                     int end = ts.tokenEnd;
@@ -5711,6 +5711,9 @@ public class Parser {
                         setOp,
                         transformer,
                         isFunctionParameter);
+            } else if (bindings.assignsMember(value, variableType)) { // AutoJs6: class syntax
+                Node set = simpleAssignment(value, rightElem, transformer); // AutoJs6: class syntax
+                parent.addChildToBack(set); // AutoJs6: class syntax
             } else {
                 parent.addChildToBack(
                         destructuringAssignmentHelper(
@@ -5816,6 +5819,10 @@ public class Parser {
                         AstNode target = ((PropertyGet) left).getTarget();
                         obj = transformer != null ? transformer.transform(target) : target;
                         id = ((PropertyGet) left).getProperty();
+                        if (id.getType() == Token.PRIVATE_NAME) { // AutoJs6: class syntax
+                            nodeType = Token.GETELEM; // AutoJs6: class syntax
+                            id = ClassLowering.privateReference(id); // AutoJs6: class syntax
+                        } // AutoJs6: class syntax
                     } else if (left instanceof ElementGet) {
                         AstNode target = ((ElementGet) left).getTarget();
                         AstNode elem = ((ElementGet) left).getElement();

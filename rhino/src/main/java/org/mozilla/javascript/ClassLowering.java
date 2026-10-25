@@ -17,6 +17,10 @@ import org.mozilla.javascript.ast.ComputedPropertyKey;
 import org.mozilla.javascript.ast.FunctionCall;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.Name;
+import org.mozilla.javascript.ast.ParenthesizedExpression;
+import org.mozilla.javascript.ast.PrivateName;
+import org.mozilla.javascript.ast.PropertyGet;
+import org.mozilla.javascript.ast.ReturnStatement;
 import org.mozilla.javascript.ast.ScriptNode;
 import org.mozilla.javascript.ast.Spread;
 
@@ -42,9 +46,19 @@ import org.mozilla.javascript.ast.Spread;
  * constructor), {@link ClassOp#TDZ} (a definition time reference to the class binding) and {@link
  * ClassOp#CTOR_CHECK} (the [[Call]] check at the top of every class constructor).
  *
- * <p>Fields, static blocks and private names are left to ROADMAP P3: they are reported as not
- * supported yet. P3 adds element kinds to {@code ELEMENT_*} and initializer functions to {@link
- * ClassOp} (see NOTES.md, P2).
+ * <p>Fields, static blocks and private methods are {@link Token#CLASS_ELEMENT} nodes too (ROADMAP
+ * P3): a field holds its key and its initializer function (none without an initializer), a static
+ * block its body function. The definition records them on the constructor; {@link
+ * ClassOp#INIT_FIELDS} at the top of a base constructor and {@code super()} in a derived one add
+ * the instance elements to the new object, and {@link ClassOp#STATIC_INIT} runs the static ones
+ * once the class binding is initialized.
+ *
+ * <p>Each private name the class declares has a hidden binding {@code #x@n} in the class scope (see
+ * {@link ClassParser#privateBinding}) that a {@link ClassOp#PRIVATE_NAME} initializes with a new
+ * {@link PrivateNameKey} whenever the class definition is evaluated, so an anonymous class with
+ * private names gets a class scope as well. A reference {@code #x} reads the binding, and {@code
+ * o.#x} is an element access {@code o[#x@n]} that the runtime turns into a private access when the
+ * key is a {@link PrivateNameKey}.
  */
 final class ClassLowering {
 
@@ -80,7 +94,17 @@ final class ClassLowering {
             Node definition = define(factory, parser, cls);
             Node result = definition;
             if (!cls.isAnonymous()) {
-                result = classScope(cls, definition);
+                Node binding = Node.newString(Token.BINDNAME, cls.getClassName().getIdentifier());
+                result = new Node(Token.SETCONST, binding, definition);
+            }
+            if (hasElements(cls, true)) {
+                Node staticInit = newClassNode(ClassOp.STATIC_INIT);
+                staticInit.setLineColumnNumber(cls.getLineno(), cls.getColumn());
+                staticInit.addChildToBack(result);
+                result = staticInit;
+            }
+            if (!cls.isAnonymous() || hasPrivateNames(cls)) {
+                result = classScope(cls, result);
             }
             if (cls.isStatement()) {
                 Node binding = parser.createName(cls.getClassName().getIdentifier());
@@ -124,6 +148,10 @@ final class ClassLowering {
             // Before the return that initFunction added.
             body.addChildBefore(newChild, body.getLastChild());
         }
+        if (!cls.isDerived() && hasElements(cls, false)) {
+            // Before the parameters are bound, as [[Construct]] of a base class does.
+            body.addChildToFront(new Node(Token.EXPR_VOID, newClassNode(ClassOp.INIT_FIELDS)));
+        }
         body.addChildToFront(new Node(Token.EXPR_VOID, newClassNode(ClassOp.CTOR_CHECK)));
         Name className = cls.isAnonymous() ? cls.getInferredName() : cls.getClassName();
         if (className != null) {
@@ -136,72 +164,196 @@ final class ClassLowering {
             if (kind == ClassElement.Kind.CONSTRUCTOR) {
                 continue;
             }
-            if (kind == ClassElement.Kind.FIELD
-                    || kind == ClassElement.Kind.STATIC_BLOCK
-                    || element.isPrivate()) {
-                reportNotSupported(parser, element, "msg.class.not.supported");
-            }
-            int flags =
-                    kind == ClassElement.Kind.GETTER
-                            ? ClassOp.ELEMENT_GETTER
-                            : kind == ClassElement.Kind.SETTER
-                                    ? ClassOp.ELEMENT_SETTER
-                                    : ClassOp.ELEMENT_METHOD;
-            if (element.isStatic()) {
-                flags |= ClassOp.ELEMENT_STATIC;
-            }
-            Node key;
-            String name = null;
-            if (element.isComputed()) {
-                flags |= ClassOp.ELEMENT_COMPUTED;
-                key = factory.transform(((ComputedPropertyKey) element.getKey()).getExpression());
-            } else {
-                name = element.getPropertyName();
-                key = Node.newString(name);
-            }
-            FunctionNode method = element.getValue();
-            if (kind == ClassElement.Kind.GETTER || kind == ClassElement.Kind.SETTER) {
-                // Accessors are not constructors and have no prototype property.
-                method.setIsShorthand();
-            }
-            Node methodNode = factory.transform(method);
-            if (name != null) {
-                String prefix =
-                        kind == ClassElement.Kind.GETTER
-                                ? "get "
-                                : kind == ClassElement.Kind.SETTER ? "set " : "";
-                Name functionName = new Name(0, prefix + name);
-                functionName.setLineColumnNumber(
-                        element.getKey().getLineno(), element.getKey().getColumn());
-                method.setFunctionName(functionName);
-            }
-            Node elementNode = new Node(Token.CLASS_ELEMENT, key, methodNode);
-            elementNode.putIntProp(Node.CLASS_PROP, flags);
-            definition.addChildToBack(elementNode);
+            definition.addChildToBack(element(factory, element));
         }
         return definition;
     }
 
+    /** Lowers a class element other than the constructor into a {@link Token#CLASS_ELEMENT}. */
+    private static Node element(IRFactory factory, ClassElement element) {
+        ClassElement.Kind kind = element.getKind();
+        int flags;
+        switch (kind) {
+            case GETTER:
+                flags = ClassOp.ELEMENT_GETTER;
+                break;
+            case SETTER:
+                flags = ClassOp.ELEMENT_SETTER;
+                break;
+            case FIELD:
+                flags = ClassOp.ELEMENT_FIELD;
+                break;
+            case STATIC_BLOCK:
+                flags = ClassOp.ELEMENT_FIELD | ClassOp.ELEMENT_BLOCK;
+                break;
+            default:
+                flags = ClassOp.ELEMENT_METHOD;
+                break;
+        }
+        if (element.isStatic()) {
+            flags |= ClassOp.ELEMENT_STATIC;
+        }
+        Node key;
+        String name = null;
+        if (kind == ClassElement.Kind.STATIC_BLOCK) {
+            key = new Node(Token.UNDEFINED);
+        } else if (element.isComputed()) {
+            flags |= ClassOp.ELEMENT_COMPUTED;
+            key = factory.transform(((ComputedPropertyKey) element.getKey()).getExpression());
+        } else if (element.isPrivate()) {
+            flags |= ClassOp.ELEMENT_PRIVATE;
+            PrivateName privateName = (PrivateName) element.getKey();
+            key = privateReference(privateName);
+            name = "#" + privateName.getIdentifier();
+        } else {
+            name = element.getPropertyName();
+            key = Node.newString(name);
+        }
+        FunctionNode function = element.getValue();
+        if (function == null) {
+            Node elementNode = new Node(Token.CLASS_ELEMENT, key);
+            elementNode.putIntProp(Node.CLASS_PROP, flags | ClassOp.ELEMENT_NO_VALUE);
+            return elementNode;
+        }
+        if (kind == ClassElement.Kind.GETTER || kind == ClassElement.Kind.SETTER) {
+            // Accessors are not constructors and have no prototype property.
+            function.setIsShorthand();
+        }
+        AstNode anonymous = kind == ClassElement.Kind.FIELD ? anonymousDefinition(function) : null;
+        if (anonymous instanceof ClassNode && name != null) {
+            // NamedEvaluation of the initializer: a class takes the field name as its own.
+            ((ClassNode) anonymous).setInferredName(new Name(0, name));
+        }
+        Node functionNode = factory.transform(function);
+        if (anonymous instanceof FunctionNode && name != null) {
+            // Named after the transformation, so that the name does not bind the function itself.
+            ((FunctionNode) anonymous).setFunctionName(new Name(0, name));
+        }
+        if (anonymous != null && name == null) {
+            flags |= ClassOp.ELEMENT_NAMED;
+        }
+        if (name != null && kind != ClassElement.Kind.FIELD) {
+            String prefix =
+                    kind == ClassElement.Kind.GETTER
+                            ? "get "
+                            : kind == ClassElement.Kind.SETTER ? "set " : "";
+            Name functionName = new Name(0, prefix + name);
+            functionName.setLineColumnNumber(
+                    element.getKey().getLineno(), element.getKey().getColumn());
+            function.setFunctionName(functionName);
+        }
+        Node elementNode = new Node(Token.CLASS_ELEMENT, key, functionNode);
+        elementNode.putIntProp(Node.CLASS_PROP, flags);
+        return elementNode;
+    }
+
+    /**
+     * Returns the anonymous function or class definition that a field initializer consists of
+     * (IsAnonymousFunctionDefinition), or {@code null}.
+     */
+    private static AstNode anonymousDefinition(FunctionNode initializer) {
+        AstNode body = initializer.getBody();
+        if (body == null || !(body.getFirstChild() instanceof ReturnStatement)) {
+            return null;
+        }
+        AstNode value = ((ReturnStatement) body.getFirstChild()).getReturnValue();
+        while (value instanceof ParenthesizedExpression) {
+            value = ((ParenthesizedExpression) value).getExpression();
+        }
+        if (value instanceof FunctionNode
+                && ((FunctionNode) value).getFunctionName() == null
+                && !((FunctionNode) value).isMethodDefinition()) {
+            return value;
+        }
+        if (value instanceof ClassNode
+                && ((ClassNode) value).isAnonymous()
+                && ((ClassNode) value).getInferredName() == null) {
+            return value;
+        }
+        return null;
+    }
+
+    /**
+     * Whether the class has elements that are added to every instance (fields and private methods)
+     * or, when {@code isStatic}, to the constructor (static fields, static blocks and static
+     * private methods).
+     */
+    private static boolean hasElements(ClassNode cls, boolean isStatic) {
+        for (ClassElement element : cls.getElements()) {
+            ClassElement.Kind kind = element.getKind();
+            if (kind == ClassElement.Kind.CONSTRUCTOR || element.isStatic() != isStatic) {
+                continue;
+            }
+            if (kind == ClassElement.Kind.FIELD
+                    || kind == ClassElement.Kind.STATIC_BLOCK
+                    || element.isPrivate()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasPrivateNames(ClassNode cls) {
+        for (ClassElement element : cls.getElements()) {
+            if (element.isPrivate()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A reference to a private name: the hidden binding that holds it. */
+    static Node privateReference(Node node) {
+        PrivateName name = (PrivateName) node;
+        if (name.getBinding() == null) {
+            throw Kit.codeBug("unresolved private name #" + name.getIdentifier());
+        }
+        Node result = Node.newString(Token.NAME, name.getBinding());
+        result.setLineColumnNumber(name.getLineno(), name.getColumn());
+        return result;
+    }
+
+    /** Returns whether a member access is {@code o.#x} or {@code o?.#x}. */
+    static boolean isPrivateMember(PropertyGet node) {
+        return node.getProperty() instanceof PrivateName;
+    }
+
+    /** {@code o.#x}: the element access {@code o[#x@n]}. */
+    static Node privateMember(IRFactory factory, PropertyGet node) {
+        Node target = factory.transform(node.getTarget());
+        Node result = new Node(Token.GETELEM, target, privateReference(node.getProperty()));
+        if (node.type == Token.QUESTION_DOT) {
+            result.putIntProp(Node.OPTIONAL_CHAINING, 1);
+        }
+        return result;
+    }
+
     /**
      * Turns the class node into the let expression of its scope: the inner binding of the class
-     * name starts uninitialized and the definition initializes it.
+     * name starts uninitialized and the definition (in {@code body}) initializes it; the binding of
+     * each private name starts with a new private name.
      */
-    private static Node classScope(ClassNode cls, Node definition) {
+    private static Node classScope(ClassNode cls, Node body) {
         Node vars = new Node(Token.LET);
         List<Boolean> consts = new ArrayList<>();
-        String className = cls.getClassName().getIdentifier();
         Map<String, org.mozilla.javascript.ast.Symbol> symbols = cls.getSymbolTable();
         if (symbols != null) {
             for (org.mozilla.javascript.ast.Symbol symbol : symbols.values()) {
-                vars.addChildToBack(Node.newString(Token.NAME, symbol.getName()));
+                String name = symbol.getName();
+                Node var = Node.newString(Token.NAME, name);
+                if (ClassParser.isPrivateBinding(name)) {
+                    Node privateName = newClassNode(ClassOp.PRIVATE_NAME);
+                    getOp(privateName).name = ClassParser.privateDescription(name);
+                    var.addChildToBack(privateName);
+                }
+                vars.addChildToBack(var);
                 consts.add(symbol.getDeclType() == org.mozilla.javascript.ast.Symbol.Type.CONST);
             }
         }
         NodeTransformer.putConstFlags(vars, consts);
-        Node init = new Node(Token.SETCONST, Node.newString(Token.BINDNAME, className), definition);
         cls.setType(Token.LETEXPR);
         cls.addChildToBack(vars);
-        cls.addChildToBack(init);
+        cls.addChildToBack(body);
         return cls;
     }
 
@@ -246,6 +398,28 @@ final class ClassLowering {
                 && ((ClassElement) parent).getKind() == ClassElement.Kind.CONSTRUCTOR;
     }
 
+    /**
+     * The kind of class element a function is ({@link ClassParser#FN_METHOD}, {@link
+     * ClassParser#FN_FIELD} for a field initializer, {@link ClassParser#FN_STATIC_BLOCK}), or -1
+     * for any other function, constructors included. Direct eval code takes the rules of the
+     * element it is called from (see {@link ClassRuntime#evalContext}).
+     */
+    static int elementKind(ScriptNode node) {
+        if (!(node instanceof FunctionNode) || !(node.getParent() instanceof ClassElement)) {
+            return -1;
+        }
+        switch (((ClassElement) node.getParent()).getKind()) {
+            case FIELD:
+                return ClassParser.FN_FIELD;
+            case STATIC_BLOCK:
+                return ClassParser.FN_STATIC_BLOCK;
+            case CONSTRUCTOR:
+                return -1;
+            default:
+                return ClassParser.FN_METHOD;
+        }
+    }
+
     /** Returns whether the function is class code: it is in a class definition. */
     static boolean isClassCode(ScriptNode node) {
         for (AstNode n = node.getParent(); n != null; n = n.getParent()) {
@@ -272,6 +446,12 @@ final class ClassLowering {
      * derived constructor.
      */
     static boolean isDerivedThis(Parser parser) {
+        AstNode n = nonArrowScope(parser);
+        return n instanceof FunctionNode && isDerived((FunctionNode) n);
+    }
+
+    /** The closest enclosing function other than an arrow function, or the script. */
+    private static AstNode nonArrowScope(Parser parser) {
         AstNode n = parser.currentScriptOrFn;
         while (n instanceof FunctionNode
                 && ((FunctionNode) n).getFunctionType() == FunctionNode.ARROW_FUNCTION) {
@@ -279,7 +459,26 @@ final class ClassLowering {
                 n = n.getParent();
             } while (n != null && !(n instanceof ScriptNode));
         }
-        return n instanceof FunctionNode && isDerived((FunctionNode) n);
+        return n;
+    }
+
+    /**
+     * Transforms {@code this} inside a derived constructor or its arrow functions, and {@code
+     * new.target} outside any function: the parser only accepts that in direct eval code called
+     * from a method, a field initializer or a static block, where it is undefined (ROADMAP appendix
+     * C Q13).
+     */
+    static Node transformLiteral(Parser parser, AstNode node) {
+        if (isDerivedThis(parser, node)) {
+            return derivedThis(node);
+        }
+        if (node.getType() == Token.NEW_TARGET
+                && !(nonArrowScope(parser) instanceof FunctionNode)) {
+            Node result = new Node(Token.UNDEFINED);
+            result.setLineColumnNumber(node.getLineno(), node.getColumn());
+            return result;
+        }
+        return node;
     }
 
     /** Transforms {@code this} inside a derived constructor or its arrow functions. */
@@ -370,24 +569,39 @@ final class ClassLowering {
     }
 
     /**
-     * Gives an anonymous class the name inferred from its context ({@code var C = class {}}), as
-     * {@code IRFactory.inferNameIfMissing} does for functions.
+     * IRFactory.inferNameIfMissing for a class: gives an anonymous class the name inferred from its
+     * context ({@code var C = class {}}), as it does for functions. Returns whether the value is a
+     * class.
      */
-    /** IRFactory.inferNameIfMissing for a class: returns whether the value is a class. */
     static boolean inferClassName(Parser parser, Object left, Node right, String prefix) {
-        if (!(left instanceof Name) || right == null || right.getType() != Token.CLASS) {
+        if (!(left instanceof Name) || !isClassValue(right)) {
             return false;
         }
         inferName(parser, right, (Name) left, prefix);
         return true;
     }
 
+    /** Whether the IR is a class definition: the definition itself, or its class scope. */
+    static boolean isClassValue(Node node) {
+        return node != null
+                && (node.getType() == Token.CLASS
+                        || (node.getType() == Token.LETEXPR && node instanceof ClassNode));
+    }
+
     static void inferName(Parser parser, Node definition, Name name, String prefix) {
         Node node = definition;
+        if (node.getType() == Token.LETEXPR && node instanceof ClassNode) {
+            // The scope of an anonymous class with private names: the definition is the body.
+            node = node.getLastChild();
+        }
         if (node.getType() != Token.CLASS) {
             return;
         }
         ClassOp op = getOp(node);
+        if (op != null && op.kind == ClassOp.STATIC_INIT) {
+            node = node.getFirstChild();
+            op = getOp(node);
+        }
         if (op == null || op.kind != ClassOp.DEFINE) {
             return;
         }

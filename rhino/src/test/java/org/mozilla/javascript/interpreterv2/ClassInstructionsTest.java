@@ -18,10 +18,13 @@ import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.interpreterv2.instruction.ClassCtorCheck;
 import org.mozilla.javascript.interpreterv2.instruction.ClassDefine;
 import org.mozilla.javascript.interpreterv2.instruction.ClassElement;
+import org.mozilla.javascript.interpreterv2.instruction.ClassInitFields;
 import org.mozilla.javascript.interpreterv2.instruction.ClassIterClose;
 import org.mozilla.javascript.interpreterv2.instruction.ClassIterRest;
 import org.mozilla.javascript.interpreterv2.instruction.ClassParamScope;
+import org.mozilla.javascript.interpreterv2.instruction.ClassPrivateName;
 import org.mozilla.javascript.interpreterv2.instruction.ClassRequireObject;
+import org.mozilla.javascript.interpreterv2.instruction.ClassStaticInit;
 import org.mozilla.javascript.interpreterv2.instruction.ClassSuperCall;
 import org.mozilla.javascript.interpreterv2.instruction.ClassSuperFunc;
 import org.mozilla.javascript.interpreterv2.instruction.ClassTdz;
@@ -29,10 +32,11 @@ import org.mozilla.javascript.interpreterv2.instruction.ClassThis;
 import org.mozilla.javascript.interpreterv2.instruction.Instruction;
 
 /**
- * AutoJs6 class syntax (ROADMAP P2.3): the Interpreter V2 instructions of the class primitives. V2
- * has no compiler from the IR yet (ROADMAP appendix C Q11), so the instructions are checked one by
- * one: the stack change, which the V2 compiler relies on for its stack depth, and the debug string;
- * they share the runtime methods of the other two backends, which {@code ClassSyntaxTest} runs.
+ * AutoJs6 class syntax (ROADMAP P2.3, P3.4): the Interpreter V2 instructions of the class
+ * primitives. V2 has no compiler from the IR yet (ROADMAP appendix C Q11), so the instructions are
+ * checked one by one: the stack change, which the V2 compiler relies on for its stack depth, and
+ * the debug string; they share the runtime methods of the other two backends, which {@code
+ * ClassSyntaxTest} runs.
  */
 class ClassInstructionsTest {
 
@@ -58,7 +62,11 @@ class ClassInstructionsTest {
                 Arguments.of(ClassIterRest.instance, 0, "ClassIterRest"),
                 Arguments.of(ClassRequireObject.instance, 0, "ClassRequireObject"),
                 Arguments.of(new ClassIterClose(5, true), 1, "ClassIterClose(slot=5, quiet=true)"),
-                Arguments.of(new ClassParamScope("a b"), 1, "ClassParamScope(names=\"a b\")"));
+                Arguments.of(new ClassParamScope("a b"), 1, "ClassParamScope(names=\"a b\")"),
+                Arguments.of(new ClassElement(-1, 0x43), -1, "ClassElement(fnIndex=-1, flags=67)"),
+                Arguments.of(new ClassPrivateName("x"), 1, "ClassPrivateName(description=\"x\")"),
+                Arguments.of(ClassInitFields.instance, 1, "ClassInitFields"),
+                Arguments.of(ClassStaticInit.instance, 0, "ClassStaticInit"));
     }
 
     @ParameterizedTest

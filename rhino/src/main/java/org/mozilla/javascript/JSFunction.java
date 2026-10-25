@@ -13,6 +13,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
     private final Object lexicalThis;
     private final Object lexicalNewTarget;
     private final Scriptable homeObject;
+    ClassRuntime.ClassData classData; // AutoJs6: class syntax
 
     public JSFunction(
             Context cx,

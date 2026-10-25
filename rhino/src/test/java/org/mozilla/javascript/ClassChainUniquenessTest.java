@@ -16,7 +16,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * AutoJs6 class syntax (ROADMAP P2, AGENTS.md section 3 item 8): the fork members of the {@link
+ * AutoJs6 class syntax (ROADMAP P2, P3, AGENTS.md section 3 item 8): the fork members of the {@link
  * Icode} chain and of the {@link Node} property ids sit at the tail of the upstream chains and do
  * not reuse a value. {@code TokenUniquenessTest} covers {@code Token} and the features.
  */
@@ -35,7 +35,10 @@ class ClassChainUniquenessTest {
                     "CLASS_ITER_REST",
                     "CLASS_REQUIRE_OBJECT",
                     "CLASS_ITER_CLOSE",
-                    "CLASS_PARAM_SCOPE");
+                    "CLASS_PARAM_SCOPE",
+                    "CLASS_PRIVATE_NAME",
+                    "CLASS_INIT_FIELDS",
+                    "CLASS_STATIC_INIT");
 
     /** Fork node properties, in chain order, after the upstream properties. */
     private static final List<String> FORK_PROPS = List.of("CLASS_PROP", "DEFAULT_NAME_PROP");

@@ -12,8 +12,9 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.interpreterv2.InstructionFormatter;
 
 /**
- * AutoJs6 class syntax: defines a method, accessor or generator method of a class (the {@code
- * CLASS_ELEMENT} icode). Stack: F, key -&gt; F.
+ * AutoJs6 class syntax: defines a method, accessor, generator method, field or static block of a
+ * class (the {@code CLASS_ELEMENT} icode); a field without an initializer has no function, {@code
+ * fnIndex} -1. Stack: F, key -&gt; F.
  */
 public class ClassElement extends Instruction {
     private final int fnIndex;
@@ -27,7 +28,7 @@ public class ClassElement extends Instruction {
     @Override
     public void interpret(Context cx, CallFrameV2 frame) {
         Object key = ClassValues.pop(frame);
-        var method = frame.fnOrScript.getDescriptor().getFunction(fnIndex);
+        var method = fnIndex < 0 ? null : frame.fnOrScript.getDescriptor().getFunction(fnIndex);
         ClassRuntime.defineElement(frame.peek(), key, method, flags, cx, frame.scope);
         frame.pc += 1;
     }
