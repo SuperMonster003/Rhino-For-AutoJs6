@@ -308,3 +308,42 @@
 ### 已知限制
 
 见 `HOOKS.md` 第 8 节 "P6" (JDK 17 生成与 Unicode, CRLF 检出, 既有基线差异写进 properties, 实参展开与逻辑赋值 (Q16 / Q17), V2 0 例).
+
+## P6.6 / P6.7 实参展开与逻辑赋值短路 (2026-10-26, 子会话 rhino-p6b)
+
+附录 C Q16 = B / Q17 = B. 两项都与 class 无关, 是上游缺口的通用修复, 标记沿用 `// AutoJs6: class syntax` (同 P2 的 yield 修复), 钩子与新文件见 HOOKS.md 第 3 / 4 节的 P6.6 / P6.7 行.
+
+### 实参展开 (P6.6)
+
+- IR: `IRFactory.transformFunctionCall` / `transformNewExpr` 末尾的 `SpreadCall.lower` 在有展开实参时把全部实参 (含 JavaAdapter 写法的初始化对象) 移进一个数组字面量 (`NUMBER_OF_SPREAD` / `DESTRUCTURING_ARRAY_LENGTH` 照数组字面量的写法), 作为调用唯一的 `DOTDOTDOT` 实参. 数组字面量本来就从左到右求值, 按迭代器协议展开每个展开值, 遇到异常即停, 所以求值顺序与中途异常都不用另写; callee 与 this 仍是调用节点的第一个子节点, 在实参之前求值.
+- 解释器: `CodeGenerator` 求值数组字面量 (`SpreadCall.argument`), `SpreadCall.emit` 发射 5 个 icode, 栈记账同一个实参. `SPREAD_CALL` / `SPREAD_CALL_ON_SUPER` 注册到 CALL 的指令类 (`DoCallByteCode`), 钩子在 `frame.stackTop -= indexReg` 之后把数组元素变成 bound 实参 (绑定函数已有的机制) 并把 op 改回 `CALL` / `CALL_ON_SUPER`: 解释函数仍走内联帧, 栈深, continuation, 调试回调都同普通调用 (`SpreadCallTest.interpretedCalleesStayInline`: 3000 层递归, continuation 捕获与恢复). 第一个实参写回数组所在的栈位置, continuation 恢复时在那里放结果. `SPREAD_NEW` (含 `new eval(...)`), `SPREAD_CALLSPECIAL` (可能的直接 eval, 行号在索引寄存器), `SPREAD_REF_CALL` 是自有指令类, 不内联.
+- 编译器: `generateCallArgArray` 是普通调用, super 调用, 可选调用, new, eval, REF_CALL 共同的实参数组出口, 展开调用在这里生成数组字面量再调 `SpreadCall.args` (`NativeArray` -> `Object[]`, 空洞为 undefined). `OptTransformer.detectDirectCall` 跳过展开调用 (直接调用要静态的实参个数).
+- 不经 `Function.prototype.apply` / `Reflect.apply` / `Reflect.construct` (Java 层直接调用); `super.m(...a)` 的 this 与 home object 同普通 super 调用, `new F(...a)` 的 new.target 是 F, `super(...a)` 仍由 P2 的 `ClassLowering.transformSuperCall` 处理.
+- 计时 (附录 C Q19, 证据 `bench-spread.txt`): JDK 21, Rhino shell, `f(...a)` 对 `f.apply(null, a)`, a 为 8 个元素, 20000 次调用一轮, 31 轮交替取中位数, 两次运行. 解释模式 1531 / 1808 ns 对 617 / 678 ns (2.48 / 2.67 倍), 编译模式 960 / 1240 ns 对 64.5 / 102 ns (14.9 / 12.2 倍). 慢 2 倍以上的原因: 耗时几乎都在上游数组字面量 `[...a]` 的迭代协议 (每个元素一次 `next` 调用与一个结果对象, 再经 `NewLiteralStorage` 存进新数组), 编译模式 `[...a]` 单独 679 ns, `f.apply(null, [...a])` 800 ns, `f(...a)` 838 ns, 展开调用本身几乎不加开销. 规范要求数组展开可观察 (`SpreadCallTest.arraysAreIteratedObservably`), 快速路径要先确认 `Array.prototype[Symbol.iterator]` 与数组迭代器的 `next` 都未被覆写, 改动在上游的数组字面量路径, 登记 Q19 (A 保持现状, 已先行).
+
+### 逻辑赋值短路 (P6.7)
+
+- `IRFactory.createAssignment` 开头交给 `LogicalAssignment.lower`, 把 `a op= b` 降为 `a op (a = b)` (op 为 `||` / `&&` / `??`): 读与写都是普通的 IR, 两个后端不改; 写入走 `Parser.simpleAssignment`, 所以 const (只在真正写入时报 TypeError), 严格模式, setter, 私有名的检查与匿名函数的名字推断都照旧.
+- 属性引用的对象与非常量键只求值一次: 存进 LETEXPR 的临时绑定 (做法同 `Parser.destructuringAssignmentHelper`, 名字 `%` + `getNextTempName`, 标识符引用不到), NodeTransformer 把它变为局部变量 (无活动对象时) 或作用域对象 (脚本顶层, 含嵌套函数的函数). `this` / `super` / 字符串与数字键 / 私有名重新求值, 不用临时绑定. 非常量键时读之前对基对象做 RequireObjectCoercible (`ClassOp.REQUIRE_OBJECT`): GetValue 先 ToObject 再 ToPropertyKey, Rhino 的元素读取是反过来的 (`null[{toString}] ||= 1` 先报 TypeError, 不转换键). 派生构造器里的 `super[k]` 先读 this (未初始化报 ReferenceError) 再求值键, 加一个 THIS 的临时绑定.
+- 调用作为目标 (`f() ||= 1`) 报 `msg.bad.assign.left` (SyntaxError): 逻辑赋值没有 `=` / 复合赋值的 web 兼容例外 (test262 `assignmenttargettype` 2 个文件因此解锁); 可选链目标由 Parser 照旧报错. 特殊属性 (`__proto__` 等的 `GET_REF`) 与 E4X 引用返回 null, 照旧走上游 "总是写回" 的路径 (HOOKS.md 第 8 节).
+- 顺带修复 1 (附录 C Q18, 已按推荐先行): P6.7 之后 `logical-assignment` 目录仍有 3 个失败 (`lgcl-{and,or,nullish}-assignment-operator-no-set-put.js`, onlyStrict), 根因不在逻辑赋值: 上游 `AccessorSlot.FunctionSetter` 对显式 `set: undefined` 的访问器写入静默成功, 省略 `set` 时 setter 为 null 才走 `throwNoSetterException`. 钩子 5 行让 target 不是函数的 `FunctionSetter` 按没有 setter 处理 (严格模式 TypeError, 非严格忽略), `=` / 复合赋值同样受益 (`assignment/11.13.1-2-s.js`, `compound-assignment/11.13.2-34..37-s.js`).
+- 顺带修复 2: 编译模式的 `super` 原来把当前作用域直接强转为 `NativeCall` 取 home object, 方法里 let 块 (函数有活动对象时 let 块是作用域对象) 或 with 语句中的 `super` 抛 Java `ClassCastException` (上游缺陷, 对象字面量方法同样; 解释器用 `frame.fnOrScript.getHomeObject()` 不受影响), P6.7 的临时绑定 (`super[k] ||= v`) 也会碰到. 改为 `ClassRuntime.homeObject` 沿作用域链找到函数的活动对象 (BodyCodegen 1 行钩子, 删上游 6 行).
+
+### 上游 PR 拆分边界 (P8)
+
+- 实参展开一个 PR: `SpreadCall` / `SpreadCallCodegen` 两个新文件与 IRFactory 2, Icode 6, CodeGenerator 5, Interpreter 5, BodyCodegen 1, OptTransformer 1 行钩子. fork 的 icode 注册与名字经 `ClassInterpreter` (上游没有), PR 里改为在 `Interpreter` 的指令表与 `Icode.bytecodeName` 直接登记; icode 编号接在上游链尾. 测试取 `SpreadCallTest` 中不用 class 的用例 (super 用例改用对象字面量方法), properties 在干净的上游克隆上重生成.
+- 逻辑赋值短路一个 PR (可与上面合并, 由 P8 定): `LogicalAssignment` 依赖 fork 的 `ClassOp.REQUIRE_OBJECT` / `ClassOp.THIS` / `ClassLowering.newClassNode` 与私有名 (`ClassParser.isPrivateBinding`), 上游版本去掉私有名与派生构造器分支, RequireObjectCoercible 改用上游已有的运行时检查或一个新 icode; IRFactory 2 行钩子.
+- `set: undefined` 与编译模式块内 `super` 各是几行的独立修复, 分别单独 PR (后者的 helper 放进 `ScriptRuntime`, 不依赖 `ClassRuntime`).
+
+### 未结问题
+
+- 附录 C Q18 (`set: undefined` 修复, 已先行) 与 Q19 (展开的快速路径, 保持现状) 待维护者确认.
+- 编译模式: 内联原型的对象字面量 `{ __proto__: { x: 3 }, m() { return super.x; } }` 里 `super.x` 读到 undefined (原型本身正确, 解释模式正常); 2026-10-20 的 `rhino-all` 旧 jar 同样, 与本阶段无关, 未修, 列为后续事项 (`LogicalAssignmentTest.superProperties` 用变量原型绕开).
+- test262 里与本阶段目录相关但仍登记的: `expressions/call` 的 `tco-*.js` 6 个 (T10 特性 tail-call-optimization) 与 `eval-realm-indirect.js` (跨 realm 间接 eval), `expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js` (解释 / 调试器模式, `super[k]++` 的顺序), 都早于 P6.6 登记, 与展开 / 逻辑赋值无关.
+- 上游既有, 未改: 编译模式下函数里数字类型的寄存器变量作 callee 并直接返回 (`function t() { var x = 1; return x(2); }`) 报 `VerifyError` (展开与否都一样), 编译模式普通调用 1000 层递归即 `StackOverflowError`.
+
+### 验证
+
+- 提交: 191c7f2be (P6.6 功能), f2072a5b4 (P6.7 功能与两个顺带修复), e97db5209 (`SpreadCallTest` 15 例, `LogicalAssignmentTest` 12 例, 两模式), fb0c04fc6 (properties), 勾选提交. P6.6 提交单独编译并通过 `HooksRegistryTest` / `ClassChainUniquenessTest` / `SpreadCallTest` / `ClassSyntaxTest`.
+- properties 重生成: 解锁 122 (实参展开 84, 短路 23, `set: undefined` 15), 新增失败 0, 标签变化 0 (`build/upstream-sync/class-p6b-20261025/unlocked-by-cause.txt`).
+- 五模块全量 (JDK 21, `--rerun-tasks`): 149252 例 27 失败, 对照 P6 新增 0; 门禁全部通过. 上游 `LogicalOrAndAssignmentTest` 与 `ClassSyntaxTest262CoreTest` (含 "已知失败通过时报错") 通过.
