@@ -143,12 +143,25 @@
 
 ### P2 ES2015 核心: 降糖, 运行时原语, 三个后端 (fork)
 
-- [ ] P2.1 `ClassLowering` (T1): class 声明 / 表达式降糖为 "类作用域 + 构造器函数 + 原型方法定义 + 静态方法定义 + 类名内绑定 (const 语义, TDZ)"; 默认构造器 (基类 `constructor() {}`, 派生类 `constructor(...args) { super(...args) }`); 计算键按源码顺序求值一次; `extends` 表达式求值与校验 (null, 非构造器, prototype 不是对象或 null 时的 TypeError).
-- [ ] P2.2 运行时原语 (T1 / T4): 设置 home object; 不可枚举方法 / 访问器定义; 类构造器调用检查 (`msg.class.ctor.call`); 派生构造器的 this 未初始化状态, `super()` 构造 (以当前 new.target 调父构造器, 结果绑定为 this, 重复调用抛 ReferenceError), 构造器返回值规则 (对象 / undefined / 其他 的 TypeError); `BaseFunction.construct` 与 `createObject` 改为按 new.target 原型创建 (T9 的统一入口, 本阶段先覆盖脚本函数与 Object / Function, 其余在 P4).
-- [ ] P2.3 三个后端 (D5): Interpreter 新 Icode 与处理; Codegen (optimizer/BodyCodegen) 对应生成; V2 新指令类 (T8). `new.target` 在构造器 / 箭头函数 / eval 中的传递核对. V2 按附录 C Q2 = C: 先盘点并补齐 class 降糖依赖的现有能力 (生成器, super 属性访问, new.target 等), 使 V2 能跑 class 基线, 再加新原语; 缺口清单与补齐结果登记在本条证据.
-- [ ] P2.4 名称与长度: `name` (含匿名类名推断, 静态 `name` 方法覆盖时的规则), `length`, `prototype` 不可写, `constructor` 回指; `typeof` 为 function; `Function.prototype.toString` 按附录 C Q1 的拍板实现.
-- [ ] P2.5 测试: fork 新增 `ClassSyntaxTest` (每条语义一组用例, 解释 / 编译 / V2 三模式); test262 核心 2414 例在解释与编译模式 100% (T10 排除登记), V2 按 T8; 全量测试与基线对照无新增失败; `benchmarks` 模块加 class 实例化与方法调用的微基准, 与 function + prototype 写法对照 (附录 A 登记). 硬门槛 (附录 C Q8 = B): class 方法调用慢于 function + prototype 写法超过 10% 即本阶段不通过.
+- [x] P2.1 `ClassLowering` (T1): class 声明 / 表达式降糖为 "类作用域 + 构造器函数 + 原型方法定义 + 静态方法定义 + 类名内绑定 (const 语义, TDZ)"; 默认构造器 (基类 `constructor() {}`, 派生类 `constructor(...args) { super(...args) }`); 计算键按源码顺序求值一次; `extends` 表达式求值与校验 (null, 非构造器, prototype 不是对象或 null 时的 TypeError).
+- [x] P2.2 运行时原语 (T1 / T4): 设置 home object; 不可枚举方法 / 访问器定义; 类构造器调用检查 (`msg.class.ctor.call`); 派生构造器的 this 未初始化状态, `super()` 构造 (以当前 new.target 调父构造器, 结果绑定为 this, 重复调用抛 ReferenceError), 构造器返回值规则 (对象 / undefined / 其他 的 TypeError); `BaseFunction.construct` 与 `createObject` 改为按 new.target 原型创建 (T9 的统一入口, 本阶段先覆盖脚本函数与 Object / Function, 其余在 P4).
+- [x] P2.3 三个后端 (D5): Interpreter 新 Icode 与处理; Codegen (optimizer/BodyCodegen) 对应生成; V2 新指令类 (T8). `new.target` 在构造器 / 箭头函数 / eval 中的传递核对. V2 按附录 C Q2 = C: 先盘点并补齐 class 降糖依赖的现有能力 (生成器, super 属性访问, new.target 等), 使 V2 能跑 class 基线, 再加新原语; 缺口清单与补齐结果登记在本条证据.
+- [x] P2.4 名称与长度: `name` (含匿名类名推断, 静态 `name` 方法覆盖时的规则), `length`, `prototype` 不可写, `constructor` 回指; `typeof` 为 function; `Function.prototype.toString` 按附录 C Q1 的拍板实现.
+- [x] P2.5 测试: fork 新增 `ClassSyntaxTest` (每条语义一组用例, 解释 / 编译 / V2 三模式); test262 核心 2414 例在解释与编译模式 100% (T10 排除登记), V2 按 T8; 全量测试与基线对照无新增失败; `benchmarks` 模块加 class 实例化与方法调用的微基准, 与 function + prototype 写法对照 (附录 A 登记). 硬门槛 (附录 C Q8 = B): class 方法调用慢于 function + prototype 写法超过 10% 即本阶段不通过.
 - 证据: 提交 hash, test262 两目录核心部分的通过数 / 排除清单, 基准数值.
+- 完成 (2026-10-25, 子会话 rhino-p2): 提交 b3e9405cd (功能, 测试, 消息, 基准, HOOKS.md, NOTES.md) + 本条勾选提交.
+  - 降糖与原语 (P2.1 / P2.2): `ClassLowering` 把 class 降为 `Token.CLASS` 节点, `ClassOp` 区分 9 种原语 (0-8: DEFINE, SUPER_CALL, THIS, TDZ, CTOR_CHECK, ITERATOR_REST, REQUIRE_OBJECT, ITERATOR_CLOSE, PARAM_SCOPE), 运行时全部在 `ClassRuntime`; 与 class 无关但 test262 class 目录依赖的绑定修复在 `BindingLowering` (参数作用域与参数 TDZ, 参数数组解构的迭代器协议, for-of 的 IteratorClose). T9: 脚本函数本来就按 new.target 的 prototype 创建, Object 加一行钩子, Function 本来就按 new.target 创建; 其余内建留给 P4.
+  - 三个后端 (P2.3): 解释器 `ClassInterpreter` (icode `CLASS_DEFINE`..`CLASS_PARAM_SCOPE` 共 9 个, 接在上游链尾), 编译器 `ClassBodyCodegen`, V2 指令类 12 个 (`interpreterv2/instruction/Class*`; 附录 C Q11 已按 A 先行: 只有指令类与单测 `ClassInstructionsTest`, V2 端到端 0 例). new.target 核对: 构造器, 箭头函数 (含箭头函数里的 `super()`), `Reflect.construct` 传入的 new.target 都正确; eval 代码里的 new.target 与 `super()` 不可用 (上游现状, 附录 C Q12 已按 A 先行).
+  - 生成器 yield (附录 C Q10 = A): Parser 钩子修好 ES6 生成器里未加括号的 yield (逗号后, 实参, 条件分支, 对象展开, 计算键, `yield a, yield b;`, `yield*` 后换行), `KNOWN_PARSE_GAPS` 已清空; 放开解析后暴露的上游编译模式缺陷 (yield 点把栈上的 int / `LookupResult` 存进 `Object[]` 后类型丢失, VerifyError) 由新文件 `classfile/StackSpills` 修复; NodeTransformer 把对象展开项变换两次的上游缺陷一并修复.
+  - 名称与长度 (P2.4): 匿名类按绑定名推断, 静态 `name` 方法覆盖推断名, `length`, `prototype` 不可写, `constructor` 回指, `typeof` 为 function, class 代码里的函数访问 `caller` / `arguments` 抛 TypeError (其他函数保持 Rhino 原行为), `Function.prototype.toString` 返回类定义源码 (附录 C Q1 = A).
+  - test262 class 两目录核心 (`ClassSyntaxTest262CoreTest`, fork 自有执行测试, 附录 C Q9): 解释与编译模式各运行 2428 例, 各通过 2419; 其余 9 例登记在 `KNOWN_FAILURES` 与附录 E (4 例 P4 内建子类, 5 例 P9 async 箭头函数, 两种模式相同), 除此之外 100%. 运行数按 `LATER_PHASES` (P3 / P9 特性) 与 `UNSUPPORTED` (T10) 选出, 比第 1 节按目录估计的 2414 多 14 例.
+  - test262 class 两目录只解析 (`ClassSyntaxTest262ParseTest`): 反例 1262 / 1262 拒绝, 正例 7127 / 7127 可解析 (P1 时 7101, Q10 的 26 例缺口已修).
+  - 自带测试 (rhino 模块): ClassSyntaxTest 22, ClassSyntaxParserTest 76, ClassInstructionsTest 14, ClassChainUniquenessTest 2, HooksRegistryTest 2, TokenUniquenessTest 4, AsyncSyntaxParserTest 20, MessageTranslationsTest 36 (含新 key) 全部通过 (解释 / 编译两模式).
+  - 微基准 (附录 A): class 方法调用 解释 -1.5%, 编译 +1.4% (硬门槛 10%, 附录 C Q8 = B, 通过); super 方法调用比 `Base.prototype.m.call(this)` 写法快 19% / 25%; 实例化 +3.9% / +2.0%.
+  - HOOKS.md: 钩子行 330 (class syntax 280, async 50), P2 新增 203 行; P2 新文件 22 个 (main 18, 测试 4) 与基准 2 个; 消息 P2 新增 11 个, 10 语言; `HooksRegistryTest` 与 `ClassChainUniquenessTest` 通过.
+  - 全量 (JDK 21, 五个模块): rhino 4147 (0 失败, 4 跳过), rhino-xml 6, rhino-engine 43, rhino-tools 21 (1 失败, 同基线), tests 121078 (54 失败, 16 跳过); 失败集与附录 A 基线 55 项完全相同, 无新增 (`build/upstream-sync/class-p2-20261025/`). 第一轮全量发现的回归 (对象方法 / eval 里的 `super()`, for-of 迭代表达式的作用域, JS 1.7 推导式里的 for-of, 普通函数的 `caller` / `arguments`) 已在提交前修复. `Test262SuiteTest` 另有 927 个登记为失败的文件现在通过 (P1 时 47 个之外), P6.1 重生成时去掉, 目录统计与普通生成器清单见 NOTES.md.
+  - 已知限制见 `HOOKS.md` 第 8 节 "P2"; 结构, 给 P3 的接口与新通过的 test262 用例见 `NOTES.md` 的 P2 一节.
+  - fork changelog 不在 P2 写 (按 P1 的决定, P7.3 / P9.7 写 10 语言 changelog).
 
 ### P3 字段, static block, 私有名 (fork)
 
@@ -198,6 +211,7 @@
 - [ ] P8.1 定制清单核对: `docs/autojs6/class-syntax/HOOKS.md` (P1.7 建立, 各阶段更新) 与源码逐条对账 (`rg -n "AutoJs6: (class syntax|async)" rhino/src/main/java` 的数量与文件一致, 新文件清单完整, 唯一性测试齐全); `AGENTS.md` (本地忽略文件, 不入库) 第七节已于 2026-10-24 写好保护与退役规程, 本阶段只按实际落地情况修订其中的测试类名, 模块名与命令, 并把第五节验收项与 HOOKS.md 对齐.
 - [ ] P8.2 在 `E:/.cache` 导出干净的 `upstream/master` 克隆, 以 patch 方式移植通用部分 (不含 `autojs6/` 包与 docs/autojs6), 拆成 "语法 + AST", "降糖 + 运行时 + 后端", "字段与私有名", "内建精确化", "test262 解锁" 五个提交, 在该克隆上跑上游全量测试与 spotless; 开 draft PR 到 mozilla/rhino 引用 #835 (PR 文案由维护者确认后由维护者推送 / 开 PR, 子会话只准备好分支与文案); 评审反馈作为待决事项登记到看板.
 - [ ] P8.3 同步规程演练: 按 `AGENTS.md` 全流程对最新 upstream/master 做一次真实同步 (若有新提交), 验证 P6.5 的结论与新规程步骤.
+- 附记 (附录 C Q10 = A): P2 修好的生成器 `yield` 解析缺口 (未加括号的 `yield` 出现在逗号表达式 / 条件表达式分支 / 对象展开 / 计算属性名里) 不依赖 class, 作为通用修复单独提上游 PR.
 - 证据: AGENTS.md 提交 hash, 克隆路径与五个提交 hash, PR 文案位置.
 
 ### P9 async/await (fork + 宿主, D7 / D13 / D14 / D15 / D16)
@@ -221,7 +235,12 @@
 - 2026-10-24 同步记录 (jar 前后 sha256, 测试日志, 失败对照, 临时 AVD 配方): `build/upstream-sync/const-sync-20261024/` (git 忽略目录).
 - test262 范围统计见 1.4; `test262.properties` 中 class 两目录当前为 `~` 整目录排除 (4367 + 4059 全失败), async 相关目录亦为整目录排除 (async-arrow-function 42/60 失败).
 - 冲突面 (P6.5 干跑后填写): 冲突文件数 / 行数 / 钩子点数.
-- 微基准 (P2.5 / P6.4 / P9.4 填写): class 实例化, 方法调用, await 往返.
+- 微基准 (P2.5 填写; P6.4 / P9.4 复测): `benchmarks` 模块 `ClassBenchmark` + `testsrc/benchmarks/micro/class-benchmarks.js`, JMH avgt, 每次调用 1000 次操作, 单位 us/op, class 对 function + prototype 写法 (2026-10-25, JDK 21, 本机):
+  - 方法调用: 解释 301.5 ± 25.0 对 306.0 ± 11.1 (-1.5%), 编译 28.60 ± 2.32 对 28.21 ± 1.08 (+1.4%); 10% 硬门槛通过 (附录 C Q8 = B).
+  - super 方法调用 (`super.sum()` 对 `PointF.prototype.sum.call(this)`): 解释 490.5 ± 53.2 对 607.4 ± 99.7 (-19%), 编译 55.45 ± 3.40 对 74.08 ± 6.65 (-25%).
+  - 实例化: 解释 280.8 ± 26.8 对 270.2 ± 21.4 (+3.9%), 编译 80.40 ± 0.84 对 78.83 ± 6.13 (+2.0%).
+  - 派生类实例化 (`super(x, y)` 对 `PointF.call(this, x, y)`): 解释 531.7 ± 47.3 对 549.8 ± 36.2 (-3.3%), 编译 153.3 ± 17.6 对 158.0 ± 6.2 (-3.0%).
+  - await 往返: P9.4 填写. 原始输出 `build/upstream-sync/class-p2-20261025/bench-class.txt` (git 忽略目录).
 
 ## 附录 B 设备矩阵
 
@@ -241,8 +260,10 @@
 - Q6 未捕获的 Promise rejection 怎么处理 | A (推荐) 控制台 error 级输出一次 (含栈), 脚本继续 (浏览器行为); B 终止脚本并按未捕获异常处理 (Node 15+ 默认); C 只在开发者选项开启时输出 | P9.5, P9.6 | P9 开始前
 - Q7 脚本结束判定与挂起的 await | A (推荐) 没有待执行宏任务 / 定时器 / 监听时脚本结束, 未落定的 Promise 不保活 (Node 语义), 控制台不提示; B 同 A 但在有未落定 async 函数时输出一条提示; C 等待所有 async 函数落定 (可能永不结束, 不推荐) | P9.5, P9.6 | P9 开始前
 - Q8 已决 (2026-10-24, 维护者选: B 硬门槛 10%, class 方法调用慢于 function + prototype 写法超过 10% 即阶段不通过; 已回填 P2.5 / P6.4 / P9.4) 性能门槛 | A (推荐) 不设硬门槛, 登记基准; 方法调用慢于 function + prototype 写法超过 20% 时登记为待决再议; B 设硬门槛 10%; C 不测 | P2.5, P6.4, P9.4 | P2 开始前
-- Q9 已按推荐先行待确认 (P1 子会话 2026-10-24 登记) P1 阶段是否重生成 `test262.properties` | A (推荐, 已先行) P1 不改 `test262.properties`, class 两目录仍为 `~` 整目录排除; P1.6 的 "parse 阶段反例全部通过" 由 tests 模块的 `ClassSyntaxTest262ParseTest` 只解析地验证 (反例 1262 / 1262 拒绝, 正例 7101 / 7127 可解析, 跳过 module 与 decorators 37 例), P6.1 按原计划重生成解锁; B 现在就用 `-DupdateTest262properties` 重生成解锁 class 两目录 (反例经编译期报错计为通过, 约 7100 个正例以 "暂不支持" 失败逐条写进 properties, P2-P6 每阶段都要重生成, properties 改动量大) | P1.6, P6.1 | 改选返工: B 约 1 小时 (重生成一次加全量对照); A 无 | P2 开始前
-- Q10 需拍板 (P1 子会话 2026-10-24 登记) test262 class 两目录有 26 个正例因上游生成器解析的缺口不能解析 (未加括号的 `yield` 出现在逗号表达式 / 条件表达式分支 / 对象展开 / 计算属性名里; 同样写法在普通生成器里也失败, 上游 properties 里对应的生成器用例同样登记为失败), 清单在 `ClassSyntaxTest262ParseTest.KNOWN_PARSE_GAPS` | A (推荐) fork 在 P6 (或 P2 顺带) 修 Parser 的 `yield` 解析, 钩子带 `// AutoJs6: class syntax` 并登记 HOOKS.md, 普通生成器的同类用例一并转为通过, P8 作为通用修复提上游 PR; B 登记为附录 E 例外 (与 T10 "不允许因难排除" 冲突, 需维护者明确豁免); C 先给上游提 PR, 等合入后随同步获得 | P6.1 (class 范围 100%), P8 | 改选返工: A 约 30-80 行 Parser 钩子加测试; B 无; C 依赖上游节奏, 可能拖到 P6 之后 | P6 开始前
+- Q9 已决 (2026-10-24, 维护者选: A, P1 不改 `test262.properties`, P2 起核心部分由 fork 自有执行测试验证; P1 子会话登记) P1 阶段是否重生成 `test262.properties` | A (推荐, 已先行) P1 不改 `test262.properties`, class 两目录仍为 `~` 整目录排除; P1.6 的 "parse 阶段反例全部通过" 由 tests 模块的 `ClassSyntaxTest262ParseTest` 只解析地验证 (反例 1262 / 1262 拒绝, 正例 7101 / 7127 可解析, 跳过 module 与 decorators 37 例), P6.1 按原计划重生成解锁; B 现在就用 `-DupdateTest262properties` 重生成解锁 class 两目录 (反例经编译期报错计为通过, 约 7100 个正例以 "暂不支持" 失败逐条写进 properties, P2-P6 每阶段都要重生成, properties 改动量大) | P1.6, P6.1 | 改选返工: B 约 1 小时 (重生成一次加全量对照); A 无 | P2 开始前
+- Q10 已决 (2026-10-24, 维护者选: A, fork 在 P2 顺带修 Parser 的 `yield` 解析, P8 作为通用修复提上游 PR; P1 子会话登记) test262 class 两目录有 26 个正例因上游生成器解析的缺口不能解析 (未加括号的 `yield` 出现在逗号表达式 / 条件表达式分支 / 对象展开 / 计算属性名里; 同样写法在普通生成器里也失败, 上游 properties 里对应的生成器用例同样登记为失败), 清单在 `ClassSyntaxTest262ParseTest.KNOWN_PARSE_GAPS` | A (推荐) fork 在 P6 (或 P2 顺带) 修 Parser 的 `yield` 解析, 钩子带 `// AutoJs6: class syntax` 并登记 HOOKS.md, 普通生成器的同类用例一并转为通过, P8 作为通用修复提上游 PR; B 登记为附录 E 例外 (与 T10 "不允许因难排除" 冲突, 需维护者明确豁免); C 先给上游提 PR, 等合入后随同步获得 | P6.1 (class 范围 100%), P8 | 改选返工: A 约 30-80 行 Parser 钩子加测试; B 无; C 依赖上游节奏, 可能拖到 P6 之后 | P6 开始前
+- Q11 已按推荐先行待确认 (P2 子会话 rhino-p2 2026-10-24 登记) 上游 Interpreter V2 目前只有指令类与调用帧, 没有 IR 到 V2 指令的编译器 (`compileScript` 抛 `UnsupportedOperationException`, 优化级别里没有 V2 入口), Q2 = C 的 "把 V2 补到能跑 class 基线" 不写编译器就做不到 | A (推荐, 已先行) P2 只按 V2 风格为 9 个新原语 (`ClassOp` 0-8) 写 12 个指令类 (`interpreterv2/instruction/Class*.java`) 并单测 (栈变化, 调试串), V2 端到端运行与 `Test262SuiteTest` 的 V2 模式 等上游编译器合入后接上 (P3.4 / P9.1 同样只写指令类), P2 登记 V2 可运行 0 例; B fork 自写 IR 到 V2 的编译器 (估计 3000-5000 行, 与上游后续合入的编译器冲突, P8 上游化困难); C P2 不写 V2 指令类, 全部留到上游编译器可用后 | P2.3, P2.5, P3.4, P9.1 | 改选返工: B 约数天并需重做 V2 证据; C 删除 12 个指令类与对应单测 | P3 开始前
+- Q12 已按推荐先行待确认 (P2 子会话 rhino-p2 2026-10-25 登记) eval 代码里的 `new.target` 与 `super()` 不可用 (P2.3 核对 "new.target 在构造器 / 箭头函数 / eval 中的传递" 时发现): Parser 只在函数内接受 `new.target`, eval 代码按脚本解析报 "Invalid use of new"; 派生构造器里的直接 eval `super()` 报 SyntaxError (规范允许, eval 代码不知道所在的函数); 普通函数的 `new.target` 同样, 上游 test262 `eval-code/direct/new.target-fn.js` 等在 properties 里登记为失败; class 两目录的 test262 核心不涉及 | A (推荐, 已先行) 记为已知限制 (HOOKS.md 第 8 节), P2 不实现, P6.1 重生成时这些用例保持失败登记, 列为 P8 上游候选; B 在 P6 补上 (Parser 对直接 eval 按调用处的函数放行 `new.target` 与 `super()`, 两个后端把调用者的 new.target 与派生构造器的 this 绑定传给 eval 脚本, 约 150-250 行钩子加测试) | P2.3, P6.1 | 改选返工: B 约半天; A 无 | P6 开始前
 
 ## 附录 D 内建构造器清单 (P4.1 填写)
 
@@ -254,7 +275,19 @@
 
 格式: 用例路径 | 排除依据 (features 标签) | 登记阶段.
 
-- (空)
+`test262.properties` 的排除项: (空, P6.1 重生成时填写).
+
+`ClassSyntaxTest262CoreTest.KNOWN_FAILURES` (P2 起 fork 自有的核心执行测试, 附录 C Q9; 用例缺少后续阶段的 features 标签, 由该阶段修好后删除, 测试在它们通过时报错提醒):
+
+- `language/expressions/class/subclass-builtins/subclass-WeakRef.js` | features: [WeakRef]; WeakRef 还不按 new.target 创建 | P4
+- `language/statements/class/subclass-builtins/subclass-WeakRef.js` | features: [WeakRef]; 同上 | P4
+- `language/statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js` | 无 features 标签; ArrayBuffer 还不按 new.target 创建 | P4
+- `language/statements/class/subclass/builtin-objects/GeneratorFunction/instance-prototype.js` | 无 features 标签; GeneratorFunction 还不按 new.target 创建 | P4
+- `language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-async-arrow-function-expression.js` | features: [computed-property-names]; 用到 async 箭头函数但没有 async-functions 标签 | P9
+- `language/expressions/class/cpn-class-expr-computed-property-name-from-async-arrow-function-expression.js` | 同上 | P9
+- `language/expressions/class/heritage-async-arrow-function.js` | features: [class]; 同上 | P9
+- `language/statements/class/cpn-class-decl-accessors-computed-property-name-from-async-arrow-function-expression.js` | features: [computed-property-names]; 同上 | P9
+- `language/statements/class/cpn-class-decl-computed-property-name-from-async-arrow-function-expression.js` | 同上 | P9
 
 ## 附录 F 工具用法
 
