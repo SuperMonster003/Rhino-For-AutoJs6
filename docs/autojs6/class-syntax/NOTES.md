@@ -278,3 +278,31 @@
 - 全量 (JDK 21, 五个模块, 2026-10-25 15:55 起): rhino 4216 (0 失败, 4 跳过), rhino-xml 6, rhino-engine 43, rhino-tools 21 (1 失败, 同基线), tests 121080 (54 失败, 16 跳过); 合计 125366 例 55 失败, 与 P4 基线 55 项完全相同, 无新增也无修复 (`.python/junit_failures.py` 对照, 记录在 `build/upstream-sync/class-p5-20261025/`: `current-failures.txt`, `full-tests.log`, `unexpectedly-passing.txt`). `Test262SuiteTest` 登记为失败但通过的文件仍是 1047 个, 与 P4 清单相同 (P5 没有新增).
 - 门禁: `spotlessCheck`, `git diff --check`, `.python/generate_markdown.py --check` 通过; 上游文件新增行全部带标记且不超过 100 字符, 未带标记的新增行只在 fork 文件 `ClassRuntime` (`uninitializedThis` 方法体).
 - 中途暂停 (2026-10-25 16:16, 维护者流量通知) 不影响结论: 暂停前启动的全量在暂停期间跑完, 恢复后对照并重跑了全量启动后改动的部分.
+
+## P6 test262 解锁与全量回归 (2026-10-25, 子会话 rhino-p6)
+
+### properties 重生成后的状态
+
+- 输入改动只有两处: `Test262SuiteTest.UNSUPPORTED_FEATURES` 去掉 `class` / `class-fields-private` / `class-fields-public` 并加 T10 的 `decorators` / `nonextensible-applies-to-private` (钩子 3 行), properties 里 class 两目录行首的 `~`; 其余全部由 `RHINO_TEST_JAVA_VERSION=17 ./gradlew.bat :tests:test --tests org.mozilla.javascript.tests.Test262SuiteTest -DupdateTest262properties=all` 生成. 注意两点: `tests/build.gradle` 只在 `RHINO_TEST_JAVA_VERSION=17` 时允许重生成 (测试 JVM 换成 JDK 17, Gradle 用 `E:/.gradle/jdks` 里自动下载的 17); 属性值要写 `all` 或不带值, `=true` 会把 rollup / stats / unsupported 都关掉, 生成的文件面目全非.
+- 重生成跑三种模式 (解释, 编译, 调试器), 约 19 分钟. class 两目录在三种模式下结果相同, properties 里没有模式标签.
+- class 两目录: 通过 5681, 登记 2745 = P9 2704 + T10 41 (ROADMAP P6.1 证据与附录 E). 子目录全是 async 时工具写成一行汇总 (如 `async-gen-method 94/94 (100.0%)`), 不带 `{unsupported: ...}` 标签; 要按原因统计, 用文件的 features / flags 重新归类 (见下面的工具).
+- 自有执行测试保留: `ClassSyntaxTest262CoreTest`, `BuiltinSubclassingTest262Test`, `ClassSyntaxTest262ParseTest` 与 properties 的结果逐项对得上 (通过数相同, 已知失败相同), 它们比 properties 更严 (已知失败通过时报错, 按核心 / 字段 / 私有名分组计数), 继续作为 fork 的阶段验收; `Test262SuiteTest` 只在失败时报错.
+- 与环境有关的登记: JDK 17 的 Unicode 版本较旧, RegExp property-escapes 25 个与 identifiers 14 个在 JDK 21 通过但保持登记 (JDK 21 全量只打印 "marked as failing but it does not"); 本机 `core.autocrlf=true` 让 test262 检出为 CRLF, `line-terminator-normalisation-LF.js` 登记为失败. 以后在本机重生成结果一致; 在 LF 检出 / JDK 17 的机器上只会多出 "marked as failing" 的提示, 不会失败.
+- 附录 A 的 7 个既有 test262 基线差异随重生成写进 properties, 全量对照从 55 项降为 27 项 (rhino-tools 1, tests 26). 它们的行为没有变, 同步时仍按 `AGENTS.md` 第五节最后一条核对 `__proto__` 定制.
+- class 两目录之外, 52 个带 class 特性标签的用例运行后失败, 根因都不在 class 实现 (ROADMAP P6.1 证据逐类列出). 其中两类会影响 class 的常见写法, 登记附录 C Q16 (实参展开 `f(...args)` / `super.m(...args)` / `new F(...args)` 在上游各后端未实现) 与 Q17 (逻辑赋值 `&&=` 等不短路, 私有名同样).
+
+### V2 模式开关
+
+- `-Drhino.test262.interpreterV2=true` (Gradle 自动把 `rhino.*` 系统属性传给测试), 实现在 `tests/.../InterpreterV2Mode.java`, `Test262SuiteTest.TestMode.V2` 与 `getResult` 的模式计数各一处钩子. 只有 Context 能用 V2 编译脚本时才加入矩阵; 现在打印 "Interpreter V2 mode (-Drhino.test262.interpreterV2) is not available, 0 cases run: java.lang.IllegalStateException: Unknown optimization level." (`EvaluationMethod` 没有 -2 级别; 补上之后还要 IR 到 V2 的编译器, 附录 C Q11).
+- 上游编译器合入后: 先跑 `-Drhino.test262.interpreterV2=true` 看 V2 的失败, 再用 `-DupdateTest262properties=all -Drhino.test262.interpreterV2=true` 重生成 (properties 会出现 `v2` 标签). 如果上游自己在 `TestMode` 加了 V2 模式, 删掉 fork 的 `V2` 与 `InterpreterV2Mode` (按 `AGENTS.md` 7.4 的思路, 以上游为准), `getResult` 的计数改回上游写法.
+
+### 给 P7 / P8 / P9 的接口
+
+- P7: 本阶段没有改 `rhino/src/main/java`, jar 内容与 P5 相同. 附录 C Q15 = A 已写成 ROADMAP P7.2a (查找顺序 JS 类成员 > Java 成员 > 宿主扩展, 函数重绑定到宿主包装, 链式返回映射回实例, 受保护成员与 `super$m` 仍经适配器视图, fork JVM 单测用自定义 WrapFactory). P7.4 文档要写明的限制按 Q16 / Q17 的拍板结果.
+- P8 (上游 PR 拆分): "test262 解锁" 提交在干净的上游克隆上自己重生成 properties (同样 `RHINO_TEST_JAVA_VERSION=17` 与 `=all`), 不要拷贝 fork 的 properties: fork 的文件里有 `__proto__` 定制与本机 CRLF 的登记, 上游没有这些差异. 该提交只带 `UNSUPPORTED_FEATURES` 去掉三个 class 特性那部分; `decorators` / `nonextensible-applies-to-private` 是否改为 unsupported 由上游评审定 (不改则这 26 个用例以普通失败登记, class 两目录同样只剩 P9 / T10). fork-only 不进 PR: `autojs6` 包与 P5 的 23 行钩子, V2 开关 (`InterpreterV2Mode` 与 `TestMode.V2` / `getResult` 两处, 共 4 行), fork 自有的三个 test262 执行测试 (阶段管理用, 上游以 properties 为准).
+- P9 (async 解锁时的重生成步骤): 1) `Test262SuiteTest.UNSUPPORTED_FEATURES` 去掉 `async-functions` / `async-iteration` (钩子带 `// AutoJs6: async`, 登记 HOOKS.md); 2) `Test262SuiteTest` 现在把 `flags: [async]` 的用例一律当作不支持的环境跳过 (`hasFlag("async")` 两处), class 两目录里有 2078 个这种用例, 要让它们运行必须给 `Test262SuiteTest` 加 async 用例的支持 (加载 `doneprintHandle.js`, 执行后排空微任务, 按 `Test262:AsyncTestComplete` / `Test262:AsyncTestFailure` 判定), 否则只能解锁没有 async 标志的那部分; 3) properties 里 async 的整目录排除去掉 `~` (`language/expressions/{async-function,async-generator,await}`, `language/statements/{async-function,async-generator,for-await-of}`, `built-ins/{AsyncFromSyncIteratorPrototype,AsyncFunction,AsyncGeneratorFunction,AsyncGeneratorPrototype,AsyncIteratorPrototype}`; `AsyncDisposableStack` / `await-using` / `using` 属 explicit-resource-management, T10, 保留); 4) 用 `-DupdateTest262properties=all` (JDK 17) 重生成, 与重生成前逐文件对比 (工具见下), 新增失败必须查明, async 范围内只允许 T10; 5) `ClassSyntaxTest262CoreTest.LATER_PHASES` 清空, 两个 `KNOWN_FAILURES` (19 + 1) 删除, 附录 E 的 P9 部分删除.
+- 工具 (不入库, 放在共享笔记目录 `rhino-p6-tools/`): `propdiff.py` (把两份 properties 按文件展开并对比: 解锁, 新增失败, 标签变化, class 两目录剩余登记), `classify.py` (按 features / flags 把登记的文件归到 P9 / T10 / 仍运行), `reconcile.py` (与 "marked as failing" 清单对照), `run262.py` (用 Rhino shell 单跑 test262 文件, 解释 / 编译 x 严格 / 非严格, 可用 `RUN262_JAVA` 换 JDK).
+
+### 已知限制
+
+见 `HOOKS.md` 第 8 节 "P6" (JDK 17 生成与 Unicode, CRLF 检出, 既有基线差异写进 properties, 实参展开与逻辑赋值 (Q16 / Q17), V2 0 例).
