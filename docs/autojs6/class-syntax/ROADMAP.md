@@ -165,12 +165,22 @@
 
 ### P3 字段, static block, 私有名 (fork)
 
-- [ ] P3.1 公共字段: 实例字段初始化器 (基类在构造器开头, 派生类在 `super()` 返回后立即执行; 初始化器是独立的函数作用域, this / super / new.target / arguments 规则), 静态字段 (类定义求值时, this 为构造器), 计算字段键的求值顺序, `[[Define]]` 语义 (不触发 setter).
-- [ ] P3.2 static block: 求值时机与顺序 (与静态字段交织), 作用域 (var / await / return 的限制), this 为构造器.
-- [ ] P3.3 私有名 (T5): 私有字段 / 方法 / 访问器 / 静态私有成员, `#x in obj`, 嵌套类的私有名作用域, 重复安装同一私有字段抛 TypeError, 品牌检查 TypeError, 反射不可见 (Object.keys / getOwnPropertyNames / getOwnPropertySymbols / Proxy 所有陷阱 / JSON.stringify / for-in / Object.assign / 展开), `Object.freeze` 后仍可写私有字段, Java 互操作 (NativeJavaObject 作为 this 时的品牌检查) 的行为登记.
-- [ ] P3.4 三个后端的新原语处理 (字段初始化器调用, 私有名定义 / 读 / 写 / in); V2 同 P2.3 (附录 C Q2 = C), 字段与私有名依赖的现有能力在 V2 上缺失时一并补齐.
-- [ ] P3.5 测试: `ClassFieldsTest`, `PrivateNamesTest`; test262 字段 673 + 私有名 4016 在解释与编译模式 100% (T10 排除登记); 全量回归无新增失败.
+- [x] P3.1 公共字段: 实例字段初始化器 (基类在构造器开头, 派生类在 `super()` 返回后立即执行; 初始化器是独立的函数作用域, this / super / new.target / arguments 规则), 静态字段 (类定义求值时, this 为构造器), 计算字段键的求值顺序, `[[Define]]` 语义 (不触发 setter).
+- [x] P3.2 static block: 求值时机与顺序 (与静态字段交织), 作用域 (var / await / return 的限制), this 为构造器.
+- [x] P3.3 私有名 (T5): 私有字段 / 方法 / 访问器 / 静态私有成员, `#x in obj`, 嵌套类的私有名作用域, 重复安装同一私有字段抛 TypeError, 品牌检查 TypeError, 反射不可见 (Object.keys / getOwnPropertyNames / getOwnPropertySymbols / Proxy 所有陷阱 / JSON.stringify / for-in / Object.assign / 展开), `Object.freeze` 后仍可写私有字段, Java 互操作 (NativeJavaObject 作为 this 时的品牌检查) 的行为登记.
+- [x] P3.4 三个后端的新原语处理 (字段初始化器调用, 私有名定义 / 读 / 写 / in); V2 同 P2.3 (附录 C Q2 = C), 字段与私有名依赖的现有能力在 V2 上缺失时一并补齐.
+- [x] P3.5 测试: `ClassFieldsTest`, `PrivateNamesTest`; test262 字段 673 + 私有名 4016 在解释与编译模式 100% (T10 排除登记); 全量回归无新增失败.
 - 证据: 提交 hash, 通过数 / 排除清单.
+- 完成 (2026-10-25, 子会话 rhino-p3): 提交 c89818fc8 (功能, 测试, 消息, HOOKS.md, NOTES.md, 附录 C / E) + 本条勾选提交.
+  - 字段与 static block (P3.1 / P3.2): 每个字段初始化器与 static block 降为一个方法 (home object 为 prototype 或 F, 所以 `super.x` 可用, this / new.target / arguments 规则随函数作用域), 键与方法一起按源码顺序求值一次, 记进构造器的 `JSFunction.classData` (`ClassRuntime.ClassData`); 基类在构造器体开头 (INIT_FIELDS), 派生类在 `super()` 绑定 this 之后执行 InitializeInstanceElements; 静态字段与 static block 在类名绑定初始化之后按源码顺序以 F 为 this 执行 (STATIC_INIT); [[Define]] 语义; 匿名函数 / 类按字段名命名; static block 里 `arguments` / `return` / `await` 是早期错误.
+  - 私有名 (P3.3, T5 可行, 不登记推翻): 每个私有名在类作用域有隐藏绑定 `#名字@序号`, 每次类求值新建 `PrivateNameKey`; `o.#x` 降为以该绑定为键的元素访问, `ScriptRuntime` 的元素读 / 写 / 调用 / `in` 在入口转 `ClassRuntime`. 私有元素表是 `ScriptableObject` 的独立字段 (新文件 `PrivateElements`: 写时复制的两个数组, 读不加锁, 添加在对象监视器下, 不用 VarHandle, 与 `SlotMapOwner.ThreadedAccess` 同样的 Android 兼容做法); 其他 `Scriptable` 用弱引用标识表, Java 对象包装按被包装的 Java 对象记 (NativeJavaObject 作为 this 时的行为登记在 HOOKS.md 第 8 节). 私有方法 / 访问器的函数在键上, 对象只有类的品牌. 反射 (Object.keys / getOwnPropertyNames / getOwnPropertySymbols / Reflect.ownKeys), Proxy 陷阱, JSON.stringify, for-in, Object.assign, 展开都看不到私有元素; freeze / preventExtensions 之后仍可安装与写入. 品牌检查与重复安装抛执行代码所在 realm 的 TypeError (test262 realm 用例要求). 直接 eval 看得到外层私有名 (附录 C Q13 已按 A 先行).
+  - 后端 (P3.4): 新 ClassOp 3 个 (9-11: PRIVATE_NAME, INIT_FIELDS, STATIC_INIT) 与元素标志 FIELD / PRIVATE / NAMED / NO_VALUE / BLOCK; 解释器 icode `CLASS_PRIVATE_NAME` / `CLASS_INIT_FIELDS` / `CLASS_STATIC_INIT` 接在 fork 链尾 (`MIN_ICODE = CLASS_STATIC_INIT`), 编译器 `ClassBodyCodegen` 对应分支; V2 按 Q11 = A 新增指令类 `ClassPrivateName` / `ClassInitFields` / `ClassStaticInit` 并让 `ClassElement` 支持无初始化器的字段, 单测在 `ClassInstructionsTest` (18 例), V2 端到端 0 例.
+  - 顺带修复 (test262 class 目录依赖): 对象解构赋值里的成员表达式目标先求值再读属性, 不在任何非箭头函数里的箭头函数用 `new.target` 报 SyntaxError, `o?.#m()` 在 o 为 null 时结束可选链.
+  - test262 class 两目录 (`ClassSyntaxTest262CoreTest`, P3 起只跳过 async 与 T10): 解释与编译模式各运行 5700 例, 各通过 5677, 两种模式相同. 字段 612 例运行通过 606, 私有名 2660 例运行通过 2652, 核心 2428 / 2419 同 P2; 未通过的 23 例都是 `KNOWN_FAILURES` (附录 E: P4 4 例, P9 19 例, 其中 P3 新登记的 14 例是没有 async 标签的私有 async 方法 / 字段计算键里的 async 箭头函数 / static block 里的 async 函数). 第 1.4 节的字段 673 例 = 运行 612 + async 标志 56 (P9) + module 5 (T10); 私有名 4016 例 = 运行 2660 + async 1354 (P9) + `nonextensible-applies-to-private` 2 (T10 排除, 附录 C Q14 已按 A 先行, 附录 E). 只解析 (`ClassSyntaxTest262ParseTest`): 反例 1262 / 1262, 正例 7127 / 7127.
+  - 自带测试 (rhino 模块): ClassFieldsTest 12, PrivateNamesTest 15 (新), ClassSyntaxTest 22, ClassSyntaxParserTest 76, ClassInstructionsTest 18, ClassChainUniquenessTest 2, HooksRegistryTest 2, TokenUniquenessTest 4, AsyncSyntaxParserTest 20, MessageTranslationsTest 36 全部通过 (解释 / 编译两模式).
+  - HOOKS.md: 钩子行 368 (class syntax 318, async 50), P3 新增 40 行; P3 新文件 7 个 (main 5: `PrivateNameKey`, `PrivateElements`, 3 个 V2 指令类; 测试 2); 消息删除 `msg.class.not.supported`, 新增 8 个 (私有元素的读 / 写 / 重复安装 / 方法只读 / 缺 getter / 缺 setter, 字段定义失败), 10 语言; `HooksRegistryTest` 与 `ClassChainUniquenessTest` 通过.
+  - 全量 (JDK 21, 五个模块): rhino 4178 (0 失败, 4 跳过), rhino-xml 6, rhino-engine 43, rhino-tools 21 (1 失败, 同基线), tests 121078 (54 失败, 16 跳过); 失败集与基线 55 项完全相同, 无新增 (`build/upstream-sync/class-p3-20261025/`). `Test262SuiteTest` 另有 26 个登记为失败的文件现在通过 (共 1000 个, P6.1 重生成时去掉), 清单见 NOTES.md.
+  - 门禁: `spotlessCheck`, `git diff --check`, `.python/generate_markdown.py --check` 通过. 已知限制见 `HOOKS.md` 第 8 节 "P3"; 结构与给 P4 / P5 / P9 的接口见 `NOTES.md` 的 P3 一节. fork changelog 不在 P3 写 (P7.3 / P9.7).
 
 ### P4 内建构造器按 new.target 精确创建 (fork, D2)
 
