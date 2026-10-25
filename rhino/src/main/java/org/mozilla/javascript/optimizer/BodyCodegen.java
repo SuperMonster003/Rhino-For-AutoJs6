@@ -3144,6 +3144,7 @@ class BodyCodegen {
     } // AutoJs6: class syntax
 
     private void generateCallArgArray(Node node, Node argChild, boolean directCall) {
+        if (SpreadCallCodegen.generateArgs(this, node, argChild)) return; // AutoJs6: class syntax
         int argCount = countArguments(argChild);
         // load array object to set arguments
         if (argCount == 1 && itsOneArgArray >= 0) {

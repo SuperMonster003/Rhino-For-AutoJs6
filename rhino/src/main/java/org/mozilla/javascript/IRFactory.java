@@ -768,6 +768,7 @@ public final class IRFactory {
             if (transformedTarget.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1) {
                 call.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
             }
+            SpreadCall.lower(call); // AutoJs6: class syntax
             return call;
         } finally {
             astNodePos.pop();
@@ -991,6 +992,7 @@ public final class IRFactory {
         if (node.getInitializer() != null) {
             nx.addChildToBack(transformObjectLiteral(node.getInitializer()));
         }
+        SpreadCall.lower(nx); // AutoJs6: class syntax
         return nx;
     }
 

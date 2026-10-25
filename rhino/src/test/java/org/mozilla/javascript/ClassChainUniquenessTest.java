@@ -38,7 +38,12 @@ class ClassChainUniquenessTest {
                     "CLASS_PARAM_SCOPE",
                     "CLASS_PRIVATE_NAME",
                     "CLASS_INIT_FIELDS",
-                    "CLASS_STATIC_INIT");
+                    "CLASS_STATIC_INIT",
+                    "SPREAD_CALL",
+                    "SPREAD_CALL_ON_SUPER",
+                    "SPREAD_NEW",
+                    "SPREAD_CALLSPECIAL",
+                    "SPREAD_REF_CALL");
 
     /** Fork node properties, in chain order, after the upstream properties. */
     private static final List<String> FORK_PROPS = List.of("CLASS_PROP", "DEFAULT_NAME_PROP");

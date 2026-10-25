@@ -741,11 +741,14 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
                     }
                     int argCount = 0;
                     while ((child = child.getNext()) != null) {
-                        visitExpression(child, 0);
+                        visitExpression(SpreadCall.argument(child), 0); // AutoJs6: class syntax
                         ++argCount;
                     }
                     int callType = node.getIntProp(Node.SPECIALCALL_PROP, Node.NON_SPECIALCALL);
-                    if (type != Token.REF_CALL && callType != Node.NON_SPECIALCALL) {
+                    if (SpreadCall.isSpreadCall(node)) { // AutoJs6: class syntax
+                        SpreadCall.emit(this, node, type, lineNumber); // AutoJs6: class syntax
+                    } else if (type != Token.REF_CALL // AutoJs6: class syntax
+                            && callType != Node.NON_SPECIALCALL) { // AutoJs6: class syntax
                         // embed line number and source filename
                         addIndexOp(Icode.CALLSPECIAL, argCount);
                         addUint8(callType);

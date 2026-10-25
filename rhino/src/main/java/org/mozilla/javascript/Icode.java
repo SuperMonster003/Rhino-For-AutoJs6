@@ -194,8 +194,15 @@ abstract class Icode {
             CLASS_INIT_FIELDS = CLASS_PRIVATE_NAME - 1, // AutoJs6: class syntax
             CLASS_STATIC_INIT = CLASS_INIT_FIELDS - 1, // AutoJs6: class syntax
 
+            // AutoJs6: class syntax (spread arguments in calls, see SpreadCall)
+            SPREAD_CALL = CLASS_STATIC_INIT - 1, // AutoJs6: class syntax
+            SPREAD_CALL_ON_SUPER = SPREAD_CALL - 1, // AutoJs6: class syntax
+            SPREAD_NEW = SPREAD_CALL_ON_SUPER - 1, // AutoJs6: class syntax
+            SPREAD_CALLSPECIAL = SPREAD_NEW - 1, // AutoJs6: class syntax
+            SPREAD_REF_CALL = SPREAD_CALLSPECIAL - 1, // AutoJs6: class syntax
+
             // Last icode
-            MIN_ICODE = CLASS_STATIC_INIT; // AutoJs6: class syntax
+            MIN_ICODE = SPREAD_REF_CALL; // AutoJs6: class syntax
 
     static String bytecodeName(int bytecode) {
         if (!validBytecode(bytecode)) {

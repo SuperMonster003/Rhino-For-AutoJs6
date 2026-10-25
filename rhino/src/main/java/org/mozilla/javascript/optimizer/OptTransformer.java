@@ -40,6 +40,7 @@ class OptTransformer extends NodeTransformer {
     }
 
     private void detectDirectCall(Node node, ScriptNode tree) {
+        if (org.mozilla.javascript.SpreadCall.isSpreadCall(node)) return; // AutoJs6: class syntax
         if (tree.getType() == Token.FUNCTION) {
             Node left = node.getFirstChild();
 

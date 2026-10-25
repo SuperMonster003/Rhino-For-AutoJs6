@@ -153,6 +153,7 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_PRIVATE_NAME] = new DoClassPrivateName();
         instructionObjs[base + Icode.CLASS_INIT_FIELDS] = new DoClassInitFields();
         instructionObjs[base + Icode.CLASS_STATIC_INIT] = new DoClassStaticInit();
+        SpreadCall.register(instructionObjs, base);
     }
 
     static String icodeName(int icode) {
@@ -186,7 +187,7 @@ final class ClassInterpreter {
             case Icode.CLASS_STATIC_INIT:
                 return "CLASS_STATIC_INIT";
             default:
-                return null;
+                return SpreadCall.icodeName(icode);
         }
     }
 

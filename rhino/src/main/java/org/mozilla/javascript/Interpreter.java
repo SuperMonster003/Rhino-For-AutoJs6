@@ -2650,6 +2650,11 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             // stack change: lookup_result arg0 .. argN -> result
             // indexReg: number of arguments
             frame.stackTop -= state.indexReg;
+            if (SpreadCall.isCall(op)) { // AutoJs6: class syntax
+                boundArgs = SpreadCall.callArguments(frame, state); // AutoJs6: class syntax
+                blen = boundArgs.length; // AutoJs6: class syntax
+                op = SpreadCall.callOp(op); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             ScriptRuntime.LookupResult result = (ScriptRuntime.LookupResult) stack[frame.stackTop];
             // Check if the lookup result is a function and throw if it's not
             // must not be done sooner according to the spec
