@@ -187,7 +187,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
         if (descriptor.isDerivedConstructor()) { // AutoJs6: class syntax
             return ClassRuntime.constructDerived(cx, this, nt, s, args); // AutoJs6: class syntax
         } // AutoJs6: class syntax
-        var thisObj = this.createObject(cx, s, nt); // AutoJs6: class syntax
+        var thisObj = BuiltinConstruction.thisObject(this, cx, s, nt); // AutoJs6: class syntax
         // Pass `this` in as new.target for now. This can change when
         // the public `construct` signature changes.
         var res = descriptor.getConstructor().execute(cx, this, nt, s, thisObj, args);

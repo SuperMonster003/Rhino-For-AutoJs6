@@ -68,10 +68,11 @@ public class NativeWeakMap extends ScriptableObject {
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         NativeWeakMap nm = new NativeWeakMap();
         nm.instanceOfWeakMap = true;
+        nm.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
+        nm.setParentScope(s); // AutoJs6: class syntax
         if (args.length > 0) {
             NativeMap.loadFromIterable(cx, f.getDeclarationScope(), nm, NativeMap.key(args));
         }
-        ScriptRuntime.setBuiltinProtoAndParent(nm, f, nt, s, TopLevel.Builtins.WeakMap);
         return nm;
     }
 

@@ -22,6 +22,7 @@ import org.mozilla.javascript.AbstractEcmaObjectOperations;
 import org.mozilla.javascript.AbstractEcmaStringOperations;
 import org.mozilla.javascript.AbstractEcmaStringOperations.ReplacementOperation;
 import org.mozilla.javascript.BuiltInSlot;
+import org.mozilla.javascript.BuiltinConstruction; // AutoJs6: class syntax
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.ClassDescriptor;
 import org.mozilla.javascript.Constructable;
@@ -338,16 +339,15 @@ public class NativeRegExp extends ScriptableObject {
 
     private static Scriptable js_constructCall(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
-        if (args.length > 0
-                && args[0] instanceof NativeRegExp
-                && (args.length == 1 || args[1] == Undefined.instance)) {
-            return (Scriptable) args[0];
-        }
         return js_construct(cx, f, nt, s, thisObj, args);
     }
 
     private static Scriptable js_construct(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        var matcher = args.length > 0 && args[0] instanceof NativeRegExp; // AutoJs6: class syntax
+        var p = BuiltinConstruction.regExpArgs(f, nt, args, matcher); // AutoJs6: class syntax
+        if (p == null) return (Scriptable) args[0]; // AutoJs6: class syntax
+        args = p; // AutoJs6: class syntax
         NativeRegExp re = NativeRegExpInstantiator.withLanguageVersion(cx.getLanguageVersion());
         re.compile(cx, s, args);
         ScriptRuntime.setBuiltinProtoAndParent(re, f, nt, s, TopLevel.Builtins.RegExp);
@@ -4338,6 +4338,8 @@ public class NativeRegExp extends ScriptableObject {
 
     private static Object js_test(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        var test = BuiltinConstruction.userTest(thisObj, EXEC_DESCRIPTOR); // AutoJs6: class syntax
+        if (test != null) return test.call(cx, s, thisObj, args); // AutoJs6: class syntax
         {
             Object x = realThis(thisObj, f).execSub(cx, s, args, TEST);
             return Boolean.TRUE.equals(x) ? Boolean.TRUE : Boolean.FALSE;

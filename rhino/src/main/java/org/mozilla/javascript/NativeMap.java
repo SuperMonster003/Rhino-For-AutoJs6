@@ -86,10 +86,11 @@ public class NativeMap extends ScriptableObject {
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         NativeMap nm = new NativeMap();
         nm.instanceOfMap = true;
+        nm.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
+        nm.setParentScope(s); // AutoJs6: class syntax
         if (args.length > 0) {
             loadFromIterable(cx, s, nm, key(args));
         }
-        ScriptRuntime.setBuiltinProtoAndParent(nm, f, nt, s, TopLevel.Builtins.Map);
         return nm;
     }
 
@@ -241,28 +242,7 @@ public class NativeMap extends ScriptableObject {
      * Make this static because NativeWeakMap has the exact same requirement.
      */
     static void loadFromIterable(Context cx, VarScope scope, ScriptableObject map, Object arg1) {
-        if ((arg1 == null) || Undefined.instance.equals(arg1)) {
-            return;
-        }
-
-        // Call the "[Symbol.iterator]" property as a function.
-        final Object ito = ScriptRuntime.callIterator(arg1, cx, scope);
-        if (Undefined.instance.equals(ito)) {
-            // Per spec, ignore if the iterator is undefined
-            return;
-        }
-
-        // Find the "add" function of our own prototype, since it might have
-        // been replaced. Since we're not fully constructed yet, create a dummy instance
-        // so that we can get our own prototype.
-        Scriptable proto = ScriptableObject.getClassPrototype(scope, map.getClassName());
-        var setCall = ScriptRuntime.getPropAndThis(proto, "set", cx, scope);
-        Callable set = setCall.getCallable();
-        ScriptRuntime.loadFromIterable(
-                cx,
-                scope,
-                arg1,
-                (key, value) -> set.call(cx, scope, map, new Object[] {key, value}));
+        BuiltinConstruction.addEntriesFromIterable(cx, scope, map, arg1); // AutoJs6: class syntax
     }
 
     private static NativeMap realThis(Object thisObj, String name) {

@@ -70,6 +70,8 @@ public class NativePromise extends ScriptableObject {
         }
         Callable executor = (Callable) args[0];
         NativePromise promise = new NativePromise();
+        promise.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
+        promise.setParentScope(s); // AutoJs6: class syntax
         ResolvingFunctions resolving = new ResolvingFunctions(f.getDeclarationScope(), promise);
 
         thisObj = Undefined.SCRIPTABLE_UNDEFINED;
@@ -89,7 +91,6 @@ public class NativePromise extends ScriptableObject {
                     cx, s, thisArg, new Object[] {getErrorObject(cx, f.getDeclarationScope(), re)});
         }
 
-        ScriptRuntime.setBuiltinProtoAndParent(promise, f, nt, s, TopLevel.Builtins.Promise);
         return promise;
     }
 

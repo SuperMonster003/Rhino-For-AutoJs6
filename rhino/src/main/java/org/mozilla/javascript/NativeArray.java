@@ -502,6 +502,7 @@ public class NativeArray extends ScriptableObject implements List {
     /** See ECMA 15.4.1,2 */
     static Scriptable jsConstructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        Scriptable proto = BuiltinConstruction.prototypeOf(f, nt); // AutoJs6: class syntax
         NativeArray res;
         if (args.length == 0) {
             res = new NativeArray(0);
@@ -519,7 +520,8 @@ public class NativeArray extends ScriptableObject implements List {
             }
         }
 
-        ScriptRuntime.setBuiltinProtoAndParent(res, f, nt, s, TopLevel.Builtins.Array);
+        res.setPrototype(proto); // AutoJs6: class syntax
+        res.setParentScope(s); // AutoJs6: class syntax
 
         return res;
     }

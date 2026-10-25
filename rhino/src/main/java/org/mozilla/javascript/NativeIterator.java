@@ -146,7 +146,9 @@ public final class NativeIterator extends ScriptableObject {
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         Scriptable target = requireIteratorTarget(cx, s, args);
         boolean keyOnly = isKeyOnly(args);
-        return createNativeIterator(cx, s, target, keyOnly);
+        var result = createNativeIterator(cx, s, target, keyOnly); // AutoJs6: class syntax
+        result.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
+        return result; // AutoJs6: class syntax
     }
 
     private static Scriptable requireIteratorTarget(Context cx, VarScope scope, Object[] args) {

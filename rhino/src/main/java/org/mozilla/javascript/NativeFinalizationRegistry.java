@@ -76,7 +76,7 @@ public class NativeFinalizationRegistry extends ScriptableObject {
 
         NativeFinalizationRegistry r = new NativeFinalizationRegistry((Function) args[0], s);
         r.setParentScope(f.getDeclarationScope());
-        r.setPrototype((Scriptable) f.getPrototypeProperty());
+        r.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
         return r;
     }
 

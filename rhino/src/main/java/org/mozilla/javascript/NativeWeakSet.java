@@ -63,10 +63,11 @@ public class NativeWeakSet extends ScriptableObject {
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         NativeWeakSet ns = new NativeWeakSet();
         ns.instanceOfWeakSet = true;
+        ns.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
+        ns.setParentScope(s); // AutoJs6: class syntax
         if (args.length > 0) {
             NativeSet.loadFromIterable(cx, f.getDeclarationScope(), ns, NativeMap.key(args));
         }
-        ScriptRuntime.setBuiltinProtoAndParent(ns, f, nt, s, TopLevel.Builtins.WeakSet);
         return ns;
     }
 

@@ -15,6 +15,7 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.mozilla.javascript.AbstractEcmaObjectOperations;
+import org.mozilla.javascript.BuiltinConstruction; // AutoJs6: class syntax
 import org.mozilla.javascript.ClassDescriptor;
 import org.mozilla.javascript.Constructable;
 import org.mozilla.javascript.Context;
@@ -22,6 +23,7 @@ import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.LambdaConstructor;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.ScriptRuntime;
+import org.mozilla.javascript.ScriptRuntimeES6; // AutoJs6: class syntax
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SymbolKey;
@@ -44,6 +46,10 @@ public class NativeArrayBuffer extends ScriptableObject {
         DESCRIPTOR =
                 new ClassDescriptor.Builder("ArrayBuffer", 1, NativeArrayBuffer::js_constructor)
                         .withMethod(CTOR, "isView", 1, NativeArrayBuffer::js_isView)
+                        .withProp( // AutoJs6: class syntax
+                                CTOR, // AutoJs6: class syntax
+                                SymbolKey.SPECIES, // AutoJs6: class syntax
+                                ScriptRuntimeES6::symbolSpecies) // AutoJs6: class syntax
                         .withMethod(PROTO, "slice", 2, NativeArrayBuffer::js_slice)
                         .withMethod(PROTO, "transfer", 0, NativeArrayBuffer::js_transfer)
                         .withMethod(PROTO, "resize", 1, NativeArrayBuffer::js_resize)
@@ -188,9 +194,11 @@ public class NativeArrayBuffer extends ScriptableObject {
             }
         }
 
+        Scriptable proto = BuiltinConstruction.prototypeOf(f, nt); // AutoJs6: class syntax
         NativeArrayBuffer buffer = new NativeArrayBuffer(length);
         buffer.maxByteLength = maxByteLength;
-        ScriptRuntime.setBuiltinProtoAndParent(buffer, f, nt, s, TopLevel.Builtins.ArrayBuffer);
+        buffer.setPrototype(proto); // AutoJs6: class syntax
+        buffer.setParentScope(s); // AutoJs6: class syntax
         return buffer;
     }
 

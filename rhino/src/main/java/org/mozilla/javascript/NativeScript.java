@@ -132,6 +132,7 @@ class NativeScript extends BaseFunction {
         Script script = compile(cx, source);
         NativeScript nscript = new NativeScript(script);
         ScriptRuntime.setObjectProtoAndParent(nscript, f.getDeclarationScope());
+        nscript.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
         return nscript;
     }
 

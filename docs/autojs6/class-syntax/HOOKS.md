@@ -13,7 +13,8 @@
 | P1 | 完成 (2026-10-24) | 词法, AST, 解析器, 早期错误, async 预解析, 编译期 "暂不支持" 报错 |
 | P2 | 完成 (2026-10-25) | class 降糖与运行时原语, 解释 / 编译后端, V2 指令类; 通用绑定修复 (参数作用域, 参数解构的迭代器协议, for-of 关闭, 函数名推断); 生成器 `yield` 解析 (附录 C Q10) 与编译模式 yield 点的栈类型保存 |
 | P3 | 完成 (2026-10-25) | 公共字段, static block, 私有名 (T5: 每次类求值新建 `PrivateNameKey`, 对象上独立的私有元素表), 直接 eval 里的外层私有名与类元素上下文 (附录 C Q13), V2 指令类 |
-| P4-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
+| P4 | 完成 (2026-10-25) | 内建构造器按 new.target 创建 (T9): 统一入口 `ScriptRuntime.createFromConstructor` 与新文件 `BuiltinConstruction` (GetPrototypeFromConstructor 含 GetFunctionRealm, 跨 realm 按构造器名取对方的内建原型); 逐个构造器改为先取原型 (附录 D 36 行); Map / Set 装入用实例的 `set` / `add`, RegExp 的 IsRegExp 与 RegExpExec, DataView 取原型后重查, ArrayBuffer 的 `Symbol.species`, TypedArray 非对象实参的 ToIndex, 生成器函数的 prototype 不带 constructor, Proxy 不读 new.target; 拆掉 P2 的构造后改原型脚手架 (只留 Java 类给 P5) |
+| P5-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
 
@@ -101,7 +102,7 @@
 | `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | class syntax | 3 | `DoNew`: 派生构造器不走内联帧 (`ClassRuntime.inlinesNew`), 类构造器不按方法拒绝 (`isMethod`), 类构造器也创建 this 对象 | P2 |
 | `rhino/src/main/java/org/mozilla/javascript/JSDescriptor.java` | class syntax | 5 | `isDerivedConstructor` 读取已有的 `DERIVED_CONSTRUCTOR_FLAG`; `Builder.derivedConstructor` 字段与传入构造器 | P2 |
 | `rhino/src/main/java/org/mozilla/javascript/JSDescriptor.java` | class syntax | 3 | 包内字段 `classCode` (不改构造器签名, `build` 之后赋值) 与 `Builder.classCode` | P2 |
-| `rhino/src/main/java/org/mozilla/javascript/JSFunction.java` | class syntax | 4 | `construct`: 派生构造器交给 `ClassRuntime.constructDerived`; 有 home object 的类构造器同样创建 this | P2 |
+| `rhino/src/main/java/org/mozilla/javascript/JSFunction.java` | class syntax | 4 | `construct`: 派生构造器交给 `ClassRuntime.constructDerived`; 有 home object 的类构造器同样创建 this (P2); this 对象经 `BuiltinConstruction.thisObject`: 脚本函数按 new.target 创建, 内建构造器自己建实例, 给它的 this 不读 new.target (P4) | P2 / P4 |
 | `rhino/src/main/java/org/mozilla/javascript/NativeObject.java` | class syntax | 1 | `js_constructor`: new.target 不是 Object 自身时忽略实参, 按 new.target 创建 (T9) | P2 |
 | `rhino/src/main/java/org/mozilla/javascript/Node.java` | class syntax | 7 | 属性链尾新增 `CLASS_PROP` / `DEFAULT_NAME_PROP`, `LAST_PROP` 改接; `propToString` 的两个分支 | P2 |
 | `rhino/src/main/java/org/mozilla/javascript/NodeTransformer.java` | class syntax | 4 | `transformCompilationUnit_r` 的 OBJECTLIT: 展开项既是子节点又在属性 id 里, 不再变换第二次 (生成器里展开中的 yield 会登记两个恢复点); 辅助方法 `isSpread` | P2 |
@@ -142,8 +143,36 @@
 | `rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java` | class syntax | 3 | `in(Object, Object, Context)`: 左边是私有名时转 `ClassRuntime.privateIn` (`#x in o`) | P3 |
 | `rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java` | class syntax | 2 | `evalSpecial`: 直接 eval 编译前 `ClassRuntime.evalContext` 收集外层私有名与类元素种类, 放进 `compilerEnvs.classEvalContext` | P3 |
 | `rhino/src/main/java/org/mozilla/javascript/ScriptableObject.java` | class syntax | 1 | 包内字段 `privateElements` (私有元素表 `PrivateElements`, 与属性表分开, T5) | P3 |
+| `rhino/src/main/java/org/mozilla/javascript/BaseFunction.java` | class syntax | 2 | `construct`: 经 `BuiltinConstruction.create` 创建 this; `createObject` 返回 null 的子类 (构造即调用) 得到的对象按 new.target 补原型 (`withPrototype`) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/BaseFunction.java` | class syntax | 3 | `createObject(cx, scope, nt)`: 改为 `ScriptRuntime.createFromConstructor` (OrdinaryCreateFromConstructor, 默认原型 `Object.prototype`; 原来只认 JSFunction 的 new.target, 绑定函数与 Proxy 退回本函数的类原型) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/BaseFunction.java` | class syntax | 1 | `setupDefaultPrototype`: 生成器函数的 prototype 不定义 `constructor` (`BuiltinConstruction.defineConstructor`; `new GeneratorFunction(...)` 的函数原来带) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java` | class syntax | 2 | `findPrototype` 两个重载 (Builtins / NativeErrors) 交给 `BuiltinConstruction.prototypeOf`; 默认原型先按构造器名取 (6 个原生错误都传 Error), 类型参数只在 f 不以内建命名时使用 (`Uint8Array.fromBase64` / `fromHex` 以静态方法自身为 f 执行构造代码) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java` | class syntax | 4 | 统一入口 `createFromConstructor(cx, nt, scope, defaultProto)` (T9), 实现在 `BuiltinConstruction` | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/LambdaConstructor.java` | class syntax | 2 | `construct`: Java 构造器建好对象后按 new.target 设原型 (`withPrototype`; 宿主用 LambdaConstructor 定义的构造器可被 class 继承) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeArray.java` | class syntax | 3 | `jsConstructor`: 先取原型 (`prototypeOf`) 再建数组, 末尾设原型与父作用域 (替代 `setBuiltinProtoAndParent`) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeMap.java` | class syntax | 3 | 构造器先设原型与父作用域再装入; `loadFromIterable` 的方法体改为 `BuiltinConstruction.addEntriesFromIterable` (AddEntriesFromIterable: 取实例的 `set`, 子类覆盖的生效; 原方法体删除) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeSet.java` | class syntax | 3 | 同 Map: 先设原型; `loadFromIterable` 的方法体改为 `addValuesFromIterable` (取实例的 `add`) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeWeakMap.java` | class syntax | 2 | 构造器先设原型与父作用域再装入 (装入用实例的 `set`) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeWeakSet.java` | class syntax | 2 | 同 WeakMap (装入用实例的 `add`) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativePromise.java` | class syntax | 2 | 构造器在执行器运行之前取原型并设父作用域 | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeProxy.java` | class syntax | 1 | 构造器不读 new.target 的 `prototype` (ProxyCreate 不用 new.target; 原型由陷阱决定, 直接原型置 null) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeWeakRef.java` | class syntax | 1 | 原型取 `prototypeOf(f, nt)` (原来固定为 `f.prototype`) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeFinalizationRegistry.java` | class syntax | 1 | 同 WeakRef | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeCallSite.java` | class syntax | 1 | 同 WeakRef (Rhino 构造器) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/ImporterTopLevel.java` | class syntax | 1 | `JavaImporter` 构造器: 同 WeakRef | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeIterator.java` | class syntax | 3 | `jsConstructor` (JS 1.7 `Iterator`): 结果按 new.target 设原型 | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/NativeScript.java` | class syntax | 1 | 构造器按类名设原型后再按 new.target 设原型 | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/regexp/NativeRegExp.java` | class syntax | 1 | import `BuiltinConstruction` | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/regexp/NativeRegExp.java` | class syntax | 4 | `js_construct`: 实参经 `BuiltinConstruction.regExpArgs` (IsRegExp 读 `Symbol.match`; 作为函数调用且 `pattern.constructor === RegExp` 时返回原对象; 类 RegExp 对象取 `source` / `flags`); `js_constructCall` 原来的提前返回 (5 行) 删除, 调用与构造共用这条路径 | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/regexp/NativeRegExp.java` | class syntax | 2 | `js_test`: `exec` 被覆盖 (不是内建 exec) 时按 RegExpExec 调用它 (`BuiltinConstruction.userTest`) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeArrayBuffer.java` | class syntax | 2 | import `BuiltinConstruction`, `ScriptRuntimeES6` | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeArrayBuffer.java` | class syntax | 4 | 构造器的 `Symbol.species` 访问器 (`ScriptRuntimeES6::symbolSpecies`; `slice` 原来就按 species 创建) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeArrayBuffer.java` | class syntax | 3 | 构造器先取原型再分配数据块, 末尾设原型与父作用域 | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeDataView.java` | class syntax | 1 | import `BuiltinConstruction` (未再使用的 `TopLevel` import 随之删除) | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeDataView.java` | class syntax | 4 | 构造器先取原型, 之后重查缓冲区 (`BuiltinConstruction.checkView`: detached, 偏移, 长度), 末尾设原型与父作用域 | P4 |
+| `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeTypedArrayView.java` | class syntax | 3 | `js_constructor` 的最后分支: 非对象实参按 ToIndex 分配 (Symbol 抛 TypeError; 原来抛 `Error: invalid argument`) | P4 |
 
-合计 368 行 (class syntax 318, async 50); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行.
+合计 430 行 (class syntax 380, async 50); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行; P4 新增 62 行, 另把 `JSFunction.construct` 里 P2 的 `createObject` 调用改为 `BuiltinConstruction.thisObject`. P4 在上游文件里删除的行: `findPrototype` 两个方法体, `NativeMap` / `NativeSet` 的 `loadFromIterable` 方法体, 各构造器的 `setBuiltinProtoAndParent` 调用, `BaseFunction.createObject` 的方法体, `NativeRegExp.js_constructCall` 的提前返回, `NativeDataView` 的 `TopLevel` import; 合并时上游改了这些位置, 按第三节第 7 条以上游版本为基础重新插入钩子.
 
 ## 4. 新文件
 
@@ -163,6 +192,7 @@
 - `rhino/src/main/java/org/mozilla/javascript/ClassInterpreter.java`: 解释器后端: `Token.CLASS` 的 icode 生成 (`generate`), 指令类注册 (`register`) 与 icode 名字 (P2).
 - `rhino/src/main/java/org/mozilla/javascript/BindingLowering.java`: 与 class 无关的通用绑定修复, test262 class 目录的方法用例依赖它们: 参数作用域, 参数 TDZ, 参数解构的迭代器协议, 生成器参数解构, for-of 关闭迭代器, 函数名推断, 需要 arguments 的活动对象 (P2); 对象解构赋值里成员表达式目标的求值顺序 (P3).
 - `rhino/src/main/java/org/mozilla/javascript/optimizer/ClassBodyCodegen.java`: 编译后端: `Token.CLASS` 的字节码生成, 当前 this 的取值, 直接调用判定用的 `hasYield`, for-of 局部变量清零的判定 (P2).
+- `rhino/src/main/java/org/mozilla/javascript/BuiltinConstruction.java`: 内建构造器按 new.target 创建 (P4, T9): `prototypeOf` (GetPrototypeFromConstructor; new.target 就是构造器自身或没有时直接取自身的 prototype, 不查找), `createFromConstructor` (普通对象的 OrdinaryCreateFromConstructor, 经 `ScriptRuntime.createFromConstructor` 调用), `functionRealm` (GetFunctionRealm: 绑定函数取目标, Proxy 取目标, 已撤销抛 TypeError), 默认原型 (按构造器名查 `TopLevel.Builtins` / `NativeErrors`, 再取 `findPrototype` 传入的类型, 再取同名类原型; 跨 realm 时在 new.target 的 realm 里取), `create` / `withPrototype` / `thisObject` (BaseFunction, LambdaConstructor, JSFunction 的构造路径), `defineConstructor`, Map / Set 的 AddEntriesFromIterable, DataView 的 `checkView`, RegExp 的 `regExpArgs` 与 `userTest`.
 - `rhino/src/main/java/org/mozilla/classfile/StackSpills.java`: 编译模式生成器在 yield 点保存 / 恢复操作数栈的类型: 先留空指令占位, 方法结束时按栈图分析的类型改写为装箱 / 拆箱 / 强转 (P2, 附录 C Q10).
 - `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassCtorCheck.java`: V2 指令, 对应 icode `CLASS_CTOR_CHECK` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
 - `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassDefine.java`: V2 指令, 对应 icode `CLASS_DEFINE` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
@@ -205,10 +235,12 @@
 | `org.mozilla.javascript.tests.ClassSyntaxTest262CoreTest` | tests | test262 class 两目录 (P3 起只排除 async 与 T10 特性) 解释 / 编译两模式执行, 按核心 / 字段 / 私有名分组计数 (ROADMAP 1.4), 已知失败按阶段登记 (附录 E) | P2 / P3 |
 | `org.mozilla.javascript.tests.classsyntax.ClassFieldsTest` | rhino | 公共字段与 static block 的语义 (初始化时机, 作用域, 计算键顺序, [[Define]], 命名, static block 的顺序与限制, eval), 解释 / 编译两模式 | P3 |
 | `org.mozilla.javascript.tests.classsyntax.PrivateNamesTest` | rhino | 私有字段 / 方法 / 访问器 / 静态私有成员, 每次类求值的唯一性, 品牌检查与重复安装的 TypeError, 反射与 Proxy 不可见, freeze 之后仍可写, 嵌套作用域, 运算符, 直接 eval, Java 对象, 解释 / 编译两模式 | P3 |
+| `org.mozilla.javascript.tests.classsyntax.BuiltinSubclassingTest` | rhino | 附录 D 的每个构造器至少一个子类用例 (instanceof, 原型方法, species, 自定义成员, 覆盖的 `set` / `add` / `exec`), Proxy / 绑定函数 / 另一 realm 的函数作 new.target, 宿主 LambdaConstructor 被继承, 解释 / 编译两模式 | P4 |
+| `org.mozilla.javascript.tests.BuiltinSubclassingTest262Test` | tests | test262 `subclass-builtins` (两目录 72 个), `subclass/builtin-objects` (70 个) 与 `built-ins` 下含 `newTarget` 的文件 (219 个) 解释 / 编译两模式执行, 跳过规则同 `ClassSyntaxTest262CoreTest`, 已知失败登记附录 E (P9 1 例); 失败明细写到 `tests/build/class-syntax/builtins-<模式>.txt` | P4 |
 
-后续阶段规划的测试类 (BuiltinSubclassingTest, JavaClassInheritanceTest, AsyncFunctionTest, AsyncGeneratorTest, ForAwaitTest) 落地时登记到本表.
+后续阶段规划的测试类 (JavaClassInheritanceTest, AsyncFunctionTest, AsyncGeneratorTest, ForAwaitTest) 落地时登记到本表.
 
-运行: `./gradlew.bat :rhino:test --tests "org.mozilla.javascript.tests.classsyntax.*" --tests "*MessageTranslationsTest*" --tests "*ClassInstructionsTest*" --tests "*ClassChainUniquenessTest*"` 与 `./gradlew.bat :tests:test --tests "*ClassSyntaxTest262ParseTest*" --tests "*ClassSyntaxTest262CoreTest*"` (核心集的失败明细写到 `tests/build/class-syntax/core-<模式>.txt`).
+运行: `./gradlew.bat :rhino:test --tests "org.mozilla.javascript.tests.classsyntax.*" --tests "*MessageTranslationsTest*" --tests "*ClassInstructionsTest*" --tests "*ClassChainUniquenessTest*"` 与 `./gradlew.bat :tests:test --tests "*ClassSyntaxTest262ParseTest*" --tests "*ClassSyntaxTest262CoreTest*" --tests "*BuiltinSubclassingTest262Test*"` (核心集的失败明细写到 `tests/build/class-syntax/core-<模式>.txt`).
 
 ## 6. 依赖的上游机制
 
@@ -235,6 +267,12 @@ P3 起依赖:
 - 作用域: 类作用域的 LETEXPR 经 NodeTransformer 成为运行时的 `LocalScope` (含嵌套函数的函数总需要活动对象), 直接 eval 的 `ClassRuntime.evalContext` 沿作用域链从 `LocalScope` 收集 `#..@n` 绑定, 从函数活动对象的 `JSDescriptor.classElement` 读元素种类.
 - `ScriptableObject` 的对象监视器 (`SlotMapOwner.ThreadedAccess` 同样用 synchronized 代替 VarHandle), `Wrapper.unwrap` (Java 对象包装的标识).
 - 直接 eval: `ScriptRuntime.evalSpecial` 里 `CompilerEnvirons` 的创建与 `Context.compileString` 路径.
+
+P4 起依赖:
+
+- 内建构造器的形态: `ClassDescriptor.Builder` 定义的构造器是 `JSFunction` (描述符 `isFunction()` 为 false, 以此区分脚本函数), 构造代码签名 `(cx, f, nt, s, thisObj, args)` 拿到 new.target, `JSFunction.construct` 先建 this 再执行构造代码; 内建实例的原型经 `ScriptRuntime.setBuiltinProtoAndParent` -> `findPrototype` 或各构造器的钩子取得. 上游新增内建构造器时, 按附录 D 的做法让它在建实例之前取 `BuiltinConstruction.prototypeOf(f, nt)`, 并在 `BuiltinSubclassingTest` 加子类用例.
+- realm: `ScriptableObject.getTopLevelScope` / `TopLevel.getBuiltinPrototype` / `getClassPrototype`, `BoundFunction.getTargetFunction`, `NativeProxy.getTargetThrowIfRevoked`; 构造器的 `getFunctionName` 与 `TopLevel.Builtins` / `NativeErrors` 的枚举名一致 (跨 realm 按名取原型).
+- `LambdaConstructor.construct` 与 `BaseFunction.construct` / `createObject` 的调用顺序, `NativeRegExp.EXEC_DESCRIPTOR` (判断 exec 是否被覆盖), `ScriptRuntimeES6::symbolSpecies`.
 
 后续阶段将依赖 (登记时补充): `GeneratorState` 与 async 驱动, `NativePromise` 与 `Context.enqueueMicrotask`, `UnhandledRejectionTracker`.
 
@@ -264,7 +302,7 @@ P2:
 - class 声明的外层绑定与 `let` 一样没有 TDZ (上游 `let` 的限制): 声明之前访问得到 undefined, 不抛 ReferenceError. 类定义期间 (extends 与计算键) 对类名的引用有 TDZ.
 - 派生构造器里 `super()` 之前的直接 eval 读 `this` 得到 undefined, 规范要求 ReferenceError.
 - eval 代码里不能用 `new.target` (Parser 只在函数内接受, 普通函数同样; 上游 test262 `eval-code/direct/new.target-fn.js` 失败), 也不能调 `super()` (派生构造器里的直接 eval `super()` 报 SyntaxError, 规范允许; eval 代码不知道所在的函数), 附录 C Q12. P3 起例外: 方法, 字段初始化器与 static block 里的直接 eval 知道所在的类元素 (附录 C Q13), 顶层 `new.target` 为 undefined, 字段初始化器与 static block 里的 `arguments` 报 SyntaxError, 外层私有名可见.
-- 除 Object / Function 外的内建构造器被继承时还不按 new.target 创建 (P4); `ClassSyntaxTest262CoreTest` 里 4 例登记为 P4 已知失败, 另 5 例 async 箭头函数用例登记为 P9.
+- 内建构造器被继承时按 new.target 创建已在 P4 完成, `ClassSyntaxTest262CoreTest` 里 4 例 P4 已知失败已删除; 5 例 async 箭头函数用例仍登记为 P9.
 - 参数初始化顺序 (上游缺陷, 普通函数同样): 带解构的参数先于简单默认值初始化, 例如 `function f(a = 1, [x] = [a + 1])` 里 x 为 NaN.
 - `Function.prototype` 的 `caller` / `arguments` 受限访问器只对 class 代码里的函数 (类构造器, 方法, heritage 与计算键里的函数, 以及它们内部的函数) 抛 TypeError; 其他严格函数 (含严格对象字面量方法) 保持 Rhino 原行为 (未执行时 `arguments` 为 null, 没有 `caller`), 上游 `ArgumentsTest` 依赖它, 规范要求一律抛错.
 - Interpreter V2 只有指令类, 没有 IR 到 V2 的编译器 (附录 C Q11), V2 端到端 0 例.
@@ -277,6 +315,14 @@ P3:
 - `optimizer/ClassCompiler` (AOT 编译到 class 文件) 不写 `classElement`, 预编译代码里方法 / 字段初始化器内的直接 eval 退回 P2 的限制 (Q12); `Context.compileString` 与解释模式不受影响.
 - `o?.[k]()` 在 o 为 null 时抛 TypeError 是上游缺陷 (`getElemAndThisOptional` 不结束可选链), 私有名的 `o?.#m()` 已单独处理.
 - Interpreter V2 只有 3 个新指令类与单测, V2 端到端仍为 0 例 (附录 C Q11).
+
+P4:
+
+- 求值顺序与规范不同, 只有 new.target 的 `prototype` 是 getter (或实参有副作用) 时可观察, test262 未覆盖: TypedArray 构造器先处理实参 (读对象实参的迭代器 / length) 后取原型, 规范先取原型; ArrayBuffer 的 `maxByteLength` 超过可用内存时在取原型之前抛 RangeError (规范在取原型之后分配失败); `RegExp.prototype.test` 先读 `exec` 再对实参 ToString (规范相反).
+- 宿主用 `LambdaConstructor` 定义的构造器: Java 构造代码先建好对象 (此时原型是类原型), 再按 new.target 改原型; 构造代码里看不到子类原型.
+- Java 类 (`NativeJavaClass`) 被 class 继承时仍是 `ClassRuntime.superCall` 里 "构造后按 new.target 改原型" 的 P2 脚手架, 只对 `NativeJavaClass` 生效, P5 (T6) 接管; 其他非 JSFunction 构造器 (绑定函数, Proxy, LambdaConstructor 等) 都由自身的 [[Construct]] 按 new.target 创建.
+- WeakMap / WeakSet 有规范没有的 `Symbol.species` (上游现状, 不影响子类化, 未改); E4X 构造器 (XML, XMLList, Namespace, QName) 不看 new.target (范围外, 附录 D).
+- `new f(...args)` (new 的实参里有展开) 两种模式都报内部错误 (`RuntimeException: 190`), 上游缺陷, 与 class 无关 (`super(...args)` 由 P2 处理, 不受影响).
 
 ## 9. 退役记录
 

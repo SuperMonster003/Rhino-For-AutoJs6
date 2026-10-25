@@ -791,12 +791,9 @@ public final class ClassRuntime {
         }
         Scriptable result =
                 ((Constructable) superConstructor).construct(cx, newTarget, scope, args);
-        if (!(superConstructor instanceof JSFunction)
-                && newTarget instanceof Scriptable
-                && newTarget != superConstructor) {
-            // Built-in constructors other than Object and Function ignore new.target until
-            // ROADMAP P4.3 hands it to them: until then the instance gets the prototype that
-            // OrdinaryCreateFromConstructor would have given it.
+        if (superConstructor instanceof NativeJavaClass && newTarget instanceof Scriptable) {
+            // Java classes are not built-ins: until the Java inheritance of ROADMAP P5 (T6) takes
+            // them over, the Java object gets the prototype of new.target after construction.
             Object proto = ScriptableObject.getProperty((Scriptable) newTarget, "prototype");
             if (proto instanceof Scriptable && result.getPrototype() != proto) {
                 result.setPrototype((Scriptable) proto);
@@ -995,35 +992,6 @@ public final class ClassRuntime {
             throw ScriptRuntime.typeErrorById("msg.undef.to.object");
         }
         return value;
-    }
-
-    /**
-     * OrdinaryCreateFromConstructor for an ordinary object (ROADMAP T9): an object whose
-     * [[Prototype]] is {@code newTarget.prototype}, or {@code defaultProto} when that is not an
-     * object.
-     */
-    public static Scriptable createFromConstructor(
-            Object newTarget, VarScope scope, Scriptable defaultProto) {
-        NativeObject result = new NativeObject();
-        result.setPrototype(prototypeFromConstructor(newTarget, defaultProto));
-        result.setParentScope(scope);
-        return result;
-    }
-
-    /** GetPrototypeFromConstructor (ROADMAP T9). */
-    static Scriptable prototypeFromConstructor(Object newTarget, Scriptable defaultProto) {
-        if (newTarget instanceof BaseFunction) {
-            Object proto = ((BaseFunction) newTarget).getPrototypeProperty();
-            if (proto instanceof Scriptable) {
-                return (Scriptable) proto;
-            }
-        } else if (newTarget instanceof Scriptable) {
-            Object proto = ScriptableObject.getProperty((Scriptable) newTarget, "prototype");
-            if (proto instanceof Scriptable) {
-                return (Scriptable) proto;
-            }
-        }
-        return defaultProto;
     }
 
     private static String describe(Object value) {

@@ -71,7 +71,7 @@ public class NativeCallSite extends ScriptableObject {
     private static Object js_constructor(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         var res = new NativeCallSite();
-        res.setPrototype((Scriptable) f.getPrototypeProperty());
+        res.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
         res.setParentScope(s);
         return res;
     }

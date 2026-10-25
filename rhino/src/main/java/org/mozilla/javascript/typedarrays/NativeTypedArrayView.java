@@ -583,7 +583,9 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
             return v;
         }
 
-        throw ScriptRuntime.constructError("Error", "invalid argument");
+        int length = ScriptRuntime.toIndex(arg0); // AutoJs6: class syntax
+        var buffer = makeArrayBuffer(cx, scope, length, bytesPerElement); // AutoJs6: class syntax
+        return constructable.construct(buffer, 0, length); // AutoJs6: class syntax
     }
 
     private void setRange(NativeTypedArrayView<?> source, double dbloff) {

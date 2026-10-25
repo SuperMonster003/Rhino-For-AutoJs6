@@ -1240,7 +1240,7 @@ class NativeProxy extends ScriptableObject {
         }
 
         // Can't use the normal function here as we `setPrototype()` would call the trap.
-        proxy.setPrototypeDirect(ScriptRuntime.findPrototype(f, nt, TopLevel.Builtins.Proxy));
+        proxy.setPrototypeDirect(null); // AutoJs6: class syntax
         proxy.setParentScope(s);
 
         return proxy;

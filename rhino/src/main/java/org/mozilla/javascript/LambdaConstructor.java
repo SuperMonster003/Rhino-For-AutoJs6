@@ -142,7 +142,8 @@ public class LambdaConstructor extends LambdaFunction {
         if ((flags & CONSTRUCTOR_NEW) == 0) {
             throw ScriptRuntime.typeErrorById("msg.no.new", getFunctionName());
         }
-        return fireConstructor(cx, getDeclarationScope(), args);
+        var obj = fireConstructor(cx, getDeclarationScope(), args); // AutoJs6: class syntax
+        return BuiltinConstruction.withPrototype(this, obj, nt); // AutoJs6: class syntax
     }
 
     private Scriptable fireConstructor(Context cx, VarScope scope, Object[] args) {

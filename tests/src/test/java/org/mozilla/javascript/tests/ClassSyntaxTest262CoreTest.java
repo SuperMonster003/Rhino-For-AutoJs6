@@ -93,12 +93,6 @@ class ClassSyntaxTest262CoreTest {
      */
     private static final Map<String, String> KNOWN_FAILURES =
             Map.ofEntries(
-                    p4("expressions/class/subclass-builtins/subclass-WeakRef.js"),
-                    p4("statements/class/subclass-builtins/subclass-WeakRef.js"),
-                    p4(
-                            "statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js"),
-                    p4(
-                            "statements/class/subclass/builtin-objects/GeneratorFunction/instance-prototype.js"),
                     p9(
                             "expressions/class/cpn-class-expr-accessors-computed-property-name-from-async-arrow-function-expression.js"),
                     p9(
@@ -126,11 +120,6 @@ class ClassSyntaxTest262CoreTest {
                     p9("statements/class/elements/private-static-async-method-name.js"),
                     p9("statements/class/static-init-arguments-functions.js"),
                     p9("statements/class/static-init-arguments-methods.js"));
-
-    /** A built-in that does not create its instance from new.target yet (P4). */
-    private static Map.Entry<String, String> p4(String path) {
-        return Map.entry("language/" + path, "P4");
-    }
 
     /** An async function or method without the async feature tags (P9). */
     private static Map.Entry<String, String> p9(String path) {
@@ -259,7 +248,7 @@ class ClassSyntaxTest262CoreTest {
     }
 
     /** Runs the test once; returns the failure, or {@code null} when it passes. */
-    private static String runCase(
+    static String runCase(
             Mode mode,
             Case testCase,
             String name,

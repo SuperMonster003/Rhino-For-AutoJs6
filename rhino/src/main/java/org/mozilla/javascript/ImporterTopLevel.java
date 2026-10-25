@@ -217,7 +217,7 @@ public class ImporterTopLevel extends TopLevel {
         // would keep them set to null. It also allows to use
         // JavaImporter without new and still get properly
         // initialized object.
-        result.setPrototype((Scriptable) f.getPrototypeProperty());
+        result.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
         result.setParentScope(s);
         return result;
     }

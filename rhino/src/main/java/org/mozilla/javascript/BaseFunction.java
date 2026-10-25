@@ -570,7 +570,7 @@ public class BaseFunction extends ScriptableObject implements Function {
             throw ScriptRuntime.typeErrorById("msg.not.ctor", getFunctionName());
         }
 
-        Scriptable result = createObject(cx, scope);
+        var result = BuiltinConstruction.create(this, cx, scope, nt); // AutoJs6: class syntax
         if (result == null) {
             Object val = call(cx, nt, scope, null, args);
             if (!(val instanceof Scriptable)) {
@@ -593,6 +593,7 @@ public class BaseFunction extends ScriptableObject implements Function {
                 VarScope parent = getParentScope();
                 result.setParentScope(parent);
             }
+            BuiltinConstruction.withPrototype(this, result, nt); // AutoJs6: class syntax
         } else {
             Object val = call(cx, nt, scope, result, args);
             if (val instanceof Scriptable) {
@@ -622,22 +623,9 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     public Scriptable createObject(Context cx, VarScope scope, Object nt) {
-        Scriptable newInstance = new NativeObject();
-        Object proto;
-        if (nt instanceof JSFunction) {
-            proto = ((JSFunction) nt).getPrototypeProperty();
-        } else {
-            proto = Undefined.instance;
-        }
-
-        if (proto instanceof Scriptable) {
-            newInstance.setPrototype((Scriptable) proto);
-        } else {
-            newInstance.setPrototype(getClassPrototype());
-        }
-
-        newInstance.setParentScope(getParentScope());
-        return newInstance;
+        var proto = TopLevel.Builtins.Object; // AutoJs6: class syntax
+        var parent = getParentScope(); // AutoJs6: class syntax
+        return ScriptRuntime.createFromConstructor(cx, nt, parent, proto); // AutoJs6: class syntax
     }
 
     /**
@@ -761,7 +749,7 @@ public class BaseFunction extends ScriptableObject implements Function {
             obj.setPrototype(proto);
         }
 
-        obj.defineProperty("constructor", this, DONTENUM);
+        BuiltinConstruction.defineConstructor(obj, this); // AutoJs6: class syntax
         return obj;
     }
 

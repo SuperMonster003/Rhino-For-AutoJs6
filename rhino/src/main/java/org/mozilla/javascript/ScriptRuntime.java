@@ -5677,48 +5677,17 @@ public class ScriptRuntime {
     }
 
     public static Scriptable findPrototype(JSFunction f, Object nt, TopLevel.Builtins type) {
-        Object proto;
-        if (nt instanceof JSFunction) {
-            proto = ((JSFunction) nt).getPrototypeProperty();
-        } else if (nt instanceof Scriptable
-                && nt instanceof Function
-                && ((Function) nt).isConstructor()) {
-            var sobj = ((Scriptable) nt);
-            proto = sobj.get("prototype", sobj);
-        } else {
-            nt = f;
-            proto = ((JSFunction) nt).getPrototypeProperty();
-        }
-
-        if (proto instanceof Scriptable) {
-            return (Scriptable) proto;
-        } else {
-            TopLevel top = ScriptableObject.getTopLevelScope(((Function) nt).getDeclarationScope());
-            return TopLevel.getBuiltinPrototype(top, type);
-        }
+        return BuiltinConstruction.prototypeOf(f, nt, type); // AutoJs6: class syntax
     }
 
     public static Scriptable findPrototype(JSFunction f, Object nt, TopLevel.NativeErrors type) {
-        Object proto;
-        if (nt instanceof JSFunction) {
-            proto = ((JSFunction) nt).getPrototypeProperty();
-        } else if (nt instanceof Scriptable
-                && nt instanceof Function
-                && ((Function) nt).isConstructor()) {
-            var sobj = ((Scriptable) nt);
-            proto = sobj.get("prototype", sobj);
-        } else {
-            nt = f;
-            proto = ((JSFunction) nt).getPrototypeProperty();
-        }
-
-        if (proto instanceof Scriptable) {
-            return (Scriptable) proto;
-        } else {
-            TopLevel top = ScriptableObject.getTopLevelScope(((Function) nt).getDeclarationScope());
-            return TopLevel.getBuiltinPrototype(top, type);
-        }
+        return BuiltinConstruction.prototypeOf(f, nt, type); // AutoJs6: class syntax
     }
+
+    public static Scriptable createFromConstructor( // AutoJs6: class syntax
+            Context cx, Object nt, VarScope s, TopLevel.Builtins proto) { // AutoJs6: class syntax
+        return BuiltinConstruction.createFromConstructor(cx, nt, s, proto); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
 
     public static void initFunction(
             Context cx, VarScope scope, JSFunction function, int type, boolean fromEvalCode) {

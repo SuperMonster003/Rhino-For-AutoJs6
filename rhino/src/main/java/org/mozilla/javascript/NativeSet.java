@@ -94,10 +94,11 @@ public class NativeSet extends ScriptableObject {
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         NativeSet ns = new NativeSet();
         ns.instanceOfSet = true;
+        ns.setPrototype(BuiltinConstruction.prototypeOf(f, nt)); // AutoJs6: class syntax
+        ns.setParentScope(s); // AutoJs6: class syntax
         if (args.length > 0) {
             loadFromIterable(cx, s, ns, NativeMap.key(args));
         }
-        ScriptRuntime.setBuiltinProtoAndParent(ns, f, nt, s, TopLevel.Builtins.Set);
         return ns;
     }
 
@@ -205,31 +206,7 @@ public class NativeSet extends ScriptableObject {
      * is common code with NativeWeakSet.
      */
     static void loadFromIterable(Context cx, VarScope scope, ScriptableObject set, Object arg1) {
-        if ((arg1 == null) || Undefined.instance.equals(arg1)) {
-            return;
-        }
-
-        // Call the "[Symbol.iterator]" property as a function.
-        Object ito = ScriptRuntime.callIterator(arg1, cx, scope);
-        if (Undefined.instance.equals(ito)) {
-            // Per spec, ignore if the iterator returns undefined
-            return;
-        }
-
-        // Find the "add" function of our own prototype, since it might have
-        // been replaced. Since we're not fully constructed yet, create a dummy instance
-        // so that we can get our own prototype.
-        ScriptableObject dummy = ensureScriptableObject(cx.newObject(scope, set.getClassName()));
-        var addCall = ScriptRuntime.getPropAndThis(dummy.getPrototype(), "add", cx, scope);
-        Callable add = addCall.getCallable();
-
-        // Finally, run through all the iterated values and add them!
-        try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, ito)) {
-            for (Object val : it) {
-                final Object finalVal = val == Scriptable.NOT_FOUND ? Undefined.instance : val;
-                add.call(cx, scope, set, new Object[] {finalVal});
-            }
-        }
+        BuiltinConstruction.addValuesFromIterable(cx, scope, set, arg1); // AutoJs6: class syntax
     }
 
     private static NativeSet realThis(Object thisObj, String name) {

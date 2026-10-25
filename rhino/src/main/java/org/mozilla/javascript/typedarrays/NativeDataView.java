@@ -14,6 +14,7 @@ import java.io.Serial;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import org.mozilla.javascript.BuiltinConstruction; // AutoJs6: class syntax
 import org.mozilla.javascript.ClassDescriptor;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.JSFunction;
@@ -21,7 +22,6 @@ import org.mozilla.javascript.LambdaConstructor;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -171,8 +171,11 @@ public class NativeDataView extends NativeArrayBufferView {
             }
         }
 
+        Scriptable proto = BuiltinConstruction.prototypeOf(f, nt); // AutoJs6: class syntax
+        BuiltinConstruction.checkView(ab, pos, isArg(args, 2) ? len : -1); // AutoJs6: class syntax
         var res = new NativeDataView(ab, pos, len, autoLength);
-        ScriptRuntime.setBuiltinProtoAndParent(res, f, nt, s, TopLevel.Builtins.DataView);
+        res.setPrototype(proto); // AutoJs6: class syntax
+        res.setParentScope(s); // AutoJs6: class syntax
         return res;
     }
 
