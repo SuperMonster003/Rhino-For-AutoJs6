@@ -11,6 +11,7 @@ package org.mozilla.javascript;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
+import org.mozilla.javascript.autojs6.JavaClassInheritance; // AutoJs6: class syntax
 import org.mozilla.javascript.lc.type.TypeInfo;
 import org.mozilla.javascript.lc.type.TypeInfoFactory;
 
@@ -58,6 +59,8 @@ public class WrapFactory {
         if (obj == null || obj == Undefined.instance || obj instanceof Scriptable) {
             return obj;
         }
+        var self = JavaClassInheritance.selfOf(obj); // AutoJs6: class syntax
+        if (self != null) return self; // AutoJs6: class syntax
         if (staticType.isPrimitive()) {
             if (staticType == TypeInfo.PRIMITIVE_VOID) {
                 return Undefined.instance;
@@ -96,6 +99,8 @@ public class WrapFactory {
         if (obj instanceof Scriptable) {
             return (Scriptable) obj;
         }
+        var self = JavaClassInheritance.selfOf(obj); // AutoJs6: class syntax
+        if (self != null) return self; // AutoJs6: class syntax
         return wrapAsJavaObject(cx, scope, obj, TypeInfo.NONE);
     }
 

@@ -80,6 +80,11 @@ class JavaMembers {
         return findExplicitFunction(name, isStatic) != null;
     }
 
+    Object member(String name) { // AutoJs6: class syntax
+        Object member = members.get(name); // AutoJs6: class syntax
+        return member != null ? member : staticMembers.get(name); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     Object get(Scriptable obj, VarScope scope, String name, Object javaObject, boolean isStatic) {
         Map<String, Object> ht = isStatic ? staticMembers : members;
         Object member = ht.get(name);

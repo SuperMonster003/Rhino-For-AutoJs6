@@ -14,7 +14,8 @@
 | P2 | 完成 (2026-10-25) | class 降糖与运行时原语, 解释 / 编译后端, V2 指令类; 通用绑定修复 (参数作用域, 参数解构的迭代器协议, for-of 关闭, 函数名推断); 生成器 `yield` 解析 (附录 C Q10) 与编译模式 yield 点的栈类型保存 |
 | P3 | 完成 (2026-10-25) | 公共字段, static block, 私有名 (T5: 每次类求值新建 `PrivateNameKey`, 对象上独立的私有元素表), 直接 eval 里的外层私有名与类元素上下文 (附录 C Q13), V2 指令类 |
 | P4 | 完成 (2026-10-25) | 内建构造器按 new.target 创建 (T9): 统一入口 `ScriptRuntime.createFromConstructor` 与新文件 `BuiltinConstruction` (GetPrototypeFromConstructor 含 GetFunctionRealm, 跨 realm 按构造器名取对方的内建原型); 逐个构造器改为先取原型 (附录 D 36 行); Map / Set 装入用实例的 `set` / `add`, RegExp 的 IsRegExp 与 RegExpExec, DataView 取原型后重查, ArrayBuffer 的 `Symbol.species`, TypedArray 非对象实参的 ToIndex, 生成器函数的 prototype 不带 constructor, Proxy 不读 new.target; 拆掉 P2 的构造后改原型脚手架 (只留 Java 类给 P5) |
-| P5-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
+| P5 | 完成 (2026-10-25) | 继承 Java 类与接口 (T6, fork-only D3): `class X extends JavaClass` / `extends Interface` / `extends JavaAdapter(Base, I1, I2)` (附录 C Q3 = A), 实例是包装适配器对象的脚本对象 (附录 C Q4 = A), 适配器类经 `JavaAdapter.createAdapterCode` 按签名缓存; 钩子层在 `autojs6` 包 |
+| P6-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
 
@@ -172,7 +173,19 @@
 | `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeDataView.java` | class syntax | 4 | 构造器先取原型, 之后重查缓冲区 (`BuiltinConstruction.checkView`: detached, 偏移, 长度), 末尾设原型与父作用域 | P4 |
 | `rhino/src/main/java/org/mozilla/javascript/typedarrays/NativeTypedArrayView.java` | class syntax | 3 | `js_constructor` 的最后分支: 非对象实参按 ToIndex 分配 (Symbol 抛 TypeError; 原来抛 `Error: invalid argument`) | P4 |
 
-合计 430 行 (class syntax 380, async 50); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行; P4 新增 62 行, 另把 `JSFunction.construct` 里 P2 的 `createObject` 调用改为 `BuiltinConstruction.thisObject`. P4 在上游文件里删除的行: `findPrototype` 两个方法体, `NativeMap` / `NativeSet` 的 `loadFromIterable` 方法体, 各构造器的 `setBuiltinProtoAndParent` 调用, `BaseFunction.createObject` 的方法体, `NativeRegExp.js_constructCall` 的提前返回, `NativeDataView` 的 `TopLevel` import; 合并时上游改了这些位置, 按第三节第 7 条以上游版本为基础重新插入钩子.
+| `rhino/src/main/java/org/mozilla/javascript/ClassRuntime.java` | class syntax | 1 | import `autojs6.JavaClassInheritance` | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/ClassRuntime.java` | class syntax | 1 | `defineClass`: heritage 先经 `JavaClassInheritance.heritage` (Java 类 / 接口换成它的 `JavaSuperclass`, final / 非 public 的类报 TypeError); P4 留下的 `superCall` 里 Java 类的构造后改原型脚手架已删除 | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/ClassRuntime.java` | class syntax | 2 | `uninitializedThis` (`thisValue` / `derivedResult` 共用): 派生自 Java 类时 super() 之前读 this 的消息改为 `msg.java.class.this.uninit` (`JavaClassInheritance.superclassName`) | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/JavaAdapter.java` | class syntax | 1 | import `autojs6.JavaClassInheritance` | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/JavaAdapter.java` | class syntax | 2 | `createAdapterWrapper`: 类适配器的对象以类实例为 self (`JavaClassInheritance.attach`) | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/JavaAdapter.java` | class syntax | 2 | `js_createAdapter`: 实参全是 Java 类与接口时返回超类工厂的结果 `JavaAdapter(Base, I1, I2)` (`JavaClassInheritance.superclassOf`, 附录 C Q3); 带实现对象的旧写法不变 | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/JavaAdapter.java` | class syntax | 2 | `getFunction`: 类实例的方法查找 (`JavaClassInheritance.method`: 数据属性直接返回, 其余在调用时查找, 未实现的抽象方法报 TypeError) | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/JavaAdapter.java` | class syntax | 2 | `generateCtor` 两个分支: 类适配器 (`classadapter` 前缀) 在调用 Java 构造器之前先存 delegee / self / factory (`JavaInheritanceSupport.storeEarly`) | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/JavaAdapter.java` | class syntax | 1 | `generateMethod`: 类适配器的方法先把 Java 对象交给实例 (`JavaInheritanceSupport.attachEarly`; Java 构造器调用被覆盖的方法时实例已能读 Java 成员) | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/JavaMembers.java` | class syntax | 4 | 包内方法 `member(name)` (实例成员, 再静态成员), 供 `JavaInheritanceSupport.isWritableJavaProperty` 判断赋值写 Java 对象还是建自有属性 | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/WrapFactory.java` | class syntax | 1 | import `autojs6.JavaClassInheritance` | P5, fork-only (D3) |
+| `rhino/src/main/java/org/mozilla/javascript/WrapFactory.java` | class syntax | 4 | `wrap` 与 `wrapNewObject`: 类实例的 Java 对象包装回实例本身 (`JavaClassInheritance.selfOf`; 在 `wrapAsJavaObject` 之前) | P5, fork-only (D3) |
+合计 453 行 (class syntax 403, async 50); P2 新增 203 行, 另把 `IRFactory.transform` 里 P1 的 `ClassLowering.transform` 调用改为传入 IRFactory; P3 新增 40 行, `transformLiteral` 的 3 行合为 1 行; P4 新增 62 行, 另把 `JSFunction.construct` 里 P2 的 `createObject` 调用改为 `BuiltinConstruction.thisObject`. P4 在上游文件里删除的行: `findPrototype` 两个方法体, `NativeMap` / `NativeSet` 的 `loadFromIterable` 方法体, 各构造器的 `setBuiltinProtoAndParent` 调用, `BaseFunction.createObject` 的方法体, `NativeRegExp.js_constructCall` 的提前返回, `NativeDataView` 的 `TopLevel` import; 合并时上游改了这些位置, 按第三节第 7 条以上游版本为基础重新插入钩子. P5 新增 23 行, 全部是 Java 类继承 (fork-only, D3): 上游文件 19 行, fork 文件 `ClassRuntime` 4 行 (它是第 4 节的新文件, 这 4 行仍带标记, 退役 class 族时按 `AGENTS.md` 7.4 改挂到上游实现, 见 NOTES.md P5).
 
 ## 4. 新文件
 
@@ -210,13 +223,21 @@
 - `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassThis.java`: V2 指令, 对应 icode `CLASS_THIS` (P2, 附录 C Q11: 尚无 IR 到 V2 的编译器).
 - `rhino/src/main/java/org/mozilla/javascript/interpreterv2/instruction/ClassValues.java`: V2 指令类共用的出栈辅助 (P2).
 
+- `rhino/src/main/java/org/mozilla/javascript/JavaInheritanceSupport.java`: fork-only (D3), P5: `autojs6` 包用到的包内互操作入口, 没有自己的逻辑: 适配器类的生成与缓存 (与私有的 `JavaAdapter.getAdapterClass` 相同, 键 `JavaAdapterSignature`, 类名前缀 `classadapter`), 可覆盖方法, 构造器重载选择 (`NativeJavaMethod.findFunction`), 不调用访问器的自有属性读取, 生成代码里的 `storeEarly` / `attachEarly`, Java 字段 / bean 属性是否可写.
+- `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaClassInheritance.java`: fork-only (D3), P5 (T6): 钩子入口 (`heritage`, `superclassOf`, `attach`, `method`, `selfOf`, `superclassName`), 构造 (new.target 的原型, 原型链上覆盖的方法名, 适配器类, 实例), 每个顶层作用域按 "Java 类 + 接口" 一份的超类注册表.
+- `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaSuperclass.java`: fork-only (D3), P5: class 继承的超类, 代替 Java 类 / 接口或 `JavaAdapter(Base, I1, I2)` 的结果: prototype 是 `JavaPrototype`, [[Construct]] 以公有与受保护构造器的重载选择建适配器对象, 不可调用, 显示 Java 类的静态成员, 可覆盖 / final / 实例方法名表, 每个适配器类的 `Adapter` (派发的方法, `super$` 方法, 构造器, Java 成员视图).
+- `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaPrototype.java`: fork-only (D3), P5: 超类的 prototype, 原型链上 JS 部分的末端: 从实例查找时给出 Java 对象的成员 (被覆盖的方法给 `super$` 实现, 抽象的不给), 可写 Java 字段 / bean 属性的赋值, `super.m()` 的延迟查找函数.
+- `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaSubclassObject.java`: fork-only (D3), P5: 类实例 (附录 C Q4 = A): 包装适配器对象 (`Wrapper`), 是适配器的 delegee 与 self, 字段与私有元素是它自己的; Java 成员经适配器对象的 `NativeJavaObject` 视图 (含受保护成员), `Iterable` 的 `Symbol.iterator`.
+- `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaSubclass.java`: fork-only (D3), P5: 类适配器实现的标记接口, `WrapFactory` 钩子据此认出类实例的 Java 对象.
+
 ### 4.1 错误消息
 
-基础 `Messages.properties` 与 9 个翻译 bundle (ar, es, fr, ja, ko, ru, zh, zh_HK, zh_TW) 末尾各有一段 `# AutoJs6: class syntax` 与 `# AutoJs6: async` 注释开头的 fork 消息 (T11). key 清单以 `MessageTranslationsTest` 的 `CLASS_SYNTAX_KEYS` 为准 (P1 27 个, P2 新增 11 个, P3 删除 1 个新增 8 个, 共 45 个):
+基础 `Messages.properties` 与 9 个翻译 bundle (ar, es, fr, ja, ko, ru, zh, zh_HK, zh_TW) 末尾各有一段 `# AutoJs6: class syntax` 与 `# AutoJs6: async` 注释开头的 fork 消息 (T11). key 清单以 `MessageTranslationsTest` 的 `CLASS_SYNTAX_KEYS` 为准 (P1 27 个, P2 新增 11 个, P3 删除 1 个新增 8 个, P5 新增 9 个, 共 54 个):
 
 - class P1 (20): `msg.class.name.missing`, `msg.class.no.brace`, `msg.class.no.brace.after`, `msg.class.dup.ctor`, `msg.class.ctor.special`, `msg.class.field.ctor`, `msg.class.static.prototype`, `msg.class.private.ctor`, `msg.class.private.undeclared`, `msg.class.private.dup`, `msg.class.private.delete`, `msg.class.private.super`, `msg.class.private.unexpected`, `msg.class.super.call`, `msg.class.field.arguments`, `msg.class.getter.parms`, `msg.class.setter.parms`, `msg.class.strict.parms`, `msg.class.field.semi`, `msg.class.decl.not.in.block`; `msg.class.not.supported` 已在 P3 删除 (字段 / static block / 私有名可以执行).
 - class P2 (11): `msg.class.ctor.call`, `msg.class.extends.not.ctor`, `msg.class.extends.proto`, `msg.class.super.not.ctor`, `msg.class.this.uninit`, `msg.class.super.twice`, `msg.class.derived.return`, `msg.class.tdz`, `msg.class.restricted.prop`, `msg.param.tdz`, `msg.class.new.super`.
 - class P3 (8): `msg.class.private.read`, `msg.class.private.write`, `msg.class.private.twice`, `msg.class.private.methods.twice`, `msg.class.private.method.write`, `msg.class.private.no.getter`, `msg.class.private.no.setter`, `msg.class.field.define`.
+- class P5 (9, Java 类继承, fork-only D3, 在 `msg.class.field.define` 之后的 `# AutoJs6: class syntax, Java classes` 一段): `msg.java.class.final`, `msg.java.class.not.public`, `msg.java.class.final.method`, `msg.java.class.no.ctor`, `msg.java.class.abstract`, `msg.java.class.override.not.function`, `msg.java.class.this.uninit`, `msg.java.adapter.class.first`, `msg.java.adapter.dup`; 另沿用上游已有的 `msg.not.java.class.arg`, `msg.only.one.super` 与 P2 的 `msg.class.ctor.call`.
 - async (6): `msg.async.not.supported`, `msg.async.await.context`, `msg.async.await.params`, `msg.async.for.await.of`, `msg.async.decl.not.in.block`, `msg.async.name.missing`.
 
 ## 5. 自带测试类
@@ -237,8 +258,9 @@
 | `org.mozilla.javascript.tests.classsyntax.PrivateNamesTest` | rhino | 私有字段 / 方法 / 访问器 / 静态私有成员, 每次类求值的唯一性, 品牌检查与重复安装的 TypeError, 反射与 Proxy 不可见, freeze 之后仍可写, 嵌套作用域, 运算符, 直接 eval, Java 对象, 解释 / 编译两模式 | P3 |
 | `org.mozilla.javascript.tests.classsyntax.BuiltinSubclassingTest` | rhino | 附录 D 的每个构造器至少一个子类用例 (instanceof, 原型方法, species, 自定义成员, 覆盖的 `set` / `add` / `exec`), Proxy / 绑定函数 / 另一 realm 的函数作 new.target, 宿主 LambdaConstructor 被继承, 解释 / 编译两模式 | P4 |
 | `org.mozilla.javascript.tests.BuiltinSubclassingTest262Test` | tests | test262 `subclass-builtins` (两目录 72 个), `subclass/builtin-objects` (70 个) 与 `built-ins` 下含 `newTarget` 的文件 (219 个) 解释 / 编译两模式执行, 跳过规则同 `ClassSyntaxTest262CoreTest`, 已知失败登记附录 E (P9 1 例); 失败明细写到 `tests/build/class-syntax/builtins-<模式>.txt` | P4 |
+| `org.mozilla.javascript.tests.classsyntax.JavaClassInheritanceTest` | rhino | 继承 Java 类 (Thread, AbstractList, 带受保护构造器 / 字段 / 方法的抽象类), 单个接口, `JavaAdapter(Base, I1, I2)`, super() 的重载选择, `super.m()`, Java 构造器调用被覆盖的方法, 静态成员, 字段 / 私有名在实例上, 赋值写 Java 字段, Java API 拿到 Java 对象且回来仍是实例, toString / equals / hashCode, 类的子类, Java 线程池回调, 适配器类缓存, 旧 `JavaAdapter` 写法回归, 各类 TypeError / ReferenceError 消息, 解释 / 编译两模式 | P5 |
 
-后续阶段规划的测试类 (JavaClassInheritanceTest, AsyncFunctionTest, AsyncGeneratorTest, ForAwaitTest) 落地时登记到本表.
+后续阶段规划的测试类 (AsyncFunctionTest, AsyncGeneratorTest, ForAwaitTest) 落地时登记到本表.
 
 运行: `./gradlew.bat :rhino:test --tests "org.mozilla.javascript.tests.classsyntax.*" --tests "*MessageTranslationsTest*" --tests "*ClassInstructionsTest*" --tests "*ClassChainUniquenessTest*"` 与 `./gradlew.bat :tests:test --tests "*ClassSyntaxTest262ParseTest*" --tests "*ClassSyntaxTest262CoreTest*" --tests "*BuiltinSubclassingTest262Test*"` (核心集的失败明细写到 `tests/build/class-syntax/core-<模式>.txt`).
 
@@ -273,6 +295,14 @@ P4 起依赖:
 - 内建构造器的形态: `ClassDescriptor.Builder` 定义的构造器是 `JSFunction` (描述符 `isFunction()` 为 false, 以此区分脚本函数), 构造代码签名 `(cx, f, nt, s, thisObj, args)` 拿到 new.target, `JSFunction.construct` 先建 this 再执行构造代码; 内建实例的原型经 `ScriptRuntime.setBuiltinProtoAndParent` -> `findPrototype` 或各构造器的钩子取得. 上游新增内建构造器时, 按附录 D 的做法让它在建实例之前取 `BuiltinConstruction.prototypeOf(f, nt)`, 并在 `BuiltinSubclassingTest` 加子类用例.
 - realm: `ScriptableObject.getTopLevelScope` / `TopLevel.getBuiltinPrototype` / `getClassPrototype`, `BoundFunction.getTargetFunction`, `NativeProxy.getTargetThrowIfRevoked`; 构造器的 `getFunctionName` 与 `TopLevel.Builtins` / `NativeErrors` 的枚举名一致 (跨 realm 按名取原型).
 - `LambdaConstructor.construct` 与 `BaseFunction.construct` / `createObject` 的调用顺序, `NativeRegExp.EXEC_DESCRIPTOR` (判断 exec 是否被覆盖), `ScriptRuntimeES6::symbolSpecies`.
+
+P5 起依赖 (Java 类继承, fork-only D3; 上游改动这些机制时 `autojs6` 包跟着改):
+
+- JavaAdapter 生成类的布局: 字段 `factory` / `delegee` / `self`, 每个非私有基类构造器对应 `(Scriptable, ContextFactory, <基类构造器参数>)`, 方法经 `getFunction(delegee, name)` 与 `callMethod(factory, self, ...)` 派发, 非抽象方法的 `super$name`, 构造器末尾的 `createAdapterWrapper(delegee, this)`; `JavaAdapter.createAdapterCode` / `loadAdapterClass` / `getOverridableMethods` / `JavaAdapterSignature`, `ClassCache.getInterfaceAdapterCacheMap` (每个顶层作用域一份的适配器类缓存).
+- `NativeJavaMethod.findFunction` (重载选择) 与 `ExecutableBox.wrapArgsInternal`, `NativeJavaObject` 的 isAdapter 视图 (含受保护成员) 与 `JavaMembers` 的成员表 (字段, `BeanProperty`, `ExecutableOverload.WithField`).
+- `WrapFactory.wrap` / `wrapNewObject` 是 Java 值进入脚本的出口 (宿主覆盖 `wrapAsJavaObject` 不影响钩子, 钩子在它之前); `NativeJavaClass.hasInstance` 解包 `Wrapper` (instanceof Java 类).
+- super 访问: 读取 (`ScriptableObject.getSuperProperty`) 以当前 this 为 start; 方法调用 (`getPropAndThis` + `CALL_ON_SUPER`) 以 super 对象为 start 查找, 调用时换成 this, `JavaPrototype` 为此返回延迟查找的函数. 上游把 super 调用改为以 this 为 start 时, 这层可以去掉.
+- `ContextFactory.call`: 没有 Context 的 Java 线程回调 (`JavaAdapter.callMethod`) 以构造时的 `cx.getFactory()` 进入.
 
 后续阶段将依赖 (登记时补充): `GeneratorState` 与 async 驱动, `NativePromise` 与 `Context.enqueueMicrotask`, `UnhandledRejectionTracker`.
 
@@ -320,9 +350,22 @@ P4:
 
 - 求值顺序与规范不同, 只有 new.target 的 `prototype` 是 getter (或实参有副作用) 时可观察, test262 未覆盖: TypedArray 构造器先处理实参 (读对象实参的迭代器 / length) 后取原型, 规范先取原型; ArrayBuffer 的 `maxByteLength` 超过可用内存时在取原型之前抛 RangeError (规范在取原型之后分配失败); `RegExp.prototype.test` 先读 `exec` 再对实参 ToString (规范相反).
 - 宿主用 `LambdaConstructor` 定义的构造器: Java 构造代码先建好对象 (此时原型是类原型), 再按 new.target 改原型; 构造代码里看不到子类原型.
-- Java 类 (`NativeJavaClass`) 被 class 继承时仍是 `ClassRuntime.superCall` 里 "构造后按 new.target 改原型" 的 P2 脚手架, 只对 `NativeJavaClass` 生效, P5 (T6) 接管; 其他非 JSFunction 构造器 (绑定函数, Proxy, LambdaConstructor 等) 都由自身的 [[Construct]] 按 new.target 创建.
+- Java 类被 class 继承时的 P2 脚手架 (`ClassRuntime.superCall` 里构造后改原型) 已由 P5 (T6) 接管并删除; 其他非 JSFunction 构造器 (绑定函数, Proxy, LambdaConstructor 等) 都由自身的 [[Construct]] 按 new.target 创建.
 - WeakMap / WeakSet 有规范没有的 `Symbol.species` (上游现状, 不影响子类化, 未改); E4X 构造器 (XML, XMLList, Namespace, QName) 不看 new.target (范围外, 附录 D).
 - `new f(...args)` (new 的实参里有展开) 两种模式都报内部错误 (`RuntimeException: 190`), 上游缺陷, 与 class 无关 (`super(...args)` 由 P2 处理, 不受影响).
+
+P5 (Java 类继承, 决定与理由见 NOTES.md P5):
+
+- 未实现的抽象方法在被调用时报 TypeError (`msg.java.class.abstract`), 不在类定义或构造时检查; 覆盖 final 方法在首次构造时报 TypeError; 继承 final 或非 public 的类在类定义时报 TypeError.
+- Java 只看到构造时已存在的覆盖: 适配器类按 new.target 原型链上 (到 Java 超类为止) 的函数名生成, 之后加到原型或实例上的新方法名只对 JS 可见; 已覆盖的方法名每次调用都重新查找, 替换方法体 (包括实例自有属性) 对 Java 生效.
+- 赋值: 可写的 Java 字段与有 setter 的 bean 属性写到 Java 对象; 其他名字 (final 字段, 只读 bean 属性, 方法名) 成为实例的自有属性, 只对 JS 可见. 字段声明 (P3, [[Define]]) 总是建自有属性, 与同名 Java 字段并存.
+- 基类构造器调用被覆盖的方法时, 方法以实例为 this 运行, 能读 Java 成员, 但实例字段尚未初始化 (与 JS 派生类在 super() 期间调用被覆盖方法一致).
+- 额外接口与基类实现的接口的 default 方法: 类里的同名方法只对 JS 调用生效, Java 调用仍走 default 实现 (与 `new JavaAdapter` 相同, `getOverridableMethods` 不含它们).
+- 桌面 JVM 上 JDK 类的受保护成员 (例如 `AbstractList.modCount`) 因模块不开放不可见, 该适配器类退回只有公有成员的视图; Android 没有模块, 不受影响. 旧写法 `new JavaAdapter(java.util.AbstractList, {...})` 在桌面 JDK 17+ 上因同一原因抛 `InaccessibleObjectException` (上游现状, 未改).
+- 以 Symbol 为键的 `super[sym]()` 不查 Java 成员; 实例上 `Symbol.iterator` 对 `Iterable` 可用.
+- 实例的 `Object.prototype.toString` 标签为 `JavaObject`, `typeof` 为 `object`; JSON / for-in / `Object.keys` 只列实例自有属性 (字段), 不含 Java 成员.
+- 把类实例当作旧写法 `new JavaAdapter(Base, instance)` 的实现对象时, 方法经 `JavaClassInheritance.method` 查找, 缺失的抽象方法报 TypeError (普通实现对象得到 undefined).
+- 适配器类按顶层作用域缓存 (`ClassCache`), 新的顶层作用域 (宿主每次运行脚本) 重新生成; Android 上每个签名首次构造要经宿主 D8 转 dex (P5.2 结论, P7 测量).
 
 ## 9. 退役记录
 

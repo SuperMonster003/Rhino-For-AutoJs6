@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import org.mozilla.classfile.ByteCode;
 import org.mozilla.classfile.ClassFileWriter;
+import org.mozilla.javascript.autojs6.JavaClassInheritance; // AutoJs6: class syntax
 import org.mozilla.javascript.lc.type.TypeInfo;
 
 public final class JavaAdapter {
@@ -79,6 +80,8 @@ public final class JavaAdapter {
     }
 
     public static Scriptable createAdapterWrapper(Scriptable obj, Object adapter) {
+        var subclass = JavaClassInheritance.attach(obj, adapter); // AutoJs6: class syntax
+        if (subclass != null) return subclass; // AutoJs6: class syntax
         VarScope scope = ScriptableObject.getTopLevelScope(obj.getParentScope());
         NativeJavaObject res = new NativeJavaObject(scope, adapter, TypeInfo.NONE, true);
         res.setPrototype(obj);
@@ -96,6 +99,8 @@ public final class JavaAdapter {
         if (N == 0) {
             throw ScriptRuntime.typeErrorById("msg.adapter.zero.args");
         }
+        var base = JavaClassInheritance.superclassOf(cx, scope, args); // AutoJs6: class syntax
+        if (base != null) return base; // AutoJs6: class syntax
 
         // Expected arguments:
         // Any number of NativeJavaClass objects representing the super-class
@@ -509,6 +514,8 @@ public final class JavaAdapter {
     }
 
     public static Function getFunction(Scriptable obj, String functionName) {
+        var subclass = JavaClassInheritance.method(obj, functionName); // AutoJs6: class syntax
+        if (subclass != null) return subclass; // AutoJs6: class syntax
         Object x = ScriptableObject.getProperty(obj, functionName);
         if (x == Scriptable.NOT_FOUND) {
             // This method used to swallow the exception from calling
@@ -595,6 +602,7 @@ public final class JavaAdapter {
                     "(Lorg/mozilla/javascript/Scriptable;"
                             + "Lorg/mozilla/javascript/ContextFactory;)V",
                     ClassFileWriter.ACC_PUBLIC);
+            JavaInheritanceSupport.storeEarly(cfw, adapterName); // AutoJs6: class syntax
 
             // Invoke base class constructor
             cfw.add(ByteCode.ALOAD_0); // this
@@ -610,6 +618,7 @@ public final class JavaAdapter {
             }
             sig.append(")V");
             cfw.startMethod("<init>", sig.toString(), ClassFileWriter.ACC_PUBLIC);
+            JavaInheritanceSupport.storeEarly(cfw, adapterName); // AutoJs6: class syntax
 
             // Invoke base class constructor
             cfw.add(ByteCode.ALOAD_0); // this
@@ -910,6 +919,7 @@ public final class JavaAdapter {
         int paramsEnd = appendMethodSignature(parms, returnType, sb);
         String methodSignature = sb.toString();
         cfw.startMethod(methodName, methodSignature, ClassFileWriter.ACC_PUBLIC);
+        JavaInheritanceSupport.attachEarly(cfw, genName); // AutoJs6: class syntax
 
         // Prepare stack to call method
 

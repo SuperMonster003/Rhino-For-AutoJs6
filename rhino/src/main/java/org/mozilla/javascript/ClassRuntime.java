@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.mozilla.javascript.autojs6.JavaClassInheritance; // AutoJs6: class syntax
 
 /**
  * AutoJs6 class syntax: the runtime primitives of class definitions and derived constructors
@@ -105,6 +106,7 @@ public final class ClassRuntime {
             protoParent = null;
             constructorParent = ScriptableObject.getFunctionPrototype(scope);
         } else {
+            heritage = JavaClassInheritance.heritage(heritage, cx, scope); // AutoJs6: class syntax
             if (!AbstractEcmaObjectOperations.isConstructor(cx, heritage)) {
                 throw ScriptRuntime.typeErrorById("msg.class.extends.not.ctor", describe(heritage));
             }
@@ -734,12 +736,19 @@ public final class ClassRuntime {
         if (thisObj instanceof DerivedThis) {
             Scriptable value = ((DerivedThis) thisObj).value;
             if (value == null) {
-                throw ScriptRuntime.referenceError(
-                        ScriptRuntime.getMessageById("msg.class.this.uninit"));
+                throw uninitializedThis(((DerivedThis) thisObj).constructor);
             }
             return value;
         }
         return thisObj;
+    }
+
+    /** The ReferenceError of reading {@code this} before {@code super()} has initialized it. */
+    private static EcmaError uninitializedThis(JSFunction constructor) {
+        String key = "msg.class.this.uninit";
+        String java = JavaClassInheritance.superclassName(constructor); // AutoJs6: class syntax
+        if (java != null) key = "msg.java.class.this.uninit"; // AutoJs6: class syntax
+        return ScriptRuntime.referenceError(ScriptRuntime.getMessageById(key, java));
     }
 
     /**
@@ -791,14 +800,6 @@ public final class ClassRuntime {
         }
         Scriptable result =
                 ((Constructable) superConstructor).construct(cx, newTarget, scope, args);
-        if (superConstructor instanceof NativeJavaClass && newTarget instanceof Scriptable) {
-            // Java classes are not built-ins: until the Java inheritance of ROADMAP P5 (T6) takes
-            // them over, the Java object gets the prototype of new.target after construction.
-            Object proto = ScriptableObject.getProperty((Scriptable) newTarget, "prototype");
-            if (proto instanceof Scriptable && result.getPrototype() != proto) {
-                result.setPrototype((Scriptable) proto);
-            }
-        }
         DerivedThis holder = (DerivedThis) thisObj;
         if (holder.value != null) {
             throw ScriptRuntime.referenceError(
@@ -846,8 +847,7 @@ public final class ClassRuntime {
         }
         Scriptable value = ((DerivedThis) thisObj).value;
         if (value == null) {
-            throw ScriptRuntime.referenceError(
-                    ScriptRuntime.getMessageById("msg.class.this.uninit"));
+            throw uninitializedThis(((DerivedThis) thisObj).constructor);
         }
         return value;
     }
