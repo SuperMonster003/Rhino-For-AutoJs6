@@ -433,3 +433,9 @@ P6.8 是 P6.6 / P6.7 时发现的两个上游缺陷 (维护者要求修复, 附�
 - P6.10: 提交 b61131887 (三处修正与 HOOKS.md, `ArraySpreadTest` 一处断言), c01b234a5 (Q22, `IteratorClose`), 1f8f99066 (`IteratorProtocolFixesTest` 6 例), 勾选提交; 中间提交 b61131887 上跑过 classsyntax 全部与 `ArraySpreadTest` (只有尚未提交的 `IteratorProtocolFixesTest` 里依赖 Q22 的 3 例失败); test262 全部目录三模式 137526 例失败 0, 没有新通过, properties 不重生成; 五模块全量: (JDK 21, `--rerun-tasks`, 18 分 45 秒, 同时跑 `spotlessCheck`) 149274 例 27 失败 (多出的 6 例是 `IteratorProtocolFixesTest`), 失败清单与 P6.9 的 `current-failures.txt` 逐条相同 (只差对象哈希), 新增 0. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过. 证据 `t262-p610.log` / `t262-q22.log` 与两份意外通过清单, `bench-spread3.txt` 末段, `full-tests-p610.log`, `current-failures-p610.txt`.
 - P6.11: 提交 4fa5ced86 (功能与 HOOKS.md), 0a67bfc4b (`SetMethodsAndFromEntriesTest` 6 例), 01659e89e (properties: 解锁 4, 新增失败 0), 勾选提交; 五模块全量 (17 分 47 秒) 149280 例 27 失败, 与 P6.10 逐条相同, 新增 0. 门禁通过. 证据 `regen-p611.log`, `props-before-p611.properties`, `full-tests-p611.log`, `current-failures-p611.txt`.
 - P6.12: 提交 24e56725a (功能与 HOOKS.md), e94fedb6b (`ArrayDestructuringTest` 14 例), 71326b360 (properties: 解锁 258, 新增失败 0, 标签变化 0), 勾选提交; 五模块全量 (19 分 55 秒) 149294 例 27 失败, 与 P6.11 逐条相同, 新增 0. 门禁通过. 证据 `bench-dstr-p612.txt`, `regen-p612.log`, `props-before-p612.properties`, `pd612/`, `full-tests-p612.log`, `current-failures-p612.txt`.
+
+## P6.13 Set 集合方法, Reflect 的键, 解构默认值, 数组赋值模式的成员目标 (2026-10-26, 附录 C Q26 / Q27 / Q30 / Q32 = A, 维护者 15:3x 拍板)
+
+- Q28 的结论 (维护者选 A, 接受现状): P6.12 之后参数之外的数组解构在解释模式每个模式多 40-90 ns (宿主用解释模式), 编译模式 1.3-2.1 倍; 换来规范行为 (迭代器协议, 提前退出与出错时关闭) 与 test262 的 258 个解锁. 不做简单模式的合并指令, 也不做编译模式的内联快速路径.
+- Q29 (维护者选 A): 保持规范行为, 不可迭代的类数组对象解构报 TypeError; 宿主 API 返回的集合是否可迭代由 P7 核对. Q31 (维护者选 A): 保持现状.
+- 进度: Q26 未开始, Q27 未开始, Q30 未开始, Q32 未开始.
