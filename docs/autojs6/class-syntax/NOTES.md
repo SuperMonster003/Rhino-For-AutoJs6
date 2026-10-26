@@ -338,9 +338,15 @@
 ### 未结问题
 
 - 附录 C Q18 (`set: undefined` 修复, 已先行) 与 Q19 (展开的快速路径, 保持现状) 待维护者确认.
-- 编译模式: 内联原型的对象字面量 `{ __proto__: { x: 3 }, m() { return super.x; } }` 里 `super.x` 读到 undefined (原型本身正确, 解释模式正常); 2026-10-20 的 `rhino-all` 旧 jar 同样, 与本阶段无关, 未修, 列为后续事项 (`LogicalAssignmentTest.superProperties` 用变量原型绕开).
+- 编译模式: 内联原型的对象字面量 `{ __proto__: { x: 3 }, m() { return super.x; } }` 里 `super.x` 读到 undefined (原型本身正确, 解释模式正常); 2026-10-20 的 `rhino-all` 旧 jar 同样, 与本阶段无关; 已由 P6.8 修复 (见下).
 - test262 里与本阶段目录相关但仍登记的: `expressions/call` 的 `tco-*.js` 6 个 (T10 特性 tail-call-optimization) 与 `eval-realm-indirect.js` (跨 realm 间接 eval), `expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js` (解释 / 调试器模式, `super[k]++` 的顺序), 都早于 P6.6 登记, 与展开 / 逻辑赋值无关.
-- 上游既有, 未改: 编译模式下函数里数字类型的寄存器变量作 callee 并直接返回 (`function t() { var x = 1; return x(2); }`) 报 `VerifyError` (展开与否都一样), 编译模式普通调用 1000 层递归即 `StackOverflowError`.
+- 编译模式下函数里数字类型的寄存器变量作 callee 并直接返回 (`function t() { var x = 1; return x(2); }`) 报 `VerifyError` (展开与否都一样): 已由 P6.8 修复. 上游既有, 未改: 编译模式普通调用 1000 层递归即 `StackOverflowError`.
+
+### P6.8 编译模式的两个上游缺陷 (2026-10-26, 维护者要求修复)
+
+- 嵌套对象字面量与 home object: `BodyCodegen.visitObjectLiteral` 把新对象存进 `savedHomeObjectLocal`, `visitFunction` 的方法定义分支以它作 home object; 字段只有一个, 生成属性值时遇到嵌套的对象字面量 (内联 `__proto__: {...}`, 方法前面任何值为对象字面量的属性) 会被覆盖且不恢复, 其后的方法 / 访问器以内层对象为 home object, `super.x` 读的是内层对象的原型 (通常是 `Object.prototype`). 解释器从栈上取 home object, 不受影响. 修法: 生成属性前保存外层的值, 之后恢复 (2 行钩子). 上游另有一处小问题未改: 这个局部变量每个字面量申请一次, 从不释放.
+- 数字值的 callee: `Optimizer.rewriteForNumberVariables` 的 CALL 只改写 callee 的子节点 (`rewriteAsObjectChildren(child, child.getFirstChild())`), callee 本身没经过数字类型改写, 而 `visitGetVar` 对数字变量总是 `DLOAD`, 于是 `y(2)` 以 double 进入 `getValueAndThis` (`VerifyError`); 赋值 / 自增作 callee (`(y = 2)(1)`, `(y++)(1)`) 则因 SETVAR / INC 没被标记而在生成器里断言失败或报 "Bad tree". 修法: callee 本身按对象位置改写 (结果为数字时包 `TO_OBJECT`, 同 `rewriteAsObjectChildren` 对其他子节点的做法), 4 行钩子并删上游 1 行; GETPROP / NAME 等 callee 的改写结果与原来相同, GETELEM 的数字下标沿用 `generateLookupResult` 已有的 `ISNUMBER_PROP` 处理.
+- 测试 `CompiledModeFixesTest` 3 个用例两模式通过. 上游 PR: 各是几行的独立修复, 不依赖 fork 其他部分 (`ClassBodyCodegen.toObject` 在 PR 里内联进 `Optimizer`).
 
 ### 验证
 
