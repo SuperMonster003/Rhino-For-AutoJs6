@@ -182,9 +182,8 @@ class ArraySpreadTest {
 
     @Test
     void returnAndResultPropertiesAsTheProtocolHasThem() {
-        // Upstream reads return when it starts and calls it after the last element, and sets the
-        // properties of each result with setters of Object.prototype; whatever it does, the fast
-        // path must not change it.
+        // These send spreads through the protocol, whose steps with return and the result
+        // properties P6.10 changed; whatever the protocol does, the fast path must not change it.
         assertWithAllModes_ES6(
                 "true|true|true|true",
                 SETUP
@@ -196,7 +195,7 @@ class ArraySpreadTest {
                   log.length = 0;
                   var slow = forms(twin([1, 2])) + log.join();
                   undo();
-                  return fast === slow && log.length > 0;
+                  return fast === slow;
                 }
                 [same(log => { arrayIteratorProto.return = function () { log.push('r'); return {}; }; },
                       () => { delete arrayIteratorProto.return; }),

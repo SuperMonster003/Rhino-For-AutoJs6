@@ -26,6 +26,7 @@ public class IteratorLikeIterable implements Iterable<Object>, Closeable {
     private final Callable returnFunc;
     private final Scriptable iterator;
     private boolean closed;
+    private boolean exhausted; // AutoJs6: class syntax
 
     public IteratorLikeIterable(Context cx, VarScope scope, Object target) {
         this.cx = cx;
@@ -51,7 +52,7 @@ public class IteratorLikeIterable implements Iterable<Object>, Closeable {
     public void close() {
         if (!closed) {
             closed = true;
-            if (returnFunc != null) {
+            if (returnFunc != null && !exhausted) { // AutoJs6: class syntax
                 returnFunc.call(cx, scope, iterator, ScriptRuntime.emptyArgs);
             }
         }
@@ -83,6 +84,7 @@ public class IteratorLikeIterable implements Iterable<Object>, Closeable {
             // It's OK if done is undefined.
             if (ScriptRuntime.toBoolean(doneval)) {
                 isDone = true;
+                exhausted = true; // AutoJs6: class syntax
                 return false;
             }
             nextVal = ScriptRuntime.getObjectPropNoWarn(val, ES6Iterator.VALUE_PROPERTY, cx, scope);

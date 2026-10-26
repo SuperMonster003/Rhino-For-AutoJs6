@@ -100,8 +100,8 @@ public abstract class ES6Iterator extends ScriptableObject {
 
     static Scriptable makeIteratorResult(Context cx, VarScope scope, Boolean done, Object value) {
         final Scriptable iteratorResult = cx.newObject(scope);
-        ScriptableObject.putProperty(iteratorResult, VALUE_PROPERTY, value);
-        ScriptableObject.putProperty(iteratorResult, DONE_PROPERTY, done);
+        iteratorResult.put(VALUE_PROPERTY, iteratorResult, value); // AutoJs6: class syntax
+        iteratorResult.put(DONE_PROPERTY, iteratorResult, done); // AutoJs6: class syntax
         return iteratorResult;
     }
 }

@@ -14,15 +14,14 @@ import java.util.Arrays;
  * related to classes.
  *
  * <p>A spread iterates its value: {@link NewLiteralStorage} calls {@code a[Symbol.iterator]()},
- * reads {@code next} and {@code return} of the iterator, calls {@code next()} until a result is
- * done, and calls {@code return()} at the end. The array iterator creates every result with {@link
- * ScriptableObject#putProperty}, which finds {@code value} and {@code done} on {@code
- * Object.prototype}, and reads the elements as own properties. No script code runs when all of
- * these find the built-ins, so the elements are copied directly. That needs:
+ * reads {@code next} and {@code return} of the iterator and calls {@code next()} until a result is
+ * done. The array iterator reads the elements with Get, so holes find index properties of the
+ * prototypes and accessor elements run their getters. No script code runs when all of these find
+ * the built-ins, so the elements are copied directly. That needs:
  *
  * <ul>
- *   <li>a dense {@link NativeArray} (no accessor elements) without holes, which take the slow path
- *       so that how the iterator reads them stays upstream's;
+ *   <li>a dense {@link NativeArray} (no accessor elements) without holes, whose reads go to the
+ *       prototypes;
  *   <li>no own {@code Symbol.iterator}, and the built-in {@code values} as the own {@code
  *       Symbol.iterator} data property of its prototype, an array (as {@code Array.prototype} is);
  *   <li>the built-in {@code next} as an own data property of {@code %ArrayIteratorPrototype%}, and
@@ -34,6 +33,11 @@ import java.util.Arrays;
  *
  * The checks read the slots without calling getters, once per spread: a change of any of these,
  * also between two spreads of one literal or call, sends the next spread through the protocol.
+ *
+ * <p>The checks of {@code value} and {@code done} date from before P6.10, when upstream wrote the
+ * results with {@link ScriptableObject#putProperty}, which found these on {@code Object.prototype}
+ * (appendix C Q21). They are not observable by a spread any more and stay as a conservative part of
+ * the conditions.
  */
 final class ArraySpread {
 

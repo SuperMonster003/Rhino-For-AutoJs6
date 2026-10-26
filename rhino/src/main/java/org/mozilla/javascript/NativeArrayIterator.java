@@ -65,7 +65,7 @@ public final class NativeArrayIterator extends ES6Iterator {
             return Integer.valueOf(index++);
         }
 
-        Object value = arrayLike.get(index, arrayLike);
+        Object value = ScriptableObject.getProperty(arrayLike, index); // AutoJs6: class syntax
         if (value == Scriptable.NOT_FOUND) {
             value = Undefined.instance;
         }
