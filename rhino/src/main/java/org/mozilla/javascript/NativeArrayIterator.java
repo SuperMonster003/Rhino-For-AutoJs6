@@ -83,6 +83,10 @@ public final class NativeArrayIterator extends ES6Iterator {
         return ITERATOR_TAG;
     }
 
+    void setIndex(int index) { // AutoJs6: class syntax
+        this.index = index; // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     private Scriptable arrayLike;
     private int index;
 }

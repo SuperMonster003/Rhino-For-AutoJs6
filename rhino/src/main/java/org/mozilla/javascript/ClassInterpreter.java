@@ -38,6 +38,9 @@ import org.mozilla.javascript.Interpreter.NewState;
  *   <li>{@code CLASS_INIT_FIELDS}: no operand. Initializes the instance elements of the class on
  *       this, pushes undefined.
  *   <li>{@code CLASS_STATIC_INIT}: no operand. Stack: F -&gt; F, once the static elements ran.
+ *   <li>{@code CLASS_DESTRUCTURE}: index register = the local of the record of an array pattern,
+ *       then the step byte ({@link ArrayDestructuring}). {@code OPEN}: value -&gt; record, also
+ *       stored in the local; the other steps push their result.
  * </ul>
  */
 final class ClassInterpreter {
@@ -133,6 +136,21 @@ final class ClassInterpreter {
                 gen.visitExpression(child, 0);
                 gen.addIcode(Icode.CLASS_STATIC_INIT);
                 break;
+            case ClassOp.DESTRUCTURE:
+                {
+                    Node localBlock = (Node) node.getProp(Node.LOCAL_BLOCK_PROP);
+                    if (child != null) {
+                        gen.visitExpression(child, 0);
+                    }
+                    gen.addIndexOp(
+                            Icode.CLASS_DESTRUCTURE,
+                            localBlock.getExistingIntProp(Node.LOCAL_PROP));
+                    gen.addUint8(op.step);
+                    if (child == null) {
+                        gen.stackChange(1);
+                    }
+                    break;
+                }
             default:
                 throw Kit.codeBug();
         }
@@ -153,6 +171,7 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_PRIVATE_NAME] = new DoClassPrivateName();
         instructionObjs[base + Icode.CLASS_INIT_FIELDS] = new DoClassInitFields();
         instructionObjs[base + Icode.CLASS_STATIC_INIT] = new DoClassStaticInit();
+        instructionObjs[base + Icode.CLASS_DESTRUCTURE] = new DoClassDestructure();
         SpreadCall.register(instructionObjs, base);
     }
 
@@ -186,6 +205,8 @@ final class ClassInterpreter {
                 return "CLASS_INIT_FIELDS";
             case Icode.CLASS_STATIC_INIT:
                 return "CLASS_STATIC_INIT";
+            case Icode.CLASS_DESTRUCTURE:
+                return "CLASS_DESTRUCTURE";
             default:
                 return SpreadCall.icodeName(icode);
         }
@@ -303,6 +324,31 @@ final class ClassInterpreter {
         void dumpICode(int op, String tname, ICodeDumpContext ctx) {
             boolean quiet = ctx.compilerData.itsICode[ctx.pc++] != 0;
             ctx.out.println(tname + " local " + ctx.indexReg + (quiet ? " quiet" : ""));
+        }
+    }
+
+    private static final class DoClassDestructure extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            int step = frame.compilerData.itsICode[frame.pc++] & 0xFF;
+            int local = frame.localShift + state.indexReg;
+            if (step == ArrayDestructuring.OPEN) {
+                Object record =
+                        ArrayDestructuring.destructure(
+                                value(frame, frame.stackTop), step, cx, frame.scope);
+                frame.stack[local] = record;
+                frame.stack[frame.stackTop] = record;
+            } else {
+                frame.stack[++frame.stackTop] =
+                        ArrayDestructuring.destructure(frame.stack[local], step, cx, frame.scope);
+            }
+            return null;
+        }
+
+        @Override
+        void dumpICode(int op, String tname, ICodeDumpContext ctx) {
+            int step = ctx.compilerData.itsICode[ctx.pc++] & 0xFF;
+            ctx.out.println(tname + " local " + ctx.indexReg + " step " + step);
         }
     }
 

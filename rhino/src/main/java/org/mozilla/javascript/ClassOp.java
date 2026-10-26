@@ -65,6 +65,14 @@ public final class ClassOp {
      */
     public static final int STATIC_INIT = 11;
 
+    /**
+     * A step of an array pattern outside a parameter list (ROADMAP P6.12, see {@link
+     * ArrayDestructuring}): {@link #step} is the step, the node holds the {@link
+     * Node#LOCAL_BLOCK_PROP} of the record of the pattern, and an {@link ArrayDestructuring#OPEN}
+     * has the value as its child.
+     */
+    public static final int DESTRUCTURE = 12;
+
     /** Element kinds, in the low bits of the int {@link Node#CLASS_PROP} of an element. */
     public static final int ELEMENT_METHOD = 0, ELEMENT_GETTER = 1, ELEMENT_SETTER = 2;
 
@@ -115,6 +123,9 @@ public final class ClassOp {
     /** {@link #ITERATOR_CLOSE}: the loop ends with an exception, which IteratorClose keeps. */
     boolean quiet;
 
+    /** {@link #DESTRUCTURE}: the step, one of the constants of {@link ArrayDestructuring}. */
+    int step;
+
     ClassOp(int kind) {
         this.kind = kind;
     }
@@ -145,5 +156,9 @@ public final class ClassOp {
 
     public boolean isQuiet() {
         return quiet;
+    }
+
+    public int getStep() {
+        return step;
     }
 }

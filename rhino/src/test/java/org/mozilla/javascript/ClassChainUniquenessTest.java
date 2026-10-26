@@ -43,7 +43,8 @@ class ClassChainUniquenessTest {
                     "SPREAD_CALL_ON_SUPER",
                     "SPREAD_NEW",
                     "SPREAD_CALLSPECIAL",
-                    "SPREAD_REF_CALL");
+                    "SPREAD_REF_CALL",
+                    "CLASS_DESTRUCTURE");
 
     /** Fork node properties, in chain order, after the upstream properties. */
     private static final List<String> FORK_PROPS = List.of("CLASS_PROP", "DEFAULT_NAME_PROP");

@@ -163,6 +163,29 @@ final class ClassBodyCodegen {
                         "staticInit",
                         "(" + OBJECT + "Lorg/mozilla/javascript/Context;)" + OBJECT);
                 break;
+            case ClassOp.DESTRUCTURE:
+                {
+                    int local =
+                            ((Node) node.getProp(Node.LOCAL_BLOCK_PROP))
+                                    .getExistingIntProp(Node.LOCAL_PROP);
+                    if (child != null) {
+                        bc.generateExpression(child, node);
+                    } else {
+                        cfw.addALoad(local);
+                    }
+                    cfw.addPush(op.getStep());
+                    pushContextAndScope(bc);
+                    cfw.addInvoke(
+                            ByteCode.INVOKESTATIC,
+                            "org/mozilla/javascript/ArrayDestructuring",
+                            "destructure",
+                            "(" + OBJECT + "I" + CONTEXT_SCOPE + ")" + OBJECT);
+                    if (child != null) {
+                        cfw.add(ByteCode.DUP);
+                        cfw.addAStore(local);
+                    }
+                    break;
+                }
             default:
                 throw Kit.codeBug();
         }

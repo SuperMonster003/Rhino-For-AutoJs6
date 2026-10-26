@@ -5250,7 +5250,8 @@ public class Parser {
         boolean iteratorSetup = false;
         String iteratorName = null;
         String lastResultName = null;
-        boolean iterates = bindings.iterates(isFunctionParameter); // AutoJs6: class syntax
+        var record = bindings.open(isFunctionParameter, parent, tempName); // AutoJs6: class syntax
+        boolean iterates = bindings.iterates(isFunctionParameter, record); // AutoJs6: class syntax
 
         for (AstNode n : array.getElements()) {
             if (n.getType() == Token.EMPTY && !iterates) { // AutoJs6: class syntax
@@ -5296,14 +5297,17 @@ public class Parser {
             }
 
             if (n.getType() == Token.EMPTY) { // AutoJs6: class syntax
+                bindings.skip(parent, record); // AutoJs6: class syntax
                 bindings.step(parent, iteratorName, lastResultName); // AutoJs6: class syntax
                 index++; // AutoJs6: class syntax
                 continue; // AutoJs6: class syntax
             } // AutoJs6: class syntax
             // Generate code to get element
             if (iterates && n instanceof Spread) { // AutoJs6: class syntax
-                rightElem = bindings.rest(iteratorName); // AutoJs6: class syntax
+                rightElem = bindings.rest(record, iteratorName); // AutoJs6: class syntax
                 lastResultName = null; // AutoJs6: class syntax
+            } else if (record != null) { // AutoJs6: class syntax
+                rightElem = bindings.element(parent, record, n); // AutoJs6: class syntax
             } else if (isFunctionParameter && iteratorName != null) { // AutoJs6: class syntax
                 // ES6+: Call iterator.next() and store the full result to check done later
                 Node getNextProp =
@@ -5413,6 +5417,7 @@ public class Parser {
             index++;
             empty = false;
         }
+        bindings.finish(parent, record); // AutoJs6: class syntax
 
         return new DestructuringArrayResult(empty, iteratorName, lastResultName);
     }

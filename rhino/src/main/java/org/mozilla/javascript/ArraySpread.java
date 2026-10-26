@@ -87,23 +87,17 @@ final class ArraySpread {
         }
         NativeArray array = (NativeArray) source;
         long length = array.getLength();
-        if (!array.getDenseOnly()
-                || length > Integer.MAX_VALUE
-                || array.getMap().query(SymbolKey.ITERATOR, 0) != null) {
-            return -1;
-        }
-        Scriptable proto = array.getPrototype();
-        if (proto == null || proto.getClass() != NativeArray.class) {
-            return -1;
-        }
-        Object values = builtin(((NativeArray) proto).getMap().query(SymbolKey.ITERATOR, 0));
-        if (!(values instanceof JSFunction)
-                || ((JSFunction) values).getDescriptor() != NativeArray.VALUES_DESCRIPTOR) {
+        if (!array.getDenseOnly() || length > Integer.MAX_VALUE) {
             return -1;
         }
         TopLevel top = ScriptableObject.getTopLevelScope(scope);
-        if (ScriptableObject.getTopLevelScope(((JSFunction) values).getDeclarationScope()) != top
-                || !plainIterator(top)) {
+        if (iterationRealm(array) != top || mayHaveReturn(top)) {
+            return -1;
+        }
+        SlotMap<Scriptable> object =
+                ((NativeObject) top.getBuiltinPrototype(TopLevel.Builtins.Object)).getMap();
+        if (object.query(ES6Iterator.VALUE_PROPERTY, 0) != null
+                || object.query(ES6Iterator.DONE_PROPERTY, 0) != null) {
             return -1;
         }
         for (int i = 0; i < length; i++) {
@@ -114,26 +108,66 @@ final class ArraySpread {
         return (int) length;
     }
 
-    private static boolean plainIterator(TopLevel top) {
+    /**
+     * The realm of the built-in {@code values} that iterates the source, a {@link NativeArray}
+     * whose iteration up to the results can not be observed: no own {@code Symbol.iterator}, {@code
+     * values} as the own one of its prototype, an array, and the built-in {@code next} of the
+     * {@code %ArrayIteratorPrototype%} of that realm. Else null. Also used by {@link
+     * ArrayDestructuring} (P6.12), which reads by index whatever the elements are.
+     */
+    static TopLevel iterationRealm(Object source) {
+        if (source == null || source.getClass() != NativeArray.class) {
+            return null;
+        }
+        NativeArray array = (NativeArray) source;
+        if (array.getMap().query(SymbolKey.ITERATOR, 0) != null) {
+            return null;
+        }
+        Scriptable proto = array.getPrototype();
+        if (proto == null || proto.getClass() != NativeArray.class) {
+            return null;
+        }
+        Object values = builtin(((NativeArray) proto).getMap().query(SymbolKey.ITERATOR, 0));
+        if (!(values instanceof JSFunction)
+                || ((JSFunction) values).getDescriptor() != NativeArray.VALUES_DESCRIPTOR) {
+            return null;
+        }
+        TopLevel top =
+                ScriptableObject.getTopLevelScope(((JSFunction) values).getDeclarationScope());
+        Object iteratorProto = top.getAssociatedValue("ArrayIterator");
+        if (!(iteratorProto instanceof NativeArrayIterator)) {
+            return null;
+        }
+        Object next =
+                builtin(
+                        ((NativeArrayIterator) iteratorProto)
+                                .getMap()
+                                .query(ES6Iterator.NEXT_METHOD, 0));
+        return next instanceof JSFunction
+                        && ((JSFunction) next).getDescriptor()
+                                == NativeArrayIterator.NEXT_DESCRIPTOR
+                ? top
+                : null;
+    }
+
+    /**
+     * Whether an array iterator of the realm may find a {@code return} method: unless {@code
+     * %ArrayIteratorPrototype%} and {@code Object.prototype}, its prototype, which has none, hold
+     * none.
+     */
+    static boolean mayHaveReturn(TopLevel top) {
         Object iteratorProto = top.getAssociatedValue("ArrayIterator");
         Scriptable objectProto = top.getBuiltinPrototype(TopLevel.Builtins.Object);
-        if (!(iteratorProto instanceof NativeArrayIterator)
+        return !(iteratorProto instanceof NativeArrayIterator)
                 || !(objectProto instanceof NativeObject)
                 || ((Scriptable) iteratorProto).getPrototype() != objectProto
-                || objectProto.getPrototype() != null) {
-            return false;
-        }
-        SlotMap<Scriptable> iterator = ((NativeArrayIterator) iteratorProto).getMap();
-        Object next = builtin(iterator.query(ES6Iterator.NEXT_METHOD, 0));
-        if (!(next instanceof JSFunction)
-                || ((JSFunction) next).getDescriptor() != NativeArrayIterator.NEXT_DESCRIPTOR
-                || iterator.query(ES6Iterator.RETURN_METHOD, 0) != null) {
-            return false;
-        }
-        SlotMap<Scriptable> object = ((NativeObject) objectProto).getMap();
-        return object.query(ES6Iterator.RETURN_METHOD, 0) == null
-                && object.query(ES6Iterator.VALUE_PROPERTY, 0) == null
-                && object.query(ES6Iterator.DONE_PROPERTY, 0) == null;
+                || objectProto.getPrototype() != null
+                || ((NativeArrayIterator) iteratorProto)
+                                .getMap()
+                                .query(ES6Iterator.RETURN_METHOD, 0)
+                        != null
+                || ((NativeObject) objectProto).getMap().query(ES6Iterator.RETURN_METHOD, 0)
+                        != null;
     }
 
     /** The value of a plain data slot, or null. */

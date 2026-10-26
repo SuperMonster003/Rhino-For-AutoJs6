@@ -149,6 +149,8 @@ public final class IRFactory {
     // IR transformation part of the public AST API - desirable?
     // Another possibility:  create AstTransformer interface and adapter.
     Node transform(AstNode node) { // AutoJs6: class syntax
+        Node statement = parser.bindings.statement(this, node); // AutoJs6: class syntax
+        if (statement != null) return statement; // AutoJs6: class syntax
         switch (node.getType()) {
             case Token.ARRAYCOMP:
                 return transformArrayComp((ArrayComprehension) node);
@@ -1880,6 +1882,7 @@ public final class IRFactory {
 
             Node newBody = new Node(Token.BLOCK);
             Node assign;
+            var head = parser.bindings.head(ast); // AutoJs6: class syntax
             if (destructuring != -1) {
                 assign =
                         parser.createDestructuringAssignment(declType, lvalue, id, this::transform);
@@ -1904,7 +1907,8 @@ public final class IRFactory {
                 // enumeration just produced is assigned to it.
                 newBody.addChildToBack(iterationScope);
             }
-            newBody.addChildToBack(new Node(Token.EXPR_VOID, assign));
+            Node each = new Node(Token.EXPR_VOID, assign); // AutoJs6: class syntax
+            newBody.addChildToBack(parser.bindings.head(head, each)); // AutoJs6: class syntax
             newBody.addChildToBack(body);
 
             loop = createLoop((Jump) loop, LOOP_WHILE, newBody, cond, null, null, false);
@@ -1933,7 +1937,7 @@ public final class IRFactory {
      *
      * <p>... and a goto to GOTO around these handlers.
      */
-    Node createTryCatchFinally( // AutoJs6: class syntax
+    private Node createTryCatchFinally(
             Node tryBlock, Node catchBlocks, Node finallyBlock, int lineno, int column) {
         boolean hasFinally =
                 (finallyBlock != null)

@@ -201,8 +201,11 @@ abstract class Icode {
             SPREAD_CALLSPECIAL = SPREAD_NEW - 1, // AutoJs6: class syntax
             SPREAD_REF_CALL = SPREAD_CALLSPECIAL - 1, // AutoJs6: class syntax
 
+            // AutoJs6: class syntax (array patterns, see ArrayDestructuring)
+            CLASS_DESTRUCTURE = SPREAD_REF_CALL - 1, // AutoJs6: class syntax
+
             // Last icode
-            MIN_ICODE = SPREAD_REF_CALL; // AutoJs6: class syntax
+            MIN_ICODE = CLASS_DESTRUCTURE; // AutoJs6: class syntax
 
     static String bytecodeName(int bytecode) {
         if (!validBytecode(bytecode)) {
