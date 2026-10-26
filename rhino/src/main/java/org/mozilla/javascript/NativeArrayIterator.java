@@ -21,6 +21,8 @@ public final class NativeArrayIterator extends ES6Iterator {
 
     private static final ClassDescriptor DESCRIPTOR =
             ES6Iterator.makeDescriptor(ITERATOR_TAG, "Array Iterator");
+    static final JSDescriptor<JSFunction> NEXT_DESCRIPTOR = // AutoJs6: class syntax
+            DESCRIPTOR.findCtorDesc(ES6Iterator.NEXT_METHOD); // AutoJs6: class syntax
 
     private ARRAY_ITERATOR_TYPE type;
 

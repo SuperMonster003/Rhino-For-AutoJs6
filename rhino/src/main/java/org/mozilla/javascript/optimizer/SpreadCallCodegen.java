@@ -13,7 +13,8 @@ import org.mozilla.javascript.SpreadCall;
 /**
  * AutoJs6: the compiler side of spread arguments in calls (ROADMAP P6.6, see {@link SpreadCall}).
  * Every call and {@code new} gets its arguments from {@code BodyCodegen.generateCallArgArray},
- * which builds the argument array of a lowered call from its array literal.
+ * which builds the argument array of a lowered call from its array literal, or from the spread
+ * value of {@code f(...a)} (P6.9).
  */
 final class SpreadCallCodegen {
 
@@ -26,6 +27,19 @@ final class SpreadCallCodegen {
     static boolean generateArgs(BodyCodegen bc, Node node, Node argChild) {
         if (!SpreadCall.isSpread(argChild)) {
             return false;
+        }
+        Node source = SpreadCall.singleSpread(argChild);
+        if (source != null) {
+            bc.generateExpression(source, node);
+            bc.cfw.addALoad(bc.contextLocal);
+            bc.cfw.addALoad(bc.variableObjectLocal);
+            bc.cfw.addInvoke(
+                    ByteCode.INVOKESTATIC,
+                    "org/mozilla/javascript/SpreadCall",
+                    "spreadArgs",
+                    "(Ljava/lang/Object;Lorg/mozilla/javascript/Context;"
+                            + "Lorg/mozilla/javascript/VarScope;)[Ljava/lang/Object;");
+            return true;
         }
         bc.generateExpression(argChild.getFirstChild(), node);
         bc.cfw.addInvoke(

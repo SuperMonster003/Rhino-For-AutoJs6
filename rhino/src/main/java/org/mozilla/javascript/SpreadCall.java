@@ -173,6 +173,29 @@ public final class SpreadCall {
         return args;
     }
 
+    /**
+     * The arguments of a lowered call whose only argument is a spread, {@code f(...a)}, from the
+     * spread value: the compiler evaluates the value alone, and copies the elements of a plain
+     * array without building the literal (ROADMAP P6.9, see {@link ArraySpread}).
+     */
+    public static Object[] spreadArgs(Object source, Context cx, VarScope scope) {
+        Object[] args = ArraySpread.elements(source, scope);
+        if (args == null) {
+            NewLiteralStorage storage = NewLiteralStorage.create(cx, 0, false);
+            storage.spread(cx, scope, source, 0);
+            args = storage.getValues();
+        }
+        return args;
+    }
+
+    /** The spread value of a lowered call whose only argument is a spread, else null. */
+    public static Node singleSpread(Node argument) {
+        Node only = argument.getFirstChild().getFirstChild();
+        return only != null && only.getNext() == null && only.getType() == Token.DOTDOTDOT
+                ? only.getFirstChild()
+                : null;
+    }
+
     private static final class DoSpreadNew extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {

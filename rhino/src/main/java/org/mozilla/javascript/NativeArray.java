@@ -172,6 +172,9 @@ public class NativeArray extends ScriptableObject implements List {
         ITERATOR_DESCRIPTOR = DESCRIPTOR.findProtoDesc(SymbolKey.ITERATOR);
     }
 
+    static final JSDescriptor<JSFunction> VALUES_DESCRIPTOR = // AutoJs6: class syntax
+            DESCRIPTOR.findProtoDesc("values"); // AutoJs6: class syntax
+
     private static BuiltInJSCodeExec<JSFunction> forCtor(BuiltInJSCodeExec<JSFunction> code) {
         return (cx, f, nt, s, thisObj, args) -> {
             var realThis = ScriptRuntime.toObject(cx, f.getDeclarationScope(), args[0]);

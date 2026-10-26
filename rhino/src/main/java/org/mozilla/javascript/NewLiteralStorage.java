@@ -99,6 +99,7 @@ public abstract class NewLiteralStorage {
     }
 
     private void spreadArray(Context cx, VarScope scope, Object source) {
+        if (ArraySpread.spread(this, source, scope)) return; // AutoJs6: class syntax
         // See ecma-262 2026, 13.2.5.5 (Array Spread). ToObject throws TypeError for null /
         // undefined; callIterator throws TypeError if @@iterator is missing.
         Scriptable src = ScriptRuntime.toObject(cx, scope, source);
