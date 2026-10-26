@@ -14,10 +14,10 @@ import java.util.Arrays;
  * related to classes.
  *
  * <p>A spread iterates its value: {@link NewLiteralStorage} calls {@code a[Symbol.iterator]()},
- * reads {@code next} and {@code return} of the iterator and calls {@code next()} until a result is
- * done. The array iterator reads the elements with Get, so holes find index properties of the
- * prototypes and accessor elements run their getters. No script code runs when all of these find
- * the built-ins, so the elements are copied directly. That needs:
+ * reads {@code next} of the iterator and calls {@code next()} until a result is done. The array
+ * iterator reads the elements with Get, so holes find index properties of the prototypes and
+ * accessor elements run their getters. No script code runs when all of these find the built-ins, so
+ * the elements are copied directly. That needs:
  *
  * <ul>
  *   <li>a dense {@link NativeArray} (no accessor elements) without holes, whose reads go to the
@@ -34,10 +34,11 @@ import java.util.Arrays;
  * The checks read the slots without calling getters, once per spread: a change of any of these,
  * also between two spreads of one literal or call, sends the next spread through the protocol.
  *
- * <p>The checks of {@code value} and {@code done} date from before P6.10, when upstream wrote the
- * results with {@link ScriptableObject#putProperty}, which found these on {@code Object.prototype}
- * (appendix C Q21). They are not observable by a spread any more and stay as a conservative part of
- * the conditions.
+ * <p>The checks of {@code return}, {@code value} and {@code done} date from before P6.10, when
+ * upstream looked up {@code return} at the start and called it at the end, and wrote the results
+ * with {@link ScriptableObject#putProperty}, which found these on {@code Object.prototype}
+ * (appendix C Q21 / Q22). None of them is observable by a spread any more; they stay as a
+ * conservative part of the conditions.
  */
 final class ArraySpread {
 

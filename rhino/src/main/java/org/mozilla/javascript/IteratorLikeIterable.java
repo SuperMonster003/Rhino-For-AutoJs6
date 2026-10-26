@@ -23,7 +23,6 @@ public class IteratorLikeIterable implements Iterable<Object>, Closeable {
     private final Context cx;
     private final VarScope scope;
     private final Callable next;
-    private final Callable returnFunc;
     private final Scriptable iterator;
     private boolean closed;
     private boolean exhausted; // AutoJs6: class syntax
@@ -35,26 +34,13 @@ public class IteratorLikeIterable implements Iterable<Object>, Closeable {
         var nextCall = ScriptRuntime.getPropAndThis(target, ES6Iterator.NEXT_METHOD, cx, scope);
         next = nextCall.getCallable();
         iterator = nextCall.getThis();
-        Object retObj =
-                ScriptRuntime.getObjectPropNoWarn(target, ES6Iterator.RETURN_PROPERTY, cx, scope);
-        // We only care about "return" if it is not null or undefined
-        if ((retObj != null) && !Undefined.isUndefined(retObj)) {
-            if (!(retObj instanceof Callable)) {
-                throw ScriptRuntime.notFunctionError(target, retObj, ES6Iterator.RETURN_PROPERTY);
-            }
-            returnFunc = (Callable) retObj;
-        } else {
-            returnFunc = null;
-        }
     }
 
     @Override
     public void close() {
         if (!closed) {
             closed = true;
-            if (returnFunc != null && !exhausted) { // AutoJs6: class syntax
-                returnFunc.call(cx, scope, iterator, ScriptRuntime.emptyArgs);
-            }
+            if (!exhausted) IteratorClose.close(iterator, cx, scope); // AutoJs6: class syntax
         }
     }
 
@@ -72,6 +58,7 @@ public class IteratorLikeIterable implements Iterable<Object>, Closeable {
             if (isDone) {
                 return false;
             }
+            exhausted = true; // AutoJs6: class syntax
             Object val = next.call(cx, scope, iterator, ScriptRuntime.emptyArgs);
             // This will throw if "val" is not an object.
             // "getObjectPropNoWarn" won't, so do this as follows.
@@ -84,10 +71,10 @@ public class IteratorLikeIterable implements Iterable<Object>, Closeable {
             // It's OK if done is undefined.
             if (ScriptRuntime.toBoolean(doneval)) {
                 isDone = true;
-                exhausted = true; // AutoJs6: class syntax
                 return false;
             }
             nextVal = ScriptRuntime.getObjectPropNoWarn(val, ES6Iterator.VALUE_PROPERTY, cx, scope);
+            exhausted = false; // AutoJs6: class syntax
             return true;
         }
 
