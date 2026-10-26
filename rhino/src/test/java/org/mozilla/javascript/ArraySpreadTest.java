@@ -182,8 +182,9 @@ class ArraySpreadTest {
 
     @Test
     void returnAndResultPropertiesAsTheProtocolHasThem() {
-        // These send spreads through the protocol, whose steps with return and the result
-        // properties P6.10 changed; whatever the protocol does, the fast path must not change it.
+        // These send spreads through the protocol, which since P6.10 neither looks up nor calls
+        // return when the iterator is done and writes the results as own data properties: fast
+        // and slow give the plain elements and log nothing.
         assertWithAllModes_ES6(
                 "true|true|true|true",
                 SETUP
@@ -195,8 +196,9 @@ class ArraySpreadTest {
                   log.length = 0;
                   var slow = forms(twin([1, 2])) + log.join();
                   undo();
-                  return fast === slow;
+                  return fast === slow && fast === plain;
                 }
+                var plain = forms([1, 2]);
                 [same(log => { arrayIteratorProto.return = function () { log.push('r'); return {}; }; },
                       () => { delete arrayIteratorProto.return; }),
                  same(log => { Object.defineProperty(Object.prototype, 'return',
