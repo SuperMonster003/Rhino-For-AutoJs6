@@ -319,7 +319,7 @@
 - 解释器: `CodeGenerator` 求值数组字面量 (`SpreadCall.argument`), `SpreadCall.emit` 发射 5 个 icode, 栈记账同一个实参. `SPREAD_CALL` / `SPREAD_CALL_ON_SUPER` 注册到 CALL 的指令类 (`DoCallByteCode`), 钩子在 `frame.stackTop -= indexReg` 之后把数组元素变成 bound 实参 (绑定函数已有的机制) 并把 op 改回 `CALL` / `CALL_ON_SUPER`: 解释函数仍走内联帧, 栈深, continuation, 调试回调都同普通调用 (`SpreadCallTest.interpretedCalleesStayInline`: 3000 层递归, continuation 捕获与恢复). 第一个实参写回数组所在的栈位置, continuation 恢复时在那里放结果. `SPREAD_NEW` (含 `new eval(...)`), `SPREAD_CALLSPECIAL` (可能的直接 eval, 行号在索引寄存器), `SPREAD_REF_CALL` 是自有指令类, 不内联.
 - 编译器: `generateCallArgArray` 是普通调用, super 调用, 可选调用, new, eval, REF_CALL 共同的实参数组出口, 展开调用在这里生成数组字面量再调 `SpreadCall.args` (`NativeArray` -> `Object[]`, 空洞为 undefined). `OptTransformer.detectDirectCall` 跳过展开调用 (直接调用要静态的实参个数).
 - 不经 `Function.prototype.apply` / `Reflect.apply` / `Reflect.construct` (Java 层直接调用); `super.m(...a)` 的 this 与 home object 同普通 super 调用, `new F(...a)` 的 new.target 是 F, `super(...a)` 仍由 P2 的 `ClassLowering.transformSuperCall` 处理.
-- 计时 (附录 C Q19, 证据 `bench-spread.txt`): JDK 21, Rhino shell, `f(...a)` 对 `f.apply(null, a)`, a 为 8 个元素, 20000 次调用一轮, 31 轮交替取中位数, 两次运行. 解释模式 1531 / 1808 ns 对 617 / 678 ns (2.48 / 2.67 倍), 编译模式 960 / 1240 ns 对 64.5 / 102 ns (14.9 / 12.2 倍). 慢 2 倍以上的原因: 耗时几乎都在上游数组字面量 `[...a]` 的迭代协议 (每个元素一次 `next` 调用与一个结果对象, 再经 `NewLiteralStorage` 存进新数组), 编译模式 `[...a]` 单独 679 ns, `f.apply(null, [...a])` 800 ns, `f(...a)` 838 ns, 展开调用本身几乎不加开销. 规范要求数组展开可观察 (`SpreadCallTest.arraysAreIteratedObservably`), 快速路径要先确认 `Array.prototype[Symbol.iterator]` 与数组迭代器的 `next` 都未被覆写, 改动在上游的数组字面量路径, 登记 Q19 (A 保持现状, 已先行).
+- 计时 (附录 C Q19, 证据 `bench-spread.txt`): JDK 21, Rhino shell, `f(...a)` 对 `f.apply(null, a)`, a 为 8 个元素, 20000 次调用一轮, 31 轮交替取中位数, 两次运行. 解释模式 1531 / 1808 ns 对 617 / 678 ns (2.48 / 2.67 倍), 编译模式 960 / 1240 ns 对 64.5 / 102 ns (14.9 / 12.2 倍). 慢 2 倍以上的原因: 耗时几乎都在上游数组字面量 `[...a]` 的迭代协议 (每个元素一次 `next` 调用与一个结果对象, 再经 `NewLiteralStorage` 存进新数组), 编译模式 `[...a]` 单独 679 ns, `f.apply(null, [...a])` 800 ns, `f(...a)` 838 ns, 展开调用本身几乎不加开销. 规范要求数组展开可观察 (`SpreadCallTest.arraysAreIteratedObservably`), 快速路径要先确认 `Array.prototype[Symbol.iterator]` 与数组迭代器的 `next` 都未被覆写, 改动在上游的数组字面量路径, 登记 Q19 (A 保持现状, 已先行); 维护者 2026-10-26 08:25 改选 B, 由 P6.9 实施 (见 "P6.8 / P6.9").
 
 ### 逻辑赋值短路 (P6.7)
 
@@ -337,19 +337,62 @@
 
 ### 未结问题
 
-- 附录 C Q18 (`set: undefined` 修复, 已先行) 与 Q19 (展开的快速路径, 保持现状) 待维护者确认.
-- 编译模式: 内联原型的对象字面量 `{ __proto__: { x: 3 }, m() { return super.x; } }` 里 `super.x` 读到 undefined (原型本身正确, 解释模式正常); 2026-10-20 的 `rhino-all` 旧 jar 同样, 与本阶段无关; 已由 P6.8 修复 (见下).
+- 附录 C Q18 (`set: undefined` 修复, 已先行) 维护者 2026-10-26 08:25 确认保持现状; Q19 (展开的快速路径) 改选 B, 由 P6.9 实施.
+- 编译模式: 内联原型的对象字面量 `{ __proto__: { x: 3 }, m() { return super.x; } }` 里 `super.x` 读到 undefined (原型本身正确, 解释模式正常); 2026-10-20 的 `rhino-all` 旧 jar 同样, 与本阶段无关; 已由 P6.8 修复 (见 "P6.8 / P6.9").
 - test262 里与本阶段目录相关但仍登记的: `expressions/call` 的 `tco-*.js` 6 个 (T10 特性 tail-call-optimization) 与 `eval-realm-indirect.js` (跨 realm 间接 eval), `expressions/super/prop-expr-getsuperbase-before-topropertykey-putvalue-increment.js` (解释 / 调试器模式, `super[k]++` 的顺序), 都早于 P6.6 登记, 与展开 / 逻辑赋值无关.
 - 编译模式下函数里数字类型的寄存器变量作 callee 并直接返回 (`function t() { var x = 1; return x(2); }`) 报 `VerifyError` (展开与否都一样): 已由 P6.8 修复. 上游既有, 未改: 编译模式普通调用 1000 层递归即 `StackOverflowError`.
-
-### P6.8 编译模式的两个上游缺陷 (2026-10-26, 维护者要求修复)
-
-- 嵌套对象字面量与 home object: `BodyCodegen.visitObjectLiteral` 把新对象存进 `savedHomeObjectLocal`, `visitFunction` 的方法定义分支以它作 home object; 字段只有一个, 生成属性值时遇到嵌套的对象字面量 (内联 `__proto__: {...}`, 方法前面任何值为对象字面量的属性) 会被覆盖且不恢复, 其后的方法 / 访问器以内层对象为 home object, `super.x` 读的是内层对象的原型 (通常是 `Object.prototype`). 解释器从栈上取 home object, 不受影响. 修法: 生成属性前保存外层的值, 之后恢复 (2 行钩子). 上游另有一处小问题未改: 这个局部变量每个字面量申请一次, 从不释放.
-- 数字值的 callee: `Optimizer.rewriteForNumberVariables` 的 CALL 只改写 callee 的子节点 (`rewriteAsObjectChildren(child, child.getFirstChild())`), callee 本身没经过数字类型改写, 而 `visitGetVar` 对数字变量总是 `DLOAD`, 于是 `y(2)` 以 double 进入 `getValueAndThis` (`VerifyError`); 赋值 / 自增作 callee (`(y = 2)(1)`, `(y++)(1)`) 则因 SETVAR / INC 没被标记而在生成器里断言失败或报 "Bad tree". 修法: callee 本身按对象位置改写 (结果为数字时包 `TO_OBJECT`, 同 `rewriteAsObjectChildren` 对其他子节点的做法), 4 行钩子并删上游 1 行; GETPROP / NAME 等 callee 的改写结果与原来相同, GETELEM 的数字下标沿用 `generateLookupResult` 已有的 `ISNUMBER_PROP` 处理.
-- 测试 `CompiledModeFixesTest` 3 个用例两模式通过. 上游 PR: 各是几行的独立修复, 不依赖 fork 其他部分 (`ClassBodyCodegen.toObject` 在 PR 里内联进 `Optimizer`).
 
 ### 验证
 
 - 提交: 191c7f2be (P6.6 功能), f2072a5b4 (P6.7 功能与两个顺带修复), e97db5209 (`SpreadCallTest` 15 例, `LogicalAssignmentTest` 12 例, 两模式), fb0c04fc6 (properties), 勾选提交. P6.6 提交单独编译并通过 `HooksRegistryTest` / `ClassChainUniquenessTest` / `SpreadCallTest` / `ClassSyntaxTest`.
 - properties 重生成: 解锁 122 (实参展开 84, 短路 23, `set: undefined` 15), 新增失败 0, 标签变化 0 (`build/upstream-sync/class-p6b-20261025/unlocked-by-cause.txt`).
 - 五模块全量 (JDK 21, `--rerun-tasks`): 149252 例 27 失败, 对照 P6 新增 0; 门禁全部通过. 上游 `LogicalOrAndAssignmentTest` 与 `ClassSyntaxTest262CoreTest` (含 "已知失败通过时报错") 通过.
+
+## P6.8 / P6.9 编译模式的两个缺陷与数组展开的快速路径 (2026-10-26, 子会话 rhino-p6b)
+
+P6.8 是 P6.6 / P6.7 时发现的两个上游缺陷 (维护者要求修复, 附录 C Q20), P6.9 是附录 C Q19 = B. 都与 class 无关, 是通用修复, 标记沿用 `// AutoJs6: class syntax`; 钩子与新文件见 HOOKS.md 第 3 / 4 节的 P6.8 / P6.9 行.
+
+### P6.8 编译模式的两个上游缺陷
+
+- 嵌套对象字面量与 home object: `BodyCodegen.visitObjectLiteral` 把新对象存进 `savedHomeObjectLocal`, `visitFunction` 的方法定义分支以它作 home object; 字段只有一个, 生成属性值时遇到嵌套的对象字面量 (内联 `__proto__: {...}`, 方法前面任何值为对象字面量的属性) 会被覆盖且不恢复, 其后的方法 / 访问器以内层对象为 home object, `super.x` 读的是内层对象的原型 (通常是 `Object.prototype`). 解释器从栈上取 home object, 不受影响. 修法: 生成属性前保存外层的值, 之后恢复 (2 行钩子). 上游另有一处小问题未改: 这个局部变量每个字面量申请一次, 从不释放.
+- 数字值的 callee: `Optimizer.rewriteForNumberVariables` 的 CALL 只改写 callee 的子节点 (`rewriteAsObjectChildren(child, child.getFirstChild())`), callee 本身没经过数字类型改写, 而 `visitGetVar` 对数字变量总是 `DLOAD`, 于是 `y(2)` 以 double 进入 `getValueAndThis` (`VerifyError`); 赋值 / 自增作 callee (`(y = 2)(1)`, `(y++)(1)`) 则因 SETVAR / INC 没被标记而在生成器里断言失败或报 "Bad tree". 修法: callee 本身按对象位置改写 (结果为数字时包 `TO_OBJECT`, 同 `rewriteAsObjectChildren` 对其他子节点的做法), 4 行钩子并删上游 1 行; GETPROP / NAME 等 callee 的改写结果与原来相同, GETELEM 的数字下标沿用 `generateLookupResult` 已有的 `ISNUMBER_PROP` 处理.
+- 测试 `CompiledModeFixesTest` 3 个用例两模式通过. 上游 PR: 各是几行的独立修复, 不依赖 fork 其他部分 (`ClassBodyCodegen.toObject` 在 PR 里内联进 `Optimizer`).
+
+### P6.9 数组展开的快速路径
+
+- 入口: 三个后端的数组字面量展开都经 `NewLiteralStorage.spreadArray`, 开头 1 行钩子先试 `ArraySpread.spread`, 协议不可观察时把元素直接复制进字面量的存储 (只扩容一次, 不经 `IteratorLikeIterable` 与结果对象), 否则照旧. 展开调用的实参就是这个数组字面量 (P6.6), 所以 `f(...a)` / `o.m(...a)` / `super.m(...a)` / `new F(...a)` / `super(...a)` 跟着变快. 编译模式只有一个展开实参的调用再省掉数组字面量: `SpreadCallCodegen` 只求值展开的值, `SpreadCall.spreadArgs` 用 `ArraySpread.elements` 得到实参数组, 不行再经 `NewLiteralStorage` 按协议展开 (与数组字面量同一路径, 错误与消息相同, `ArraySpreadTest.evaluationOrderAndErrors`). 解释模式不另开路径: 字面量的开销在 icode 分派上, 计时已是 apply 的 1.1-1.2 倍, 为此加 icode 或操作数不值得.
+- 条件, 每条对应上游慢路径里一个可被脚本观察的步骤 (`spreadArray` -> `ScriptRuntime.callIterator` -> `IteratorLikeIterable`): 读 `Symbol.iterator` 并调用, 读 `next` 与 `return`, 每次 `next()` 新建结果对象并用 `putProperty` 写 `value` / `done` (会找到 `Object.prototype` 上的 setter), 读 `done` / `value`, 结束时调 `return`; 数组迭代器 `nextValue` 读自有元素 (访问器元素会调 getter). 因此要求: 来源恰为 `NativeArray`, denseOnly (没有访问器元素), 没有空洞, 没有自身的 `Symbol.iterator`; 原型恰为 `NativeArray`, 自身的 `Symbol.iterator` 是普通数据槽 (`StandardSlot`, 不是访问器 / lambda / 延迟加载槽), 值是内建 `values`; `values` 所在 realm 就是调用者的 realm (迭代器的原型取自函数的声明作用域, 结果对象的原型取自调用处的作用域, 要求两者一致); 该 realm 的 `%ArrayIteratorPrototype%` (顶层关联值 `"ArrayIterator"`) 自身的 `next` 是普通数据槽且为内建, 没有 `return`, 原型是缓存的 `Object.prototype`; `Object.prototype` 没有原型, 没有 `return` / `value` / `done`. 检查只读槽 (`getMap().query`), 不调 getter, 每次展开做一次: 运行中途改了任一项, 下一次展开就走协议, 同一调用的两个展开之间改也一样 (`ArraySpreadTest.changesBetweenSpreadsOfOneCallAreObserved`).
+- 认内建函数: 上游的 `NativeArray.ITERATOR_DESCRIPTOR` 按 `Symbol.iterator` 找方法描述符, 而 `Symbol.iterator` 是 `values` 的别名 (`withProp(..., alias("values"))`), 不在方法表里, 所以它是 null; `NativeTypedArrayView` 第 518 行拿它比较的快速路径因此从不生效 (上游既有, 未改). fork 在 NativeArray 加 `VALUES_DESCRIPTOR` (`findProtoDesc("values")`), NativeArrayIterator 加 `NEXT_DESCRIPTOR` (`findCtorDesc("next")`), 各 2 行. 把同一个内建赋回去 (`Array.prototype[Symbol.iterator] = Array.prototype.values`) 不改槽的类型与值, 仍走快速路径 (不可观察).
+- 空洞的取舍: 上游迭代器只读自有元素, 空洞得 undefined (规范要求经原型链读, 附录 C Q21); 快速路径本可照抄, 但按维护者的要求空洞走协议, 这样上游日后修正这一点时快速路径不会跟着出错. Array 子类的实例 (`A.of(...)`, `new A(...)`) 在 fork 里建出的不是 denseOnly, 改过原型的数组原型不是数组, 都走协议, 速度同 P6.6.
+- 计时 (证据 `build/upstream-sync/class-p6c-20261026/bench-spread3.txt`): 同一构建用临时系统属性关掉快速路径作 "改动前" (提交前已删), 每个形式单独一个进程 (同进程交替时三个形式共享 JIT 状态, 改动后其中一个会随顺序落到约 2 倍, 见证据), 两次运行的中位数, ns/次, a 为 8 个元素:
+
+| 形式 | 解释 改动前 | 解释 改动后 | 编译 改动前 | 编译 改动后 |
+|---|---|---|---|---|
+| `f(...a)` | 1114 / 1103 | 661 / 588 | 728 / 642 | 53.8 / 53.8 |
+| `f.apply(null, a)` | 548 / 528 | 542 / 538 | 53.6 / 58.2 | 58.3 / 53.9 |
+| `f(...a)` / apply | 2.03 / 2.09 | 1.22 / 1.09 | 13.6 / 11.0 | 0.92 / 1.00 |
+| `[...a]` | 868 / 804 | 260 / 262 | 662 / 671 | 61.9 / 61.8 |
+| `o.m(...a)` (对 `o.m.apply`) | 1120 / 1174 (582 / 579) | 614 / 608 (600 / 605) | 628 / 658 (68.7 / 76.4) | 58.0 / 57.3 (78.6 / 67.1) |
+| `new F(...a)` (对直接 `new F(a[0], ...)`) | 1323 / 1259 (773 / 854) | 744 / 737 (766 / 784) | 749 / 764 (111 / 122) | 96.6 / 113 (107 / 109) |
+| `super.m(...a)` (对 `super.m.apply`) | 1390 / 1478 (644 / 647) | 704 / 719 (645 / 655) | 742 / 769 (93.8 / 84.5) | 101 / 90.7 (105 / 94.4) |
+| `f(0, ...a, ...a)` | 1912 / 1860 | 658 / 761 | 1324 / 1228 | 233 / 237 |
+
+  目标 "`f(...a)` 不慢于 `f.apply` 的 1.5 倍" 两种模式都达到 (解释 1.09-1.22, 编译 0.92-1.00). 编译模式多个实参或多个展开时仍建数组字面量 (`f(0, ...a, ...a)` 233 ns), 与 `[...a]` 同速.
+- 上游与规范的三处偏差 (附录 C Q21, 实测两模式都在): `Array.prototype[1] = 'p'; [...[1, , 3]]` 得 `1,,3` (规范 `1,p,3`); `%ArrayIteratorPrototype%.return` 存在时正常展开完也调用它 1 次 (`IteratorLikeIterable.close`, 规范不调); `Object.prototype.value` 有 setter 时每个结果对象都调用它 (2 个元素 3 次, 规范用 CreateDataProperty 不调). 快速路径只在它们都不可观察时生效, 所以不改变它们; `ArraySpreadTest.returnAndResultPropertiesAsTheProtocolHasThem` 只要求快慢两路一致, 上游修正后测试照样成立.
+- 测试 `ArraySpreadTest` (rhino 模块, 包 `org.mozilla.javascript`, 为了直接调包内的 `ArraySpread.elements`) 13 个用例; JS 用例两模式, 每个场景拿可能走快速路径的数组与 `twin(a)` (同样的元素, 自身 `Symbol.iterator` 设为内建 `values`, 协议行为相同但必走慢路径) 比较七种展开形式的结果与日志.
+
+### 上游 PR 拆分边界 (P8)
+
+- P6.8 的两个修复各是几行的独立 PR (同上 "P6.8"): 不依赖 fork 其他部分, `ClassBodyCodegen.toObject` 在 PR 里内联进 `Optimizer`, `savedHomeObjectLocal` 的保存 / 恢复原样.
+- P6.9 一个 PR 候选, 快速路径是否值得上游由评审定 (附录 C 与 P8 附记): `ArraySpread` 加 `NewLiteralStorage.spreadArray` 的 1 行调用即可单独成立 (只加速 `[...a]`, 上游没有展开调用); PR 里把 `NativeArray.ITERATOR_DESCRIPTOR` 改为取 `values` 的描述符 (顺带修好 `NativeTypedArrayView` 的比较), 不加 `VALUES_DESCRIPTOR`, `NEXT_DESCRIPTOR` 照加. 编译模式单个展开实参的路径 (`SpreadCall.singleSpread` / `spreadArgs`, `SpreadCallCodegen` 的分支) 依赖 P6.6 的实参展开, 随 P6.6 的 PR 或排在它之后.
+- 要替换的 fork 依赖: 没有 `ClassRuntime` / `ClassOp` 依赖; `ArraySpread` 用到的包内成员 (`SlotMapOwner.getMap()`, `Slot.value`, `NativeArray.getDenseOnly()`, `TopLevel.getBuiltinPrototype(Builtins)` 的缓存) 都是上游已有, 同包可用; 测试 `ArraySpreadTest` 去掉 `super.m(...)` / `class` 形式 (上游没有 class 与展开调用) 后可用于 `[...a]`, 展开调用的部分随 P6.6 的 PR.
+
+### 未结问题 (P6.8 / P6.9)
+
+- 附录 C Q21 (上游展开的三处规范偏差: 空洞不查原型链, 正常结束调用 `return`, 结果对象经 setter 写入): 按推荐 A 先行, 只登记, P8 提上游, 不阻塞.
+- 未改的上游既有问题: `NativeTypedArrayView` 拿 null 的 `ITERATOR_DESCRIPTOR` 比较 (TypedArray 由数组构造的快速路径从不生效); fork 的 Array 子类实例不是 denseOnly (只影响速度).
+
+### 验证 (P6.8 / P6.9)
+
+- P6.8: 提交 bd10a3967 (功能与 HOOKS.md), a55fc4569 (`CompiledModeFixesTest`), 0fe03a84a (勾选); 五模块全量 149255 例 27 失败, 对照 P6.6 / P6.7 新增 0; test262 无状态变化, properties 不重生成.
+- P6.9: 提交 25a1ee39c (功能与 HOOKS.md), 1720a82a2 (`ArraySpreadTest` 13 例), 勾选提交; test262 限定集 (`expressions/call` / `new` / `array` / `super` / `object` / `class`, `statements/class` / `for-of`, `arguments-object`, `built-ins/Array` / `ArrayIteratorPrototype` / `Function`, 三模式 44180 例) 失败 0, 没有 "marked as failing but it does not", 行为不变, properties 不重生成; 五模块全量 (JDK 21, `--rerun-tasks`, 18 分 24 秒, 同时跑 `spotlessCheck`): 149268 例 27 失败 (多出的 13 例是 `ArraySpreadTest`), 失败清单与 P6.8 的 `current-failures-p68.txt` 逐条相同 (只差对象哈希), 新增 0. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过. 证据 `build/upstream-sync/class-p6c-20261026/` (计时脚本与结果, 限定集 properties 与日志, 全量日志与失败清单).
