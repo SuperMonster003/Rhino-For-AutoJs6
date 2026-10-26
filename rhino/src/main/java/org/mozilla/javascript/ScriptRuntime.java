@@ -3059,11 +3059,11 @@ public class ScriptRuntime {
                     throw ScriptRuntime.typeErrorById(
                             "msg.arg.not.object", ScriptRuntime.species(sVal));
                 }
-                Object finalKey = sVal.get(0, sVal);
+                Object finalKey = ScriptableObject.getProperty(sVal, 0); // AutoJs6: class syntax
                 if (finalKey == Scriptable.NOT_FOUND) {
                     finalKey = Undefined.instance;
                 }
-                Object finalVal = sVal.get(1, sVal);
+                Object finalVal = ScriptableObject.getProperty(sVal, 1); // AutoJs6: class syntax
                 if (finalVal == Scriptable.NOT_FOUND) {
                     finalVal = Undefined.instance;
                 }

@@ -287,7 +287,7 @@ public class NativeSet extends ScriptableObject {
         } else {
             // When this.size > other.size: iterate through other.keys(), call this.has()
             Object iterator =
-                    ScriptRuntime.callIterator(
+                    SetLikeKeys.iterator( // AutoJs6: class syntax
                             keysMethod.call(
                                     cx,
                                     scope,
@@ -352,7 +352,7 @@ public class NativeSet extends ScriptableObject {
         // Set-like object - use keys method
         Callable keysMethod = (Callable) keysVal;
         Object iterator =
-                ScriptRuntime.callIterator(
+                SetLikeKeys.iterator( // AutoJs6: class syntax
                         keysMethod.call(cx, scope, scriptable, ScriptRuntime.emptyArgs), cx, scope);
         try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, iterator)) {
             for (Object key : it) {
@@ -429,7 +429,7 @@ public class NativeSet extends ScriptableObject {
 
             // Then iterate through other and remove matching elements
             Object iterator =
-                    ScriptRuntime.callIterator(
+                    SetLikeKeys.iterator( // AutoJs6: class syntax
                             keysMethod.call(
                                     cx,
                                     scope,
@@ -514,7 +514,7 @@ public class NativeSet extends ScriptableObject {
 
         // Add elements from other that are not in this
         Object iterator =
-                ScriptRuntime.callIterator(
+                SetLikeKeys.iterator( // AutoJs6: class syntax
                         keysMethod.call(cx, scope, scriptable, ScriptRuntime.emptyArgs), cx, scope);
         try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, iterator)) {
             for (Object key : it) {
@@ -622,7 +622,7 @@ public class NativeSet extends ScriptableObject {
         // Iterate through other.keys() and check if all elements are in this
         Callable keysMethod = (Callable) keysVal;
         Object iterator =
-                ScriptRuntime.callIterator(
+                SetLikeKeys.iterator( // AutoJs6: class syntax
                         keysMethod.call(cx, scope, scriptable, ScriptRuntime.emptyArgs), cx, scope);
         try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, iterator)) {
             for (Object value : it) {
@@ -687,7 +687,7 @@ public class NativeSet extends ScriptableObject {
         } else {
             // Iterate through other
             Object iterator =
-                    ScriptRuntime.callIterator(
+                    SetLikeKeys.iterator( // AutoJs6: class syntax
                             keysMethod.call(cx, scope, scriptable, ScriptRuntime.emptyArgs),
                             cx,
                             scope);
