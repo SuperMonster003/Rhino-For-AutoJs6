@@ -2715,11 +2715,13 @@ class BodyCodegen {
                 "newObject",
                 "(Lorg/mozilla/javascript/VarScope;)Lorg/mozilla/javascript/Scriptable;");
         cfw.add(ByteCode.DUP);
+        int outerHomeObjectLocal = savedHomeObjectLocal; // AutoJs6: class syntax
         savedHomeObjectLocal = getNewWordLocal();
         cfw.addAStore(savedHomeObjectLocal);
         cfw.add(ByteCode.DUP);
 
         addLoadProperties(node, child, properties, count);
+        savedHomeObjectLocal = outerHomeObjectLocal; // AutoJs6: class syntax
 
         // stack: [store]
         cfw.add(ByteCode.DUP); // stack: [store, store]

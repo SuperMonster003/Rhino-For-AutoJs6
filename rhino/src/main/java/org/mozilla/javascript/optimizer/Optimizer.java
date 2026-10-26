@@ -383,7 +383,10 @@ class Optimizer {
                 {
                     Node child = n.getFirstChild(); // the function node
                     // must be an object
-                    rewriteAsObjectChildren(child, child.getFirstChild());
+                    int callee = rewriteForNumberVariables(child, NoType); // AutoJs6: class syntax
+                    if (callee == NumberType) { // AutoJs6: class syntax
+                        child = ClassBodyCodegen.toObject(n, child); // AutoJs6: class syntax
+                    } // AutoJs6: class syntax
                     child = child.getNext(); // the first arg
 
                     OptFunctionNode target = (OptFunctionNode) n.getProp(Node.DIRECTCALL_PROP);

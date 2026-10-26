@@ -178,6 +178,19 @@ final class ClassBodyCodegen {
         invoke(cfw, "homeObject", "(" + OBJECT + ")Lorg/mozilla/javascript/Scriptable;");
     }
 
+    /**
+     * Wraps the child in {@code TO_OBJECT} in place and returns the wrapper: for the optimizer, a
+     * callee whose value is a double (a number variable, an assignment or increment of one).
+     * Upstream only rewrote the children of the callee, so such a callee reached the call as a
+     * double (VerifyError, or a failed assertion for an assignment).
+     */
+    static Node toObject(Node parent, Node child) {
+        Node object = new Node(Token.TO_OBJECT);
+        parent.replaceChild(child, object);
+        object.addChildToBack(child);
+        return object;
+    }
+
     private static void pushDescriptor(BodyCodegen bc, Node function) {
         int fnIndex = function.getExistingIntProp(Node.FUNCTION_PROP);
         OptFunctionNode ofn = OptFunctionNode.get(bc.scriptOrFn, fnIndex);
