@@ -233,9 +233,9 @@ public class NativeSet extends ScriptableObject {
 
         // ES2025: GetSetRecord requires size, has, and keys properties
         Scriptable scriptable = ScriptableObject.ensureScriptable(otherObj);
-        Object sizeVal = ScriptableObject.getProperty(scriptable, "size");
-        Object hasVal = ScriptableObject.getProperty(scriptable, "has");
-        Object keysVal = ScriptableObject.getProperty(scriptable, "keys");
+        Object sizeVal = SetRecord.size(scriptable); // AutoJs6: class syntax
+        Object hasVal = SetRecord.method(scriptable, "has"); // AutoJs6: class syntax
+        Object keysVal = SetRecord.method(scriptable, "keys"); // AutoJs6: class syntax
 
         // Validate all required properties exist
         validateSetLike(sizeVal, hasVal, keysVal);
@@ -318,16 +318,11 @@ public class NativeSet extends ScriptableObject {
         NativeSet result = (NativeSet) cx.newObject(scope, CLASS_NAME);
         result.instanceOfSet = true;
 
-        // Add all elements from this set
-        for (Hashtable.Entry entry : entries) {
-            result.js_add(entry.key);
-        }
-
         // ES2025: GetSetRecord requires size, has, and keys properties
         Scriptable scriptable = ScriptableObject.ensureScriptable(otherObj);
-        Object sizeVal = ScriptableObject.getProperty(scriptable, "size");
-        Object hasVal = ScriptableObject.getProperty(scriptable, "has");
-        Object keysVal = ScriptableObject.getProperty(scriptable, "keys");
+        Object sizeVal = SetRecord.size(scriptable); // AutoJs6: class syntax
+        Object hasVal = SetRecord.method(scriptable, "has"); // AutoJs6: class syntax
+        Object keysVal = SetRecord.method(scriptable, "keys"); // AutoJs6: class syntax
 
         // Validate all required properties exist
         validateSetLike(sizeVal, hasVal, keysVal);
@@ -355,6 +350,9 @@ public class NativeSet extends ScriptableObject {
                 SetLikeKeys.iterator( // AutoJs6: class syntax
                         keysMethod.call(cx, scope, scriptable, ScriptRuntime.emptyArgs), cx, scope);
         try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, iterator)) {
+            for (Hashtable.Entry entry : entries) { // AutoJs6: class syntax
+                result.js_add(entry.key); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             for (Object key : it) {
                 result.js_add(key);
             }
@@ -376,9 +374,9 @@ public class NativeSet extends ScriptableObject {
 
         // ES2025: GetSetRecord requires size, has, and keys properties
         Scriptable scriptable = ScriptableObject.ensureScriptable(otherObj);
-        Object sizeVal = ScriptableObject.getProperty(scriptable, "size");
-        Object hasVal = ScriptableObject.getProperty(scriptable, "has");
-        Object keysVal = ScriptableObject.getProperty(scriptable, "keys");
+        Object sizeVal = SetRecord.size(scriptable); // AutoJs6: class syntax
+        Object hasVal = SetRecord.method(scriptable, "has"); // AutoJs6: class syntax
+        Object keysVal = SetRecord.method(scriptable, "keys"); // AutoJs6: class syntax
 
         // Validate all required properties exist
         validateSetLike(sizeVal, hasVal, keysVal);
@@ -476,9 +474,9 @@ public class NativeSet extends ScriptableObject {
 
         // ES2025: GetSetRecord requires size, has, and keys properties
         Scriptable scriptable = ScriptableObject.ensureScriptable(otherObj);
-        Object sizeVal = ScriptableObject.getProperty(scriptable, "size");
-        Object hasVal = ScriptableObject.getProperty(scriptable, "has");
-        Object keysVal = ScriptableObject.getProperty(scriptable, "keys");
+        Object sizeVal = SetRecord.size(scriptable); // AutoJs6: class syntax
+        Object hasVal = SetRecord.method(scriptable, "has"); // AutoJs6: class syntax
+        Object keysVal = SetRecord.method(scriptable, "keys"); // AutoJs6: class syntax
 
         // Validate all required properties exist
         validateSetLike(sizeVal, hasVal, keysVal);
@@ -500,25 +498,20 @@ public class NativeSet extends ScriptableObject {
         }
 
         // Set-like object path
-        Callable hasMethod = (Callable) hasVal;
         Callable keysMethod = (Callable) keysVal;
-
-        // Add elements from this that are not in other
-        for (Hashtable.Entry entry : entries) {
-            Object key = entry.key;
-            Object inOther = callHas(cx, scope, otherObj, hasMethod, key);
-            if (!ScriptRuntime.toBoolean(inOther)) {
-                result.js_add(key);
-            }
-        }
 
         // Add elements from other that are not in this
         Object iterator =
                 SetLikeKeys.iterator( // AutoJs6: class syntax
                         keysMethod.call(cx, scope, scriptable, ScriptRuntime.emptyArgs), cx, scope);
         try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, iterator)) {
+            for (Hashtable.Entry entry : entries) { // AutoJs6: class syntax
+                result.js_add(entry.key); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             for (Object key : it) {
-                if (js_has(key) != Boolean.TRUE) {
+                if (js_has(key) == Boolean.TRUE) { // AutoJs6: class syntax
+                    result.js_delete(SetRecord.canonicalKey(key)); // AutoJs6: class syntax
+                } else if (result.js_has(key) != Boolean.TRUE) { // AutoJs6: class syntax
                     result.js_add(key);
                 }
             }
@@ -537,9 +530,9 @@ public class NativeSet extends ScriptableObject {
 
         // ES2025: GetSetRecord requires size, has, and keys properties
         Scriptable scriptable = ScriptableObject.ensureScriptable(otherObj);
-        Object sizeVal = ScriptableObject.getProperty(scriptable, "size");
-        Object hasVal = ScriptableObject.getProperty(scriptable, "has");
-        Object keysVal = ScriptableObject.getProperty(scriptable, "keys");
+        Object sizeVal = SetRecord.size(scriptable); // AutoJs6: class syntax
+        Object hasVal = SetRecord.method(scriptable, "has"); // AutoJs6: class syntax
+        Object keysVal = SetRecord.method(scriptable, "keys"); // AutoJs6: class syntax
 
         // Validate all required properties exist
         validateSetLike(sizeVal, hasVal, keysVal);
@@ -595,9 +588,9 @@ public class NativeSet extends ScriptableObject {
 
         // ES2025: GetSetRecord requires size, has, and keys properties
         Scriptable scriptable = ScriptableObject.ensureScriptable(otherObj);
-        Object sizeVal = ScriptableObject.getProperty(scriptable, "size");
-        Object hasVal = ScriptableObject.getProperty(scriptable, "has");
-        Object keysVal = ScriptableObject.getProperty(scriptable, "keys");
+        Object sizeVal = SetRecord.size(scriptable); // AutoJs6: class syntax
+        Object hasVal = SetRecord.method(scriptable, "has"); // AutoJs6: class syntax
+        Object keysVal = SetRecord.method(scriptable, "keys"); // AutoJs6: class syntax
 
         // Validate all required properties exist
         validateSetLike(sizeVal, hasVal, keysVal);
@@ -618,6 +611,10 @@ public class NativeSet extends ScriptableObject {
             throw ScriptRuntime.typeErrorById(
                     "msg.isnt.function", "keys", ScriptRuntime.typeof(keysVal));
         }
+
+        if (entries.size() < ScriptRuntime.toNumber(sizeVal)) { // AutoJs6: class syntax
+            return Boolean.FALSE; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
 
         // Iterate through other.keys() and check if all elements are in this
         Callable keysMethod = (Callable) keysVal;
@@ -644,9 +641,9 @@ public class NativeSet extends ScriptableObject {
 
         // ES2025: GetSetRecord requires size, has, and keys properties
         Scriptable scriptable = ScriptableObject.ensureScriptable(otherObj);
-        Object sizeVal = ScriptableObject.getProperty(scriptable, "size");
-        Object hasVal = ScriptableObject.getProperty(scriptable, "has");
-        Object keysVal = ScriptableObject.getProperty(scriptable, "keys");
+        Object sizeVal = SetRecord.size(scriptable); // AutoJs6: class syntax
+        Object hasVal = SetRecord.method(scriptable, "has"); // AutoJs6: class syntax
+        Object keysVal = SetRecord.method(scriptable, "keys"); // AutoJs6: class syntax
 
         // Validate all required properties exist
         validateSetLike(sizeVal, hasVal, keysVal);
