@@ -71,15 +71,18 @@ class ReflectKeyTest {
     @Test
     void deletePropertyDeletesOwnPropertiesOnly() {
         assertWithAllModes_ES6(
-                "true,true,true,true|true,true|true,false|false",
-                """
+                "true,true,true,true|true,true|true,false|false|Error",
+                SETUP
+                        + """
                 var s = Symbol(), p = { a: 1, [s]: 2 }, c = Object.create(p), q = [1], d = Object.create(q);
                 var own = { [s]: 3 };
                 [Reflect.deleteProperty(c, 'a') + ',' + ('a' in p) + ',' + Reflect.deleteProperty(c, s)
                     + ',' + (s in p),
                   Reflect.deleteProperty(d, '0') + ',' + (0 in q),
                   Reflect.deleteProperty(own, s) + ',' + (s in own),
-                  Reflect.deleteProperty(Object.freeze({ z: 1 }), 'z')].join('|');
+                  Reflect.deleteProperty(Object.freeze({ z: 1 }), 'z'),
+                  run(() => Reflect.deleteProperty(new Proxy({},
+                    { deleteProperty(t, k) { throw new Error('trap:' + k); } }), 'x'))].join('|');
                 """);
     }
 
@@ -87,14 +90,15 @@ class ReflectKeyTest {
     void definePropertyConvertsTheKeyFirst() {
         // ToPropertyKey runs before ToPropertyDescriptor, and its error is not turned into false.
         assertWithAllModes_ES6(
-                "key,desc|Error",
+                "key,desc|Error|Error",
                 SETUP
                         + """
                 var log = [];
                 Reflect.defineProperty({}, { toString() { log.push('key'); return 'k'; } },
                   { get value() { log.push('desc'); return 1; } });
-                [log.join(), run(() => Reflect.defineProperty({},
-                  { toString() { throw new Error('key'); } }, {}))].join('|');
+                var badKey = { toString() { throw new Error('key'); } };
+                [log.join(), run(() => Reflect.defineProperty({}, badKey, {})),
+                  run(() => Reflect.defineProperty({}, badKey))].join('|');
                 """);
     }
 

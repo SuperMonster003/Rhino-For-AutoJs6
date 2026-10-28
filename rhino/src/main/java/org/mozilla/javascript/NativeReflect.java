@@ -157,6 +157,8 @@ final class NativeReflect extends ScriptableObject {
          * 3. Let desc be ? ToPropertyDescriptor(attributes).
          * 4. Return ? target.[[DefineOwnProperty]](key, desc).
          */
+        ScriptableObject target = checkTarget(args); // AutoJs6: class syntax
+        Object key = ReflectKey.of(args, 1); // AutoJs6: class syntax
         if (args.length < 3) {
             throw ScriptRuntime.typeErrorById(
                     "msg.method.missing.parameter",
@@ -165,8 +167,6 @@ final class NativeReflect extends ScriptableObject {
                     Integer.toString(args.length));
         }
 
-        ScriptableObject target = checkTarget(args);
-        Object key = ReflectKey.of(args, 1); // AutoJs6: class syntax
         DescriptorInfo desc = new DescriptorInfo(ScriptableObject.ensureScriptableObject(args[2]));
 
         try {

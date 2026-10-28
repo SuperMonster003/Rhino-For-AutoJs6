@@ -7,6 +7,7 @@
 package org.mozilla.javascript;
 
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
+import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
 
 /**
  * AutoJs6: the property key of the {@link NativeReflect} methods (ROADMAP P6.13, appendix C Q27).
@@ -48,41 +49,39 @@ final class ReflectKey {
         return value == Scriptable.NOT_FOUND ? Undefined.instance : value;
     }
 
-    /** target.[[HasProperty]](key). */
+    /**
+     * target.[[HasProperty]](key). An index of a typed array is only its own (IsValidIntegerIndex),
+     * never one of its prototypes.
+     */
     static boolean has(Scriptable target, Object key) {
         if (key instanceof Symbol) {
             return ScriptableObject.hasProperty(target, (Symbol) key);
         }
         StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
-        return s.stringId == null
-                ? ScriptableObject.hasProperty(target, s.index)
-                : ScriptableObject.hasProperty(target, s.stringId);
+        if (s.stringId != null) {
+            return ScriptableObject.hasProperty(target, s.stringId);
+        }
+        return target instanceof NativeTypedArrayView
+                ? target.has(s.index, target)
+                : ScriptableObject.hasProperty(target, s.index);
     }
 
     /**
-     * target.[[Delete]](key): a property of the target itself. Upstream's {@link
-     * ScriptableObject#deleteProperty} deleted it from the prototype that held it.
+     * target.[[Delete]](key): the target deletes its own property (a Proxy calls its trap whether
+     * the property exists or not). Upstream's {@link ScriptableObject#deleteProperty} deleted it
+     * from the prototype that held it.
      */
     static boolean delete(Scriptable target, Object key) {
         if (key instanceof Symbol) {
             Symbol symbol = (Symbol) key;
             SymbolScriptable obj = ScriptableObject.ensureSymbolScriptable(target);
-            if (!obj.has(symbol, target)) {
-                return true;
-            }
             obj.delete(symbol);
             return !obj.has(symbol, target);
         }
         StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
         if (s.stringId == null) {
-            if (!target.has(s.index, target)) {
-                return true;
-            }
             target.delete(s.index);
             return !target.has(s.index, target);
-        }
-        if (!target.has(s.stringId, target)) {
-            return true;
         }
         target.delete(s.stringId);
         return !target.has(s.stringId, target);
