@@ -5302,6 +5302,12 @@ public class Parser {
                 index++; // AutoJs6: class syntax
                 continue; // AutoJs6: class syntax
             } // AutoJs6: class syntax
+            Node member = variableType == -1 ? record : null; // AutoJs6: class syntax
+            if (bindings.member(parent, member, n, transformer)) { // AutoJs6: class syntax
+                index++; // AutoJs6: class syntax
+                empty = false; // AutoJs6: class syntax
+                continue; // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             // Generate code to get element
             if (iterates && n instanceof Spread) { // AutoJs6: class syntax
                 rightElem = bindings.rest(record, iteratorName); // AutoJs6: class syntax
@@ -5435,11 +5441,7 @@ public class Parser {
         Node right = null;
         if (left.getType() == Token.NAME) {
             String name = left.getString();
-            // x = (x == undefined) ?
-            //          (($1[0] == undefined) ?
-            //              1
-            //              : $1[0])
-            //          : x
+            // x = ($1[0] === undefined) ? 1 : $1[0] // AutoJs6: class syntax
 
             right = (transformer != null) ? transformer.transform(n.getRight()) : n.getRight();
             bindings.inferName(left, right, transformer != null); // AutoJs6: class syntax
@@ -5454,15 +5456,7 @@ public class Parser {
                             right,
                             rightElem);
 
-            Node cond =
-                    new Node(
-                            Token.HOOK,
-                            new Node(
-                                    Token.SHEQ,
-                                    new KeywordLiteral().setType(Token.UNDEFINED),
-                                    createName(name)),
-                            cond_inner,
-                            left);
+            Node cond = cond_inner; // AutoJs6: class syntax
 
             // store it to be transformed later
             if (transformer == null) {

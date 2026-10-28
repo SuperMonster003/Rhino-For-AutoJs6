@@ -243,6 +243,95 @@ final class BindingLowering {
         return destructure(record, ArrayDestructuring.VALUE);
     }
 
+    /**
+     * A member expression target of an array assignment pattern with a record (appendix C Q32):
+     * {@code [o.x] = it}, {@code [o[k] = d] = it}, {@code [...o[k]] = it}. The reference, the
+     * object and the key, is evaluated before the iterator steps (the DestructuringAssignmentTarget
+     * before IteratorStepValue), into let bindings like those of a logical assignment, so an error
+     * or a yield there leaves the open iterator to the closing of the pattern. False for the other
+     * elements, which Parser.destructuringArray handles (a rest element that is not the last is
+     * reported there).
+     */
+    boolean member(Node parent, Node record, AstNode element, Parser.Transformer transformer) {
+        if (record == null || transformer == null) {
+            return false;
+        }
+        AstNode target = element;
+        AstNode init = null;
+        boolean rest = element instanceof Spread;
+        if (rest) {
+            List<AstNode> elements = ((ArrayLiteral) element.getParent()).getElements();
+            if (elements.get(elements.size() - 1) != element) {
+                return false;
+            }
+            target = ((Spread) element).getExpression();
+        } else if (element.getType() == Token.ASSIGN) {
+            target = ((Assignment) element).getLeft();
+            init = ((Assignment) element).getRight();
+        }
+        if (target.getType() != Token.GETPROP && target.getType() != Token.GETELEM) {
+            return false;
+        }
+        Node ref = transformer.transform(target);
+        int type = ref.getType();
+        LogicalAssignment.Temps temps = new LogicalAssignment.Temps(parser);
+        Node body = new Node(Token.COMMA);
+        if (type == Token.GETPROP || type == Token.GETELEM) {
+            Node obj = ref.getFirstChild();
+            Node id = ref.getLastChild();
+            boolean superAccess = ref.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1;
+            if (!superAccess) {
+                obj = temps.add(obj);
+            }
+            if (!isConstantKey(id)) {
+                id = temps.add(id);
+            }
+            ref = new Node(type, obj, id);
+            if (superAccess) {
+                ref.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+            }
+        }
+        Node value;
+        if (rest) {
+            value = rest(record, null);
+        } else if (init == null) {
+            value = destructure(record, ArrayDestructuring.STEP);
+        } else {
+            body.addChildToBack(destructure(record, ArrayDestructuring.STEP));
+            Node undefined =
+                    new Node(
+                            Token.SHEQ,
+                            new Node(Token.UNDEFINED),
+                            destructure(record, ArrayDestructuring.VALUE));
+            value =
+                    new Node(
+                            Token.HOOK,
+                            undefined,
+                            transformer.transform(init),
+                            destructure(record, ArrayDestructuring.VALUE));
+        }
+        Node write = parser.simpleAssignment(ref, value);
+        if (ref.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1) {
+            write.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+        }
+        body.addChildToBack(write);
+        parent.addChildToBack(temps.wrap(ref, body));
+        return true;
+    }
+
+    /** A key that evaluates to the same value again: a string, a number or a private name. */
+    private static boolean isConstantKey(Node id) {
+        switch (id.getType()) {
+            case Token.STRING:
+            case Token.NUMBER:
+                return true;
+            case Token.NAME:
+                return ClassParser.isPrivateBinding(id.getString());
+            default:
+                return false;
+        }
+    }
+
     /** The end of a pattern with a record: IteratorClose, unless the iterator is done. */
     void finish(Node parent, Node record) {
         if (record != null) {

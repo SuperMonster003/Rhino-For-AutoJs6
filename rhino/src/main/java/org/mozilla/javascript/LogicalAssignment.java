@@ -157,7 +157,7 @@ final class LogicalAssignment {
     }
 
     /** The let bindings that hold the object and the key. */
-    private static final class Temps {
+    static final class Temps {
         private final Parser parser;
         private final List<String> names = new ArrayList<>();
         private final List<Node> values = new ArrayList<>();
