@@ -166,20 +166,11 @@ final class NativeReflect extends ScriptableObject {
         }
 
         ScriptableObject target = checkTarget(args);
+        Object key = ReflectKey.of(args, 1); // AutoJs6: class syntax
         DescriptorInfo desc = new DescriptorInfo(ScriptableObject.ensureScriptableObject(args[2]));
 
-        Object key = args[1];
-
         try {
-            if (key instanceof Symbol) {
-                return target.defineOwnProperty(cx, key, desc);
-            } else {
-                String propertyKey =
-                        ScriptRuntime.toString(
-                                ScriptRuntime.toPrimitive(key, ScriptRuntime.StringClass));
-                return target.defineOwnProperty(cx, propertyKey, desc);
-            }
-
+            return target.defineOwnProperty(cx, key, desc); // AutoJs6: class syntax
         } catch (EcmaError e) {
             return false;
         }
@@ -197,15 +188,7 @@ final class NativeReflect extends ScriptableObject {
          * 3. Return ? target.[[Delete]](key).
          */
         ScriptableObject target = checkTarget(args);
-
-        if (args.length > 1) {
-            if (ScriptRuntime.isSymbol(args[1])) {
-                return ScriptableObject.deleteProperty(target, (Symbol) args[1]);
-            }
-            return ScriptableObject.deleteProperty(target, ScriptRuntime.toString(args[1]));
-        }
-
-        return false;
+        return ReflectKey.delete(target, ReflectKey.of(args, 1)); // AutoJs6: class syntax
     }
 
     /**
@@ -222,27 +205,12 @@ final class NativeReflect extends ScriptableObject {
          * 4. Return ? target.[[Get]](key, receiver).
          */
         ScriptableObject target = checkTarget(args);
-
-        if (args.length < 2) {
-            return Undefined.SCRIPTABLE_UNDEFINED;
-        }
+        Object key = ReflectKey.of(args, 1); // AutoJs6: class syntax
 
         Scriptable receiver =
                 (args.length > 2 && args[2] instanceof Scriptable) ? (Scriptable) args[2] : target;
 
-        Object prop;
-        if (ScriptRuntime.isSymbol(args[1])) {
-            prop = ScriptableObject.getSuperProperty(target, receiver, (Symbol) args[1]);
-        } else if (args[1] instanceof Number) {
-            prop =
-                    ScriptableObject.getSuperProperty(
-                            target, receiver, ScriptRuntime.toIndex(args[1]));
-        } else {
-            prop =
-                    ScriptableObject.getSuperProperty(
-                            target, receiver, ScriptRuntime.toString(args[1]));
-        }
-        return prop == Scriptable.NOT_FOUND ? Undefined.SCRIPTABLE_UNDEFINED : prop;
+        return ReflectKey.get(target, receiver, key); // AutoJs6: class syntax
     }
 
     /**
@@ -250,7 +218,7 @@ final class NativeReflect extends ScriptableObject {
      * href="https://262.ecma-international.org/12.0/#sec-reflect.getownpropertydescriptor">28.1.6
      * Reflect.getOwnPropertyDescriptor ( target, propertyKey )</a>
      */
-    private static Scriptable getOwnPropertyDescriptor(
+    private static Object getOwnPropertyDescriptor( // AutoJs6: class syntax
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         /*
          * 1. If Type(target) is not Object, throw a TypeError exception.
@@ -259,17 +227,10 @@ final class NativeReflect extends ScriptableObject {
          * 4. Return FromPropertyDescriptor(desc).
          */
         ScriptableObject target = checkTarget(args);
-
-        if (args.length > 1) {
-            if (ScriptRuntime.isSymbol(args[1])) {
-                var desc = target.getOwnPropertyDescriptor(cx, args[1]);
-                return desc == null ? Undefined.SCRIPTABLE_UNDEFINED : desc.toObject(s);
-            }
-
-            var desc = target.getOwnPropertyDescriptor(cx, ScriptRuntime.toString(args[1]));
-            return desc == null ? Undefined.SCRIPTABLE_UNDEFINED : desc.toObject(s);
-        }
-        return Undefined.SCRIPTABLE_UNDEFINED;
+        var desc =
+                target.getOwnPropertyDescriptor(
+                        cx, ReflectKey.of(args, 1)); // AutoJs6: class syntax
+        return desc == null ? Undefined.instance : desc.toObject(s); // AutoJs6: class syntax
     }
 
     /**
@@ -299,15 +260,7 @@ final class NativeReflect extends ScriptableObject {
          * 3. Return ? target.[[HasProperty]](key).
          */
         ScriptableObject target = checkTarget(args);
-
-        if (args.length > 1) {
-            if (ScriptRuntime.isSymbol(args[1])) {
-                return ScriptableObject.hasProperty(target, (Symbol) args[1]);
-            }
-
-            return ScriptableObject.hasProperty(target, ScriptRuntime.toString(args[1]));
-        }
-        return false;
+        return ReflectKey.has(target, ReflectKey.of(args, 1)); // AutoJs6: class syntax
     }
 
     /**
