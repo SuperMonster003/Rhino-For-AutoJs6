@@ -75,6 +75,7 @@ public class WithScope implements VarScope {
 
     @Override
     public void put(String name, VarScope start, Object value) {
+        OrdinarySet.binding(obj, name); // AutoJs6: class syntax
         ScriptableObject.putProperty(obj, name, value);
     }
 

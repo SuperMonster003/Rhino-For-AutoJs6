@@ -188,6 +188,17 @@ final class OrdinarySet {
     }
 
     /**
+     * SetMutableBinding of a {@code with} object asks HasProperty before the Set. Upstream's
+     * assignment did so for a Proxy through the lookup of {@code putProperty}, which {@link #base}
+     * no longer does; other objects are not asked (the answer is not observable).
+     */
+    static void binding(Scriptable withObj, String id) {
+        if (withObj instanceof NativeProxy) {
+            withObj.has(id, withObj);
+        }
+    }
+
+    /**
      * HasProperty, then Get: the value at {@code index}, or NOT_FOUND when absent. For {@code
      * Array.prototype.copyWithin}, which treated a value of undefined as absent and relied on the
      * assignment asking the has trap of a Proxy (no longer asked since P6.14).
