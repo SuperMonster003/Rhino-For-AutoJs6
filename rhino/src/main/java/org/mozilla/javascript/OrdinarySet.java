@@ -171,14 +171,18 @@ final class OrdinarySet {
         if (base instanceof ScriptableObject
                 || !(base instanceof CharSequence
                         || base instanceof Number
-                        || base instanceof Boolean)
+                        || base instanceof Boolean
+                        || base instanceof Symbol)
                 || cx.getLanguageVersion() < Context.VERSION_ES6) {
             return false;
         }
         Object k = ReflectKey.of(new Object[] {key}, 0);
         if (!set(cx, ScriptRuntime.toObject(cx, scope, base), k, value, base)
                 && cx.isStrictMode()) {
-            throw ScriptRuntime.undefWriteError(base, key, value);
+            // undefWriteError cannot convert a symbol to a string
+            throw base instanceof Symbol
+                    ? ScriptRuntime.typeErrorById("msg.no.assign.symbol.strict")
+                    : ScriptRuntime.undefWriteError(base, key, value);
         }
         return true;
     }
