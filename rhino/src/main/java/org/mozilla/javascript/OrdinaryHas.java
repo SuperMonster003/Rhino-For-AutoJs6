@@ -18,15 +18,32 @@ import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
  * without a has trap only the own properties of its target were asked. A Proxy now answers for the
  * rest of the chain, with its has trap or with HasProperty of its target.
  *
+ * <p>Until a Proxy is created no chain can reach one, and upstream's loop ({@code getBase}) is
+ * kept: a check for a Proxy in that loop made {@code in} along a prototype chain up to twice as
+ * slow in compiled code (ROADMAP P6.15 timing).
+ *
  * <p>Also the name lookup in a {@code with} statement whose object is a Proxy, which upstream did
  * with Get alone (no has trap, and a name the Proxy has with the value undefined was not found).
  */
 final class OrdinaryHas {
 
+    /** Whether a Proxy was created. */
+    static volatile boolean proxies;
+
     private OrdinaryHas() {}
+
+    /** Called by the constructor of a Proxy. */
+    static void created() {
+        if (!proxies) {
+            proxies = true;
+        }
+    }
 
     /** HasProperty(obj, name). */
     static boolean has(Scriptable obj, String name) {
+        if (!proxies) {
+            return ScriptableObject.getBase(obj, name) != null;
+        }
         for (Scriptable o = obj; o != null; o = o.getPrototype()) {
             if (o instanceof NativeProxy) {
                 return proxyHas((NativeProxy) o, name);
@@ -40,6 +57,9 @@ final class OrdinaryHas {
 
     /** HasProperty(obj, index). */
     static boolean has(Scriptable obj, int index) {
+        if (!proxies) {
+            return ScriptableObject.getBase(obj, index) != null;
+        }
         for (Scriptable o = obj; o != null; o = o.getPrototype()) {
             if (o instanceof NativeProxy) {
                 return proxyHas((NativeProxy) o, ScriptRuntime.toString(index));
@@ -53,6 +73,9 @@ final class OrdinaryHas {
 
     /** HasProperty(obj, key). */
     static boolean has(Scriptable obj, Symbol key) {
+        if (!proxies) {
+            return ScriptableObject.getBase(obj, key) != null;
+        }
         for (Scriptable o = obj; o != null; o = o.getPrototype()) {
             if (o instanceof NativeProxy) {
                 return proxyHas((NativeProxy) o, key);

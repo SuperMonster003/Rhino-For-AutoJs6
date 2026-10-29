@@ -80,6 +80,7 @@ class NativeProxy extends ScriptableObject {
     private NativeProxy(ScriptableObject target, Scriptable handler) {
         this.targetObj = target;
         this.handlerObj = handler;
+        OrdinaryHas.created(); // AutoJs6: class syntax
 
         if (target == null || !(target instanceof Callable)) {
             typeOf = super.getTypeOf();
