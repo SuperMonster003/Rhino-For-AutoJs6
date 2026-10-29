@@ -246,6 +246,31 @@ class ProxySetAndDeleteTest {
     }
 
     @Test
+    void withProxyAsksHasBeforeTheSet() {
+        // SetMutableBinding: HasProperty, then Set (upstream's NativeProxyTest checks the order).
+        assertWithAllModes_ES6(
+                "has:p,has:p,set:p,getOwnPropertyDescriptor:p,defineProperty:p|1",
+                SETUP
+                        + """
+                var log = [], env = { p: 0 };
+                var proxy = new Proxy(env, {
+                  has(t, k) { log.push('has:' + String(k)); return Reflect.has(t, k); },
+                  set(t, k, v, r) { log.push('set:' + String(k)); return Reflect.set(t, k, v, r); },
+                  getOwnPropertyDescriptor(t, k) {
+                    log.push('getOwnPropertyDescriptor:' + String(k));
+                    return Reflect.getOwnPropertyDescriptor(t, k);
+                  },
+                  defineProperty(t, k, d) {
+                    log.push('defineProperty:' + String(k));
+                    return Reflect.defineProperty(t, k, d);
+                  }
+                });
+                with (proxy) { p = 1; }
+                log.join() + '|' + env.p;
+                """);
+    }
+
+    @Test
     void copyWithinAsksHasProperty() {
         // Upstream deleted a target whose source held undefined, and only asked the has trap of a
         // Proxy through the assignment, which no longer does (P6.14).
