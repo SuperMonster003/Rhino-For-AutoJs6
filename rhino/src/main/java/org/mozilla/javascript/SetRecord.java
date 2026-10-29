@@ -23,7 +23,7 @@ final class SetRecord {
 
     /** The {@code size} of the record: an integer or an infinity, never negative. */
     static Object size(Scriptable obj) {
-        double num = ScriptRuntime.toNumber(get(obj, "size"));
+        double num = ScriptRuntime.toNumber(get(obj, "size", " property"));
         if (Double.isNaN(num)) {
             throw ScriptRuntime.typeError("size is not a number");
         }
@@ -36,7 +36,7 @@ final class SetRecord {
 
     /** The {@code has} or {@code keys} of the record; a TypeError when it is not callable. */
     static Object method(Scriptable obj, String name) {
-        Object value = get(obj, name);
+        Object value = get(obj, name, " method");
         if (!(value instanceof Callable)) {
             throw ScriptRuntime.typeErrorById(
                     "msg.isnt.function", name, ScriptRuntime.typeof(value));
@@ -52,8 +52,12 @@ final class SetRecord {
         return key;
     }
 
-    private static Object get(Scriptable obj, String name) {
+    /** A missing property is undefined, a TypeError with upstream's message. */
+    private static Object get(Scriptable obj, String name, String kind) {
         Object value = ScriptableObject.getProperty(obj, name);
-        return value == Scriptable.NOT_FOUND ? Undefined.instance : value;
+        if (value == Scriptable.NOT_FOUND) {
+            throw ScriptRuntime.typeError("Set-like object must have a '" + name + "'" + kind);
+        }
+        return value;
     }
 }
