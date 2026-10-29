@@ -2332,6 +2332,9 @@ public class ScriptRuntime {
 
     public static <T extends PropHolder<T>> boolean deleteObjectElem(
             T target, Object elem, Context cx) {
+        if (target instanceof NativeProxy) { // AutoJs6: class syntax
+            return OrdinaryDelete.operator((NativeProxy) target, elem, cx); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         if (isSymbol(elem)) {
             if (target instanceof VarScope) {
                 Kit.codeBug();

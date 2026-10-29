@@ -19,7 +19,7 @@ import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
  * is ToPropertyKey (once, before anything else the method converts), and the lookups dispatch the
  * key to the index or the name the way property access does. A missing value is {@link
  * Undefined#instance}, not the scriptable undefined whose {@code typeof} is "object", and {@code
- * deleteProperty} deletes a property of the target only.
+ * deleteProperty} deletes a property of the target only ({@link OrdinaryDelete}, P6.14).
  */
 final class ReflectKey {
 
@@ -64,26 +64,5 @@ final class ReflectKey {
         return target instanceof NativeTypedArrayView
                 ? target.has(s.index, target)
                 : ScriptableObject.hasProperty(target, s.index);
-    }
-
-    /**
-     * target.[[Delete]](key): the target deletes its own property (a Proxy calls its trap whether
-     * the property exists or not). Upstream's {@link ScriptableObject#deleteProperty} deleted it
-     * from the prototype that held it.
-     */
-    static boolean delete(Scriptable target, Object key) {
-        if (key instanceof Symbol) {
-            Symbol symbol = (Symbol) key;
-            SymbolScriptable obj = ScriptableObject.ensureSymbolScriptable(target);
-            obj.delete(symbol);
-            return !obj.has(symbol, target);
-        }
-        StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
-        if (s.stringId == null) {
-            target.delete(s.index);
-            return !target.has(s.index, target);
-        }
-        target.delete(s.stringId);
-        return !target.has(s.stringId, target);
     }
 }

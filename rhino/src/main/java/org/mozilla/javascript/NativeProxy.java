@@ -556,38 +556,7 @@ class NativeProxy extends ScriptableObject {
          *         i. If targetDesc.[[Set]] is undefined, throw a TypeError exception.
          * 12. Return true.
          */
-        ScriptableObject target = getTargetThrowIfRevoked();
-
-        Function trap = getTrap(TRAP_SET);
-        if (trap != null) {
-            boolean booleanTrapResult =
-                    ScriptRuntime.toBoolean(
-                            callTrap(trap, new Object[] {target, name, value, start}));
-            if (!booleanTrapResult) {
-                return; // false
-            }
-
-            DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), name);
-            if (targetDesc != null
-                    && !Undefined.isUndefined(targetDesc)
-                    && targetDesc.isConfigurable(false)) {
-                if (targetDesc.isDataDescriptor() && targetDesc.isWritable(false)) {
-                    if (!Objects.equals(value, targetDesc.value)) {
-                        throw ScriptRuntime.typeError(
-                                "proxy set has to use the same value as the plain call");
-                    }
-                }
-                if (targetDesc.isAccessorDescriptor() && Undefined.isUndefined(targetDesc.setter)) {
-                    throw ScriptRuntime.typeError("proxy set has to be available");
-                }
-            }
-            return; // true
-        }
-
-        if (start == this) {
-            start = target;
-        }
-        target.put(name, start, value);
+        OrdinarySet.put(this, name, start, value); // AutoJs6: class syntax
     }
 
     /**
@@ -616,43 +585,7 @@ class NativeProxy extends ScriptableObject {
          *         i. If targetDesc.[[Set]] is undefined, throw a TypeError exception.
          * 12. Return true.
          */
-        ScriptableObject target = getTargetThrowIfRevoked();
-
-        Function trap = getTrap(TRAP_SET);
-        if (trap != null) {
-            boolean booleanTrapResult =
-                    ScriptRuntime.toBoolean(
-                            callTrap(
-                                    trap,
-                                    new Object[] {
-                                        target, ScriptRuntime.toString(index), value, start
-                                    }));
-            if (!booleanTrapResult) {
-                return; // false
-            }
-
-            DescriptorInfo targetDesc =
-                    target.getOwnPropertyDescriptor(Context.getContext(), index);
-            if (targetDesc != null
-                    && !Undefined.isUndefined(targetDesc)
-                    && targetDesc.isConfigurable(false)) {
-                if (targetDesc.isDataDescriptor() && targetDesc.isWritable(false)) {
-                    if (!Objects.equals(value, targetDesc.value)) {
-                        throw ScriptRuntime.typeError(
-                                "proxy set has to use the same value as the plain call");
-                    }
-                }
-                if (targetDesc.isAccessorDescriptor() && Undefined.isUndefined(targetDesc.setter)) {
-                    throw ScriptRuntime.typeError("proxy set has to be available");
-                }
-            }
-            return; // true
-        }
-
-        if (start == this) {
-            start = target;
-        }
-        target.put(index, start, value);
+        OrdinarySet.put(this, ScriptRuntime.toString(index), start, value); // AutoJs6: class syntax
     }
 
     /**
@@ -681,39 +614,7 @@ class NativeProxy extends ScriptableObject {
          *         i. If targetDesc.[[Set]] is undefined, throw a TypeError exception.
          * 12. Return true.
          */
-        ScriptableObject target = getTargetThrowIfRevoked();
-
-        Function trap = getTrap(TRAP_SET);
-        if (trap != null) {
-            boolean booleanTrapResult =
-                    ScriptRuntime.toBoolean(
-                            callTrap(trap, new Object[] {target, key, value, start}));
-            if (!booleanTrapResult) {
-                return; // false
-            }
-
-            DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), key);
-            if (targetDesc != null
-                    && !Undefined.isUndefined(targetDesc)
-                    && targetDesc.isConfigurable(false)) {
-                if (targetDesc.isDataDescriptor() && targetDesc.isWritable(false)) {
-                    if (!Objects.equals(value, targetDesc.value)) {
-                        throw ScriptRuntime.typeError(
-                                "proxy set has to use the same value as the plain call");
-                    }
-                }
-                if (targetDesc.isAccessorDescriptor() && Undefined.isUndefined(targetDesc.setter)) {
-                    throw ScriptRuntime.typeError("proxy set has to be available");
-                }
-            }
-            return; // true
-        }
-
-        if (start == this) {
-            start = target;
-        }
-        SymbolScriptable symbolScriptableTarget = ensureSymbolScriptable(target);
-        symbolScriptableTarget.put(key, start, value);
+        OrdinarySet.put(this, key, start, value); // AutoJs6: class syntax
     }
 
     /**
@@ -924,7 +825,7 @@ class NativeProxy extends ScriptableObject {
                             : target.getOwnPropertyDescriptor(cx, ScriptRuntime.toString(id));
 
             if (Undefined.isUndefined(trapResultObj)) {
-                if (Undefined.isUndefined(targetDesc)) {
+                if (targetDesc == null) { // AutoJs6: class syntax
                     return null;
                 }
 

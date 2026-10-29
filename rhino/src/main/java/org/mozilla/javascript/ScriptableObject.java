@@ -2619,7 +2619,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
      * @since 1.5R2
      */
     public static void putProperty(Scriptable obj, String name, Object value) {
-        Scriptable base = getBase(obj, name);
+        Scriptable base = OrdinarySet.base(obj, name); // AutoJs6: class syntax
         if (base == null) base = obj;
         base.put(name, obj, value);
     }
@@ -2639,7 +2639,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
 
     /** This is a version of putProperty for Symbol keys. */
     public static void putProperty(Scriptable obj, Symbol key, Object value) {
-        Scriptable base = getBase(obj, key);
+        Scriptable base = OrdinarySet.base(obj, key); // AutoJs6: class syntax
         if (base == null) base = obj;
         ensureSymbolScriptable(base).put(key, obj, value);
     }
@@ -2696,7 +2696,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
      * @since 1.5R2
      */
     public static void putProperty(Scriptable obj, int index, Object value) {
-        Scriptable base = getBase(obj, index);
+        Scriptable base = OrdinarySet.base(obj, index); // AutoJs6: class syntax
         if (base == null) base = obj;
         base.put(index, obj, value);
     }

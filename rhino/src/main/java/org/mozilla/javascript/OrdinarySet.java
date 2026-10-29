@@ -1,0 +1,244 @@
+/* -*- Mode: java; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+package org.mozilla.javascript;
+
+import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
+import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
+import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
+
+/**
+ * AutoJs6: [[Set]] with its result, for {@code Reflect.set}, the put of a Proxy and an assignment
+ * with a Proxy in the prototype chain (ROADMAP P6.14, appendix C Q33). Not related to classes.
+ *
+ * <p>Upstream's {@code Reflect.set} with a receiver other than the target asked a prototype without
+ * the property to put the value, and {@link ScriptableObject#put} passed that on to the put of the
+ * receiver: a Proxy whose set trap forwards with {@code Reflect.set(t, k, v, r)} called its trap
+ * again until the stack overflowed. {@code Reflect.set} also returned true whatever happened and
+ * did not look at the prototypes of the target, a Proxy without a set trap replaced the receiver by
+ * its target, and an assignment asked the has trap of a Proxy in the prototype chain instead of
+ * calling its set trap.
+ *
+ * <p>{@link #set} is OrdinarySet: it looks for the own property along the prototype chain and hands
+ * the receiver to the first Proxy on the way. A data property ends at the receiver: through its
+ * [[GetOwnProperty]] and [[DefineOwnProperty]] when it is a Proxy, otherwise with put as before
+ * (dense arrays, Java backed slots) once the checks that make the result false have passed. An
+ * accessor is written with put on its holder, which calls the setter with the receiver.
+ */
+final class OrdinarySet {
+
+    private OrdinarySet() {}
+
+    /** The object whose put handles an assignment: the first that has the property, or a Proxy. */
+    static Scriptable base(Scriptable obj, String name) {
+        Scriptable o = obj;
+        do {
+            if (o instanceof NativeProxy || o.has(name, obj)) {
+                return o;
+            }
+            o = o.getPrototype();
+        } while (o != null);
+        return null;
+    }
+
+    /** The object whose put handles an assignment: the first that has the property, or a Proxy. */
+    static Scriptable base(Scriptable obj, int index) {
+        Scriptable o = obj;
+        do {
+            if (o instanceof NativeProxy || o.has(index, obj)) {
+                return o;
+            }
+            o = o.getPrototype();
+        } while (o != null);
+        return null;
+    }
+
+    /** The object whose put handles an assignment: the first that has the property, or a Proxy. */
+    static Scriptable base(Scriptable obj, Symbol key) {
+        Scriptable o = obj;
+        do {
+            if (o instanceof NativeProxy
+                    || ScriptableObject.ensureSymbolScriptable(o).has(key, obj)) {
+                return o;
+            }
+            o = o.getPrototype();
+        } while (o != null);
+        return null;
+    }
+
+    /** The put of a Proxy: its [[Set]] with {@code start} as the receiver. */
+    static void put(NativeProxy proxy, Object key, Scriptable start, Object value) {
+        if (!proxySet(Context.getContext(), proxy, key, value, start)
+                && Context.isCurrentContextStrict()) {
+            throw ScriptRuntime.typeError("proxy refused to set property '" + key + "'");
+        }
+    }
+
+    /** o.[[Set]](key, value, receiver), the key being a String or a Symbol. */
+    static boolean set(Context cx, Scriptable o, Object key, Object value, Object receiver) {
+        Scriptable holder = o;
+        DescriptorInfo ownDesc = null;
+        for (; holder != null; holder = holder.getPrototype()) {
+            if (holder instanceof NativeProxy) {
+                return proxySet(cx, (NativeProxy) holder, key, value, receiver);
+            }
+            if (holder instanceof NativeTypedArrayView && !(key instanceof Symbol)) {
+                StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
+                if (s.stringId == null) {
+                    if (holder == receiver) {
+                        holder.put(s.index, holder, value);
+                        return true;
+                    }
+                    if (!holder.has(s.index, holder)) {
+                        return true;
+                    }
+                    ownDesc = new DescriptorInfo(true, true, true, holder.get(s.index, holder));
+                    holder = null;
+                    break;
+                }
+            }
+            if (holder instanceof ScriptableObject) {
+                ownDesc = ((ScriptableObject) holder).getOwnPropertyDescriptor(cx, key);
+                if (ownDesc != null) {
+                    break;
+                }
+            } else if (has(holder, key)) {
+                if (!isObject(receiver)) {
+                    return false;
+                }
+                write(holder, key, (Scriptable) receiver, value);
+                return true;
+            }
+        }
+
+        if (ownDesc != null && ownDesc.isAccessorDescriptor()) {
+            if (!(ownDesc.setter instanceof Function)) {
+                return false;
+            }
+            if (isObject(receiver)) {
+                write(holder, key, (Scriptable) receiver, value);
+            } else {
+                Function setter = (Function) ownDesc.setter;
+                setter.call(cx, setter.getDeclarationScope(), receiver, new Object[] {value});
+            }
+            return true;
+        }
+        if (ownDesc != null && ownDesc.isWritable(false)) {
+            return false;
+        }
+        if (!isObject(receiver)) {
+            return false;
+        }
+
+        Scriptable r = (Scriptable) receiver;
+        if (r instanceof NativeProxy) {
+            DescriptorInfo existing = ((NativeProxy) r).getOwnPropertyDescriptor(cx, key);
+            if (existing != null
+                    && (existing.isAccessorDescriptor() || existing.isWritable(false))) {
+                return false;
+            }
+            return define(cx, r, key, value, existing == null);
+        }
+        if (r != holder && r instanceof ScriptableObject) {
+            ScriptableObject obj = (ScriptableObject) r;
+            DescriptorInfo existing = obj.getOwnPropertyDescriptor(cx, key);
+            if (existing == null
+                    ? !obj.isExtensible()
+                    : existing.isAccessorDescriptor() || existing.isWritable(false)) {
+                return false;
+            }
+        }
+        write(holder == null ? r : holder, key, r, value);
+        return true;
+    }
+
+    /** proxy.[[Set]](key, value, receiver). */
+    private static boolean proxySet(
+            Context cx, NativeProxy proxy, Object key, Object value, Object receiver) {
+        ScriptableObject target = proxy.getTargetThrowIfRevoked();
+        Function trap = proxy.getTrap("set");
+        if (trap == null) {
+            return set(cx, target, key, value, receiver);
+        }
+        Object result = proxy.callTrap(trap, new Object[] {target, key, value, receiver});
+        if (!ScriptRuntime.toBoolean(result)) {
+            return false;
+        }
+        DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(cx, key);
+        if (targetDesc != null && targetDesc.isConfigurable(false)) {
+            if (targetDesc.isDataDescriptor()
+                    && targetDesc.isWritable(false)
+                    && !ScriptRuntime.same(value, targetDesc.value)) {
+                throw ScriptRuntime.typeError(
+                        "proxy set has to use the same value as the plain call");
+            }
+            if (targetDesc.isAccessorDescriptor() && !(targetDesc.setter instanceof Function)) {
+                throw ScriptRuntime.typeError("proxy set has to be available");
+            }
+        }
+        return true;
+    }
+
+    /**
+     * r.[[DefineOwnProperty]](key, { [[Value]]: value }), or CreateDataProperty when {@code
+     * create}: through the defineProperty traps, then with put on the object at the end.
+     */
+    private static boolean define(
+            Context cx, Scriptable r, Object key, Object value, boolean create) {
+        while (r instanceof NativeProxy) {
+            NativeProxy proxy = (NativeProxy) r;
+            ScriptableObject target = proxy.getTargetThrowIfRevoked();
+            if (proxy.getTrap("defineProperty") != null) {
+                Object nf = Scriptable.NOT_FOUND;
+                DescriptorInfo desc =
+                        create
+                                ? new DescriptorInfo(true, true, true, value)
+                                : new DescriptorInfo(nf, nf, nf, nf, nf, value);
+                return proxy.defineOwnProperty(cx, key, desc);
+            }
+            r = target;
+        }
+        if (r instanceof ScriptableObject) {
+            ScriptableObject obj = (ScriptableObject) r;
+            DescriptorInfo current = obj.getOwnPropertyDescriptor(cx, key);
+            if (current == null
+                    ? !obj.isExtensible()
+                    : current.isConfigurable(false)
+                            && (create
+                                    || current.isAccessorDescriptor()
+                                    || current.isWritable(false))) {
+                return false;
+            }
+        }
+        write(r, key, r, value);
+        return true;
+    }
+
+    private static boolean isObject(Object value) {
+        return value instanceof Scriptable && !ScriptRuntime.isSymbol(value);
+    }
+
+    private static boolean has(Scriptable obj, Object key) {
+        if (key instanceof Symbol) {
+            return ScriptableObject.ensureSymbolScriptable(obj).has((Symbol) key, obj);
+        }
+        StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
+        return s.stringId == null ? obj.has(s.index, obj) : obj.has(s.stringId, obj);
+    }
+
+    private static void write(Scriptable obj, Object key, Scriptable start, Object value) {
+        if (key instanceof Symbol) {
+            ScriptableObject.ensureSymbolScriptable(obj).put((Symbol) key, start, value);
+            return;
+        }
+        StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
+        if (s.stringId == null) {
+            obj.put(s.index, start, value);
+        } else {
+            obj.put(s.stringId, start, value);
+        }
+    }
+}
