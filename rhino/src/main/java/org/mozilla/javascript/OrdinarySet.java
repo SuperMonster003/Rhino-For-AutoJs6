@@ -122,7 +122,13 @@ final class OrdinarySet {
                 write(holder, key, (Scriptable) receiver, value);
             } else {
                 Function setter = (Function) ownDesc.setter;
-                setter.call(cx, setter.getDeclarationScope(), receiver, new Object[] {value});
+                VarScope scope = setter.getDeclarationScope();
+                // the setters of Java backed slots (__proto__) take an object as this
+                Object thisObj =
+                        setter instanceof LambdaFunction
+                                ? ScriptRuntime.toObject(cx, scope, receiver)
+                                : receiver;
+                setter.call(cx, scope, thisObj, new Object[] {value});
             }
             return true;
         }
@@ -153,6 +159,41 @@ final class OrdinarySet {
         }
         write(holder == null ? r : holder, key, r, value);
         return true;
+    }
+
+    /**
+     * PutValue with a primitive base: ToObject(base).[[Set]](key, value, base), a TypeError when it
+     * is false in strict code. Upstream threw for every primitive base in strict code (ES5), so a
+     * setter or a Proxy on the prototype of a primitive was not called, and elsewhere put the value
+     * on the wrapper, which a setter got as this. False for the bases that go on as before.
+     */
+    static boolean primitive(Context cx, VarScope scope, Object base, Object key, Object value) {
+        if (base instanceof ScriptableObject
+                || !(base instanceof CharSequence
+                        || base instanceof Number
+                        || base instanceof Boolean)
+                || cx.getLanguageVersion() < Context.VERSION_ES6) {
+            return false;
+        }
+        Object k = ReflectKey.of(new Object[] {key}, 0);
+        if (!set(cx, ScriptRuntime.toObject(cx, scope, base), k, value, base)
+                && cx.isStrictMode()) {
+            throw ScriptRuntime.undefWriteError(base, key, value);
+        }
+        return true;
+    }
+
+    /**
+     * HasProperty, then Get: the value at {@code index}, or NOT_FOUND when absent. For {@code
+     * Array.prototype.copyWithin}, which treated a value of undefined as absent and relied on the
+     * assignment asking the has trap of a Proxy (no longer asked since P6.14).
+     */
+    static Object getIfPresent(Scriptable o, long index) {
+        boolean present =
+                index > Integer.MAX_VALUE
+                        ? ScriptableObject.hasProperty(o, Long.toString(index))
+                        : ScriptableObject.hasProperty(o, (int) index);
+        return present ? ArrayLikeAbstractOperations.getRawElem(o, index) : Scriptable.NOT_FOUND;
     }
 
     /** proxy.[[Set]](key, value, receiver). */

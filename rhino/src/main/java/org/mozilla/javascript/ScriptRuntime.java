@@ -2157,6 +2157,9 @@ public class ScriptRuntime {
         if (elem instanceof PrivateNameKey) { // AutoJs6: class syntax
             return ClassRuntime.privateSet(obj, elem, value, cx, scope); // AutoJs6: class syntax
         } // AutoJs6: class syntax
+        if (OrdinarySet.primitive(cx, scope, obj, elem, value)) { // AutoJs6: class syntax
+            return value; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         verifyIsScriptableOrComplainWriteErrorInEs5Strict(obj, elem, value, cx);
         Scriptable sobj = asScriptableOrThrowUndefWriteError(cx, scope, obj, elem, value);
         return setObjectElem(sobj, elem, value, cx);
@@ -2230,6 +2233,9 @@ public class ScriptRuntime {
     /** Version of setObjectElem when elem is a valid JS identifier name. */
     public static Object setObjectProp(
             Object obj, String property, Object value, Context cx, VarScope scope) {
+        if (OrdinarySet.primitive(cx, scope, obj, property, value)) { // AutoJs6: class syntax
+            return value; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         verifyIsScriptableOrComplainWriteErrorInEs5Strict(obj, property, value, cx);
         Scriptable sobj = asScriptableOrThrowUndefWriteError(cx, scope, obj, property, value);
         return setObjectProp(sobj, property, value, cx);
@@ -2283,6 +2289,9 @@ public class ScriptRuntime {
     /** A cheaper and less general version of the above for well-known argument types. */
     public static Object setObjectIndex(
             Object obj, double dblIndex, Object value, Context cx, VarScope scope) {
+        if (OrdinarySet.primitive(cx, scope, obj, dblIndex, value)) { // AutoJs6: class syntax
+            return value; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         verifyIsScriptableOrComplainWriteErrorInEs5Strict(obj, dblIndex, value, cx);
         Scriptable sobj = asScriptableOrThrowUndefWriteError(cx, scope, obj, dblIndex, value);
         int index = (int) dblIndex;

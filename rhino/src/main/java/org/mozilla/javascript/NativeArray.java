@@ -1838,8 +1838,8 @@ public class NativeArray extends ScriptableObject implements List {
         }
 
         for (; count > 0; count--) {
-            final Object temp = getRawElem(o, from);
-            if ((temp == Scriptable.NOT_FOUND) || Undefined.isUndefined(temp)) {
+            final Object temp = OrdinarySet.getIfPresent(o, from); // AutoJs6: class syntax
+            if (temp == Scriptable.NOT_FOUND) { // AutoJs6: class syntax
                 deleteElem(o, to);
             } else {
                 setElem(cx, o, to, temp);
