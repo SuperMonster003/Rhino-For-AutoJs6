@@ -211,7 +211,7 @@ class ProxySetAndDeleteTest {
         // prototypes, and elsewhere gave a setter the wrapper. Java backed setters (__proto__) get
         // the wrapper, which upstream's Reflect.set did not reach.
         assertWithAllModes_ES6(
-                "number|number|boolean|1|TypeError|TypeError|TypeError|ok|true|TypeError",
+                "number|number|boolean|1|TypeError|TypeError|TypeError|1|TypeError|ok|true|TypeError",
                 SETUP
                         + """
                 var self, sloppySelf, receiver, count = 0;
@@ -231,6 +231,13 @@ class ProxySetAndDeleteTest {
                   run(() => { 'use strict'; (5).foo = 1; }),
                   run(() => { 'use strict'; 'ab'[0] = 'x'; })];
                 Object.setPrototypeOf(Boolean.prototype, Object.prototype);
+                var symbolCount = 0;
+                Object.setPrototypeOf(Symbol.prototype, new Proxy({}, {
+                  set() { symbolCount++; return true; }
+                }));
+                (function () { 'use strict'; Symbol().x = 1; })();
+                Object.setPrototypeOf(Symbol.prototype, Object.prototype);
+                results.push(symbolCount, run(() => { 'use strict'; Symbol().x = 1; }));
                 results.push(run(() => { 'use strict'; (5).__proto__ = {}; return 'ok'; }),
                   Reflect.set(Object.prototype, '__proto__', {}, 5),
                   run(() => { 'use strict'; var n = null; n.x = 1; }));
