@@ -51,6 +51,9 @@ public class AbstractEcmaObjectOperations {
      */
     public static boolean hasOwnProperty(Context cx, Object o, Object property) {
         Scriptable obj = ScriptableObject.ensureScriptable(o);
+        if (obj instanceof NativeProxy) { // AutoJs6: class syntax
+            return OwnProperty.has(cx, obj, property); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
 
         // using instanceof is correct here
         // (see org.mozilla.javascript.tests.es6.Symbol3Test.hasOwnProperty)

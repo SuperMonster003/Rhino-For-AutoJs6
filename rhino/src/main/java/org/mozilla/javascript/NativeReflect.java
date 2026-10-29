@@ -167,6 +167,9 @@ final class NativeReflect extends ScriptableObject {
         }
 
         DescriptorInfo desc = new DescriptorInfo(ScriptableObject.ensureScriptableObject(args[2]));
+        if (target instanceof NativeProxy) { // AutoJs6: class syntax
+            return OwnProperty.reflect(cx, target, key, desc); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
 
         try {
             return target.defineOwnProperty(cx, key, desc); // AutoJs6: class syntax
@@ -296,6 +299,9 @@ final class NativeReflect extends ScriptableObject {
         try (var map = target.startCompoundOp(false)) {
             ids = target.getIds(map, true, true);
         }
+        if (target instanceof NativeProxy) { // AutoJs6: class syntax
+            return OwnProperty.keys(cx, s, ids); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         for (Object o : ids) {
             if (o instanceof Symbol) {
                 symbols.add(o);
@@ -369,40 +375,7 @@ final class NativeReflect extends ScriptableObject {
         }
 
         ScriptableObject target = checkTarget(args);
-
-        if (target.getPrototype() == args[1]) {
-            return true;
-        }
-
-        if (!target.isExtensible()) {
-            return false;
-        }
-
-        if (args[1] == null) {
-            target.setPrototype(null);
-            return true;
-        }
-
-        if (ScriptRuntime.isSymbol(args[1])) {
-            throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.brief(args[0]));
-        }
-
-        Scriptable proto = ScriptableObject.ensureScriptable(args[1]);
-        if (target.getPrototype() == proto) {
-            return true;
-        }
-
-        // avoid cycles
-        Scriptable p = proto;
-        while (p != null) {
-            if (target == p) {
-                return false;
-            }
-            p = p.getPrototype();
-        }
-
-        target.setPrototype(proto);
-        return true;
+        return OrdinarySetPrototype.reflect(target, args[1]); // AutoJs6: class syntax
     }
 
     private static ScriptableObject checkTarget(Object[] args) {

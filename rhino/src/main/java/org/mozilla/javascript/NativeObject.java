@@ -378,6 +378,9 @@ public class NativeObject extends ScriptableObject implements Map {
         if (!(thisObj instanceof ScriptableObject)) {
             return thisObj;
         }
+        if (thisObj instanceof NativeProxy) { // AutoJs6: class syntax
+            return OrdinarySetPrototype.object(thisObj, proto); // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         ScriptableObject thisScriptable = (ScriptableObject) thisObj;
         if (thisScriptable.getPrototype() == proto) {
             return thisObj;
@@ -393,7 +396,7 @@ public class NativeObject extends ScriptableObject implements Map {
                 throw ScriptRuntime.typeErrorById(
                         "msg.object.cyclic.prototype", thisScriptable.getClass().getSimpleName());
             }
-            prototypeProto = prototypeProto.getPrototype();
+            prototypeProto = OrdinaryGet.next(prototypeProto); // AutoJs6: class syntax
         }
         thisScriptable.setPrototype(proto);
         return thisScriptable;
@@ -571,7 +574,7 @@ public class NativeObject extends ScriptableObject implements Map {
         Object descArg = args.length < 3 ? Undefined.instance : args[2];
         var desc = new DescriptorInfo(ensureScriptableObject(descArg));
         ScriptableObject.checkPropertyDefinition(desc);
-        obj.defineOwnProperty(cx, name, desc);
+        OwnProperty.object(cx, obj, name, desc); // AutoJs6: class syntax
         return obj;
     }
 

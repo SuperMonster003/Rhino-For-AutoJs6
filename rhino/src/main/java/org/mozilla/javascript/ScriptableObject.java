@@ -2430,7 +2430,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         do {
             result = obj.get(name, start);
             if (result != Scriptable.NOT_FOUND) break;
-            obj = obj.getPrototype();
+            obj = OrdinaryGet.next(obj); // AutoJs6: class syntax
         } while (obj != null);
         return result;
     }
@@ -2451,7 +2451,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         do {
             result = ensureSymbolScriptable(obj).get(key, start);
             if (result != Scriptable.NOT_FOUND) break;
-            obj = obj.getPrototype();
+            obj = OrdinaryGet.next(obj); // AutoJs6: class syntax
         } while (obj != null);
         return result;
     }
@@ -2511,7 +2511,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         do {
             result = obj.get(index, start);
             if (result != Scriptable.NOT_FOUND) break;
-            obj = obj.getPrototype();
+            obj = OrdinaryGet.next(obj); // AutoJs6: class syntax
         } while (obj != null);
         return result;
     }
@@ -2550,7 +2550,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
      * @since 1.5R2
      */
     public static boolean hasProperty(Scriptable obj, String name) {
-        return null != getBase(obj, name);
+        return OrdinaryHas.has(obj, name); // AutoJs6: class syntax
     }
 
     public static boolean hasProperty(VarScope obj, String name) {
@@ -2596,12 +2596,12 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
      * @since 1.5R2
      */
     public static boolean hasProperty(Scriptable obj, int index) {
-        return null != getBase(obj, index);
+        return OrdinaryHas.has(obj, index); // AutoJs6: class syntax
     }
 
     /** A version of hasProperty for properties with Symbol keys. */
     public static boolean hasProperty(Scriptable obj, Symbol key) {
-        return null != getBase(obj, key);
+        return OrdinaryHas.has(obj, key); // AutoJs6: class syntax
     }
 
     /**

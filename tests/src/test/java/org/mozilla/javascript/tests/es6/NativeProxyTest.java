@@ -1188,8 +1188,9 @@ public class NativeProxyTest {
 
         // finally should be
         // "has:p,get:Symbol(Symbol.unscopables),has:p,set:p,getOwnPropertyDescriptor:p,defineProperty:p"
-        Utils.assertWithAllModes_ES6(
-                "has:p,has:p,set:p,getOwnPropertyDescriptor:p,defineProperty:p", js);
+        Utils.assertWithAllModes_ES6( // AutoJs6: class syntax
+                "has:p,get:Symbol(Symbol.unscopables),has:p,set:p,getOwnPropertyDescriptor:p,defineProperty:p", // AutoJs6: class syntax
+                js); // AutoJs6: class syntax
     }
 
     /**

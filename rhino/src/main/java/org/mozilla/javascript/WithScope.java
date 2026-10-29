@@ -70,7 +70,7 @@ public class WithScope implements VarScope {
 
     @Override
     public Object get(String name, VarScope start) {
-        return ScriptableObject.getProperty(obj, name);
+        return OrdinaryHas.withValue(Context.getContext(), obj, name); // AutoJs6: class syntax
     }
 
     @Override

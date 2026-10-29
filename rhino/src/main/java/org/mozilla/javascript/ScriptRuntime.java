@@ -2506,7 +2506,7 @@ public class ScriptRuntime {
                         firstXMLObject = xmlObj;
                     }
                 } else {
-                    result = ScriptableObject.getProperty(withObj, name);
+                    result = OrdinaryHas.withValue(cx, withObj, name); // AutoJs6: class syntax
                     if (result != Scriptable.NOT_FOUND) {
                         // function this should be the target object of with
                         thisObj = withObj;
@@ -2590,7 +2590,7 @@ public class ScriptRuntime {
                         firstXMLObject = xmlObj;
                     }
                 } else {
-                    result = ScriptableObject.getProperty(withObj, name);
+                    result = OrdinaryHas.withValue(cx, withObj, name); // AutoJs6: class syntax
                     if (result != Scriptable.NOT_FOUND) {
                         // function this should be the target object of with
                         thisObj = withObj;
@@ -2672,7 +2672,7 @@ public class ScriptRuntime {
                             firstXMLScope = scope;
                         }
                     } else {
-                        if (ScriptableObject.hasProperty(withObj, id)) {
+                        if (OrdinaryHas.withHas(withObj, id)) { // AutoJs6: class syntax
                             return scope;
                         }
                     }

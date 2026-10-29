@@ -407,10 +407,7 @@ class NativeProxy extends ScriptableObject {
             return trapResult;
         }
 
-        if (start == this) {
-            start = target;
-        }
-        return target.get(name, start);
+        return OrdinaryGet.get(target, name, start); // AutoJs6: class syntax
     }
 
     /**
@@ -466,10 +463,7 @@ class NativeProxy extends ScriptableObject {
             return trapResult;
         }
 
-        if (start == this) {
-            start = target;
-        }
-        return target.get(index, start);
+        return OrdinaryGet.get(target, index, start); // AutoJs6: class syntax
     }
 
     /**
@@ -523,11 +517,7 @@ class NativeProxy extends ScriptableObject {
             return trapResult;
         }
 
-        if (start == this) {
-            start = target;
-        }
-        SymbolScriptable symbolScriptableTarget = ensureSymbolScriptable(target);
-        return symbolScriptableTarget.get(key, start);
+        return OrdinaryGet.get(target, key, start); // AutoJs6: class syntax
     }
 
     /**
@@ -838,20 +828,7 @@ class NativeProxy extends ScriptableObject {
                 return null;
             }
 
-            Scriptable trapResult = (Scriptable) trapResultObj;
-            if (trapResultObj != null) {
-                Object value = ScriptableObject.getProperty(trapResult, "value");
-                int attributes =
-                        applyDescriptorToAttributeBitset(
-                                DONTENUM | READONLY | PERMANENT,
-                                getProperty(trapResult, "enumerable"),
-                                getProperty(trapResult, "writable"),
-                                getProperty(trapResult, "configurable"));
-
-                var desc = ScriptableObject.buildDataDescriptor(value, attributes);
-                return desc;
-            }
-            return null;
+            return OwnProperty.result(target, trapResultObj, targetDesc); // AutoJs6: class syntax
         }
 
         if (ScriptRuntime.isSymbol(id)) {
@@ -895,56 +872,7 @@ class NativeProxy extends ScriptableObject {
          *         i. If Desc has a [[Writable]] field and Desc.[[Writable]] is false, throw a TypeError exception.
          * 17. Return true.
          */
-        ScriptableObject target = getTargetThrowIfRevoked();
-
-        Function trap = getTrap(TRAP_DEFINE_PROPERTY);
-        if (trap != null) {
-            boolean booleanTrapResult =
-                    ScriptRuntime.toBoolean(
-                            callTrap(
-                                    trap,
-                                    new Object[] {
-                                        target, id, desc.toObject(trap.getDeclarationScope())
-                                    }));
-            if (!booleanTrapResult) {
-                return false;
-            }
-
-            DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), id);
-            boolean extensibleTarget = target.isExtensible();
-
-            boolean settingConfigFalse = desc.isConfigurable(false);
-
-            if (targetDesc == null) {
-                if (!extensibleTarget || settingConfigFalse) {
-                    throw ScriptRuntime.typeError(
-                            "proxy can't define an incompatible property descriptor");
-                }
-            } else {
-                if (!AbstractEcmaObjectOperations.isCompatiblePropertyDescriptor(
-                        cx, extensibleTarget, desc, targetDesc)) {
-                    throw ScriptRuntime.typeError(
-                            "proxy can't define an incompatible property descriptor");
-                }
-
-                if (settingConfigFalse && targetDesc.isConfigurable()) {
-                    throw ScriptRuntime.typeError(
-                            "proxy can't define an incompatible property descriptor");
-                }
-
-                if (targetDesc.isDataDescriptor()
-                        && targetDesc.isConfigurable(false)
-                        && targetDesc.isWritable()) {
-                    if (desc.isWritable(false)) {
-                        throw ScriptRuntime.typeError(
-                                "proxy can't define an incompatible property descriptor");
-                    }
-                }
-            }
-            return true;
-        }
-
-        return target.defineOwnProperty(cx, id, desc);
+        return OwnProperty.define(cx, this, id, desc, true); // AutoJs6: class syntax
     }
 
     /**
@@ -1102,23 +1030,7 @@ class NativeProxy extends ScriptableObject {
          * 13. If SameValue(V, targetProto) is false, throw a TypeError exception.
          * 14. Return true.
          */
-        ScriptableObject target = getTargetThrowIfRevoked();
-
-        Function trap = getTrap(TRAP_SET_PROTOTYPE_OF);
-        if (trap != null) {
-            boolean booleanTrapResult =
-                    ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target, prototype}));
-            if (!booleanTrapResult) {
-                return; // false
-            }
-            if (target.isExtensible()) {
-                return; // true
-            }
-
-            return;
-        }
-
-        target.setPrototype(prototype);
+        OrdinarySetPrototype.set(this, prototype); // AutoJs6: class syntax
     }
 
     private static NativeProxy js_constructor(
@@ -1158,7 +1070,8 @@ class NativeProxy extends ScriptableObject {
         NativeObject revocable = (NativeObject) cx.newObject(s);
 
         revocable.put("proxy", revocable, proxy);
-        revocable.put("revoke", revocable, new LambdaFunction(s, "", 0, new Revoker(proxy)));
+        var revoke = new LambdaFunction(s, 0, new Revoker(proxy)); // AutoJs6: class syntax
+        revocable.put("revoke", revocable, revoke); // AutoJs6: class syntax
         return revocable;
     }
 

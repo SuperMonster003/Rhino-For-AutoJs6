@@ -554,6 +554,13 @@ final class NativeString extends ScriptableObject {
         return super.getOwnPropertyDescriptor(cx, id);
     }
 
+    @Override // AutoJs6: class syntax
+    protected boolean defineOwnProperty( // AutoJs6: class syntax
+            Context cx, Object id, DescriptorInfo desc, boolean check) { // AutoJs6: class syntax
+        return (check && OwnProperty.stringIndex(cx, string, id, desc)) // AutoJs6: class syntax
+                || super.defineOwnProperty(cx, id, desc, check); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     private ScriptableObject.DescriptorInfo defaultIndexPropertyDescriptor(Object value) {
         return new ScriptableObject.DescriptorInfo(true, false, false, NOT_FOUND, NOT_FOUND, value);
     }
