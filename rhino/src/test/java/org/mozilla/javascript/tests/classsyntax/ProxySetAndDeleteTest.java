@@ -204,4 +204,62 @@ class ProxySetAndDeleteTest {
                   run(() => { 'use strict'; var f = Object.freeze({ z: 1 }); return delete f.z; })].join('|');
                 """);
     }
+
+    @Test
+    void assignmentToAPrimitive() {
+        // ToObject(base).[[Set]](k, v, base): upstream threw in strict code before looking at the
+        // prototypes, and elsewhere gave a setter the wrapper. Java backed setters (__proto__) get
+        // the wrapper, which upstream's Reflect.set did not reach.
+        assertWithAllModes_ES6(
+                "number|number|boolean|1|TypeError|TypeError|TypeError|ok|true|TypeError",
+                SETUP
+                        + """
+                var self, sloppySelf, receiver, count = 0;
+                Object.defineProperty(Number.prototype, 'zz', {
+                  set(v) { 'use strict'; self = this; }, configurable: true
+                });
+                (5).zz = 1;
+                sloppySelf = self;
+                (function () { 'use strict'; (6).zz = 1; })();
+                delete Number.prototype.zz;
+                Object.setPrototypeOf(Boolean.prototype, new Proxy({}, {
+                  set(t, k, v, r) { receiver = r; count++; return k === 'yes'; }
+                }));
+                true.yes = 1;
+                var results = [typeof sloppySelf, typeof self, typeof receiver, count,
+                  run(() => { 'use strict'; true.no = 1; }),
+                  run(() => { 'use strict'; (5).foo = 1; }),
+                  run(() => { 'use strict'; 'ab'[0] = 'x'; })];
+                Object.setPrototypeOf(Boolean.prototype, Object.prototype);
+                results.push(run(() => { 'use strict'; (5).__proto__ = {}; return 'ok'; }),
+                  Reflect.set(Object.prototype, '__proto__', {}, 5),
+                  run(() => { 'use strict'; var n = null; n.x = 1; }));
+                results.join('|');
+                """);
+    }
+
+    @Test
+    void copyWithinAsksHasProperty() {
+        // Upstream deleted a target whose source held undefined, and only asked the has trap of a
+        // Proxy through the assignment, which no longer does (P6.14).
+        assertWithAllModes_ES6(
+                "true:undefined|false|has:0,get:0,set:1|Error",
+                SETUP
+                        + """
+                var o = { 0: undefined, 1: 1, length: 2 };
+                Array.prototype.copyWithin.call(o, 1, 0);
+                var hole = { 1: 1, length: 2 };
+                Array.prototype.copyWithin.call(hole, 1, 0);
+                var log = [];
+                var p = new Proxy({ 0: 'a', length: 2 }, {
+                  has(t, k) { log.push('has:' + k); return k in t; },
+                  get(t, k, r) { if (k !== 'length') log.push('get:' + k); return t[k]; },
+                  set(t, k, v) { log.push('set:' + k); t[k] = v; return true; }
+                });
+                Array.prototype.copyWithin.call(p, 1, 0);
+                var throwing = new Proxy({ 0: 42, length: 1 }, { has() { throw new Error(); } });
+                [o.hasOwnProperty(1) + ':' + o[1], hole.hasOwnProperty(1), log.join(),
+                  run(() => Array.prototype.copyWithin.call(throwing, 0, 0))].join('|');
+                """);
+    }
 }
