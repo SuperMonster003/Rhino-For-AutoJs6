@@ -20,7 +20,11 @@ final class OrdinaryGet {
 
     private OrdinaryGet() {}
 
-    /** The next object of a lookup along the prototype chain: none after a Proxy. */
+    /**
+     * The next object of a lookup along the prototype chain: none after a Proxy. The lookup loops
+     * of ScriptableObject repeat this test inline: the call made a compiled {@code in} slower
+     * (ROADMAP P6.15 timing).
+     */
     static Scriptable next(Scriptable obj) {
         return obj instanceof NativeProxy ? null : obj.getPrototype();
     }

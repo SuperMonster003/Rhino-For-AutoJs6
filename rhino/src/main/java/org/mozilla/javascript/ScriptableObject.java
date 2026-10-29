@@ -2430,7 +2430,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         do {
             result = obj.get(name, start);
             if (result != Scriptable.NOT_FOUND) break;
-            obj = OrdinaryGet.next(obj); // AutoJs6: class syntax
+            obj = obj instanceof NativeProxy ? null : obj.getPrototype(); // AutoJs6: class syntax
         } while (obj != null);
         return result;
     }
@@ -2451,7 +2451,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         do {
             result = ensureSymbolScriptable(obj).get(key, start);
             if (result != Scriptable.NOT_FOUND) break;
-            obj = OrdinaryGet.next(obj); // AutoJs6: class syntax
+            obj = obj instanceof NativeProxy ? null : obj.getPrototype(); // AutoJs6: class syntax
         } while (obj != null);
         return result;
     }
@@ -2511,7 +2511,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
         do {
             result = obj.get(index, start);
             if (result != Scriptable.NOT_FOUND) break;
-            obj = OrdinaryGet.next(obj); // AutoJs6: class syntax
+            obj = obj instanceof NativeProxy ? null : obj.getPrototype(); // AutoJs6: class syntax
         } while (obj != null);
         return result;
     }
