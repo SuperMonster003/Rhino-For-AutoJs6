@@ -142,7 +142,7 @@ final class OrdinaryHas {
             return withHas(withObj, name) ? bindingValue(cx, withObj, name) : Scriptable.NOT_FOUND;
         }
         Scriptable base = ScriptableObject.getBase(withObj, name);
-        if (base == null) {
+        if (!found(withObj, base, name)) {
             return Scriptable.NOT_FOUND;
         }
         Object unscopables = unscopables(withObj);

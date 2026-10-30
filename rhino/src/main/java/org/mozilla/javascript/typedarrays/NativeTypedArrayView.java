@@ -213,12 +213,13 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
     @Override
     public void put(String name, Scriptable start, Object val) {
         if (ClassRuntime.typedArrayPut(this, start, name, val)) return; // AutoJs6: class syntax
-        Optional<Double> num = ScriptRuntime.canonicalNumericIndexString(name);
+        Optional<Double> num = TypedArrayKey.canonical(name); // AutoJs6: class syntax
         if (num.isPresent()) {
             int ix = toIndex(num.get());
             if (ix >= 0) {
                 js_set(ix, val);
             }
+            if (ix < 0) toNumeric(val); // AutoJs6: class syntax
         } else {
             super.put(name, start, val);
         }

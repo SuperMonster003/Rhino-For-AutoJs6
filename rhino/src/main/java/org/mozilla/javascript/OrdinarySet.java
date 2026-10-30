@@ -244,9 +244,6 @@ final class OrdinarySet {
      * invalid one is not written, and the prototypes of the TypedArray are not asked. False when
      * the receiver is the TypedArray or the key is not a CanonicalNumericIndexString: its put goes
      * on as before.
-     *
-     * <p>With the TypedArray as the receiver only a valid index goes on: the value of an invalid
-     * one is still converted (10.4.5.16), which the put of an {@code int} key does as well.
      */
     static boolean typedArrayPut(Scriptable ta, Scriptable start, int index, Object value) {
         if (start == ta) {
@@ -260,17 +257,11 @@ final class OrdinarySet {
 
     /** {@link #typedArrayPut(Scriptable, Scriptable, int, Object)} with a String key. */
     static boolean typedArrayPut(Scriptable ta, Scriptable start, String name, Object value) {
-        if (!TypedArrayKey.isCanonical(name)) {
+        if (start == ta || !TypedArrayKey.isCanonical(name)) {
             return false;
         }
         StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(name);
-        if (s.stringId == null) {
-            return typedArrayPut(ta, start, s.index, value);
-        }
-        if (start == ta) {
-            ta.put(-1, ta, value);
-        }
-        return true;
+        return s.stringId != null || typedArrayPut(ta, start, s.index, value);
     }
 
     /** r.[[DefineOwnProperty]](key, { [[Value]]: value }) of a TypedArray and a numeric key. */

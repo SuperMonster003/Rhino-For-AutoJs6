@@ -109,6 +109,21 @@ class TypedArrayInternalMethodsTest {
     }
 
     @Test
+    void withStatementFindsNoBindingOnThePrototypes() {
+        assertWithAllModes_ES6(
+                "Infinity|Infinity|1",
+                SETUP
+                        + """
+                Object.defineProperty(TA.prototype, 'Infinity', { value: 1, configurable: true });
+                var ta = kinds[0], r = [];
+                with (ta) { r.push(Infinity); r.push(typeof Infinity === 'number' ? Infinity : 0); }
+                with ({}) { r.push(ta.__proto__.__proto__.Infinity); }
+                untrap('Infinity');
+                r.join('|');
+                """);
+    }
+
+    @Test
     void setAsReceiverWritesNothingForAnInvalidIndex() {
         // Upstream created a property for "NaN" and skipped the conversion of the value.
         assertWithAllModes_ES6(
