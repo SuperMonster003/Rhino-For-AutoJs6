@@ -680,6 +680,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
                 cx = Context.getContext();
             }
             v = fun.call(cx, fun.getDeclarationScope(), object, ScriptRuntime.emptyArgs);
+            if (v == null) return null; // AutoJs6: class syntax
             if (v != null) {
                 if (!(v instanceof Scriptable)) {
                     return v;
