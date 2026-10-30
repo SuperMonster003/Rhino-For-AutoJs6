@@ -6,7 +6,6 @@
 
 package org.mozilla.javascript.typedarrays;
 
-import java.math.BigInteger;
 import java.util.Optional;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
@@ -126,18 +125,5 @@ public final class TypedArrayKey {
         }
         System.arraycopy(own, 0, ids, length, own.length);
         return ids;
-    }
-
-    /**
-     * ToBigInt (7.1.13). {@link ScriptRuntime#toBigInt(Object)} also takes a Number, as the {@code
-     * BigInt} function does.
-     */
-    static BigInteger toBigInt(Object value) {
-        Object prim = ScriptRuntime.toPrimitive(value, ScriptRuntime.NumberClass);
-        if (prim instanceof Number && !(prim instanceof BigInteger)) {
-            throw ScriptRuntime.typeErrorById(
-                    "msg.cant.convert.to.bigint", ScriptRuntime.toString(prim));
-        }
-        return ScriptRuntime.toBigInt(prim);
     }
 }

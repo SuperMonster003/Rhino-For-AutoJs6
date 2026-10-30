@@ -22,6 +22,7 @@ import org.mozilla.javascript.LambdaConstructor;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.ToBigInt; // AutoJs6: class syntax
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.VarScope;
 
@@ -493,7 +494,7 @@ public class NativeDataView extends NativeArrayBufferView {
     private void js_setBigInt(Object[] args) {
         int pos = ScriptRuntime.toIndex(isArg(args, 0) ? args[0] : Undefined.instance);
 
-        BigInteger val = ScriptRuntime.toBigInt(isArg(args, 1) ? args[1] : Undefined.instance);
+        BigInteger val = ToBigInt.of(args, 1); // AutoJs6: class syntax
 
         if (isDataViewOutOfBounds()) {
             throw ScriptRuntime.typeErrorById("msg.dataview.bounds");

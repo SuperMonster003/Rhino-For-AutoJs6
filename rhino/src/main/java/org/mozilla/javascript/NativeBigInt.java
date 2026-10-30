@@ -103,7 +103,7 @@ final class NativeBigInt extends ScriptableObject {
 
     private static Object js_asIntOrUintN(boolean isSigned, Object[] args) {
         int bits = ScriptRuntime.toIndex(args.length < 1 ? Undefined.instance : args[0]);
-        BigInteger bigInt = ScriptRuntime.toBigInt(args.length < 2 ? Undefined.instance : args[1]);
+        BigInteger bigInt = ToBigInt.of(args, 1); // AutoJs6: class syntax
 
         if (bits == 0) {
             return BigInteger.ZERO;
