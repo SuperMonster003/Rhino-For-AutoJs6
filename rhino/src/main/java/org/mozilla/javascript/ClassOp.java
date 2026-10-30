@@ -134,6 +134,22 @@ public final class ClassOp {
         return (ClassOp) node.getProp(Node.CLASS_PROP);
     }
 
+    /**
+     * Marks the read of {@code name} in the compound assignment {@code name op= v} (ROADMAP P6.16,
+     * appendix C Q37), with an int {@link Node#CLASS_PROP}: while the read runs, the scope that the
+     * BINDNAME of the assignment found is on the stack, and the backends read the value from it
+     * ({@link ClassRuntime#boundValue}) instead of looking the name up again. A read that
+     * NodeTransformer turns into a local variable, together with the assignment, ignores the mark.
+     */
+    static void markBoundRead(Node name) {
+        name.putIntProp(Node.CLASS_PROP, 1);
+    }
+
+    /** Whether {@code node} is a read marked by {@link #markBoundRead}. */
+    public static boolean isBoundRead(Node node) {
+        return node.getType() == Token.NAME && node.getIntProp(Node.CLASS_PROP, 0) != 0;
+    }
+
     public int getKind() {
         return kind;
     }

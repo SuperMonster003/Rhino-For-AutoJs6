@@ -41,11 +41,25 @@ import org.mozilla.javascript.Interpreter.NewState;
  *   <li>{@code CLASS_DESTRUCTURE}: index register = the local of the record of an array pattern,
  *       then the step byte ({@link ArrayDestructuring}). {@code OPEN}: value -&gt; record, also
  *       stored in the local; the other steps push their result.
+ *   <li>{@code CLASS_BOUND_NAME}: string register = the name. Stack: scope -&gt; value, the read of
+ *       a compound assignment after a {@code DUP} of the scope its BINDNAME found ({@link
+ *       ClassOp#markBoundRead}).
  * </ul>
  */
 final class ClassInterpreter {
 
     private ClassInterpreter() {}
+
+    /** Emits the read of a compound assignment marked by {@link ClassOp#markBoundRead}. */
+    static <T extends ScriptOrFn<T>> boolean boundRead(CodeGenerator<T> gen, Node node) {
+        if (!ClassOp.isBoundRead(node)) {
+            return false;
+        }
+        gen.addIcode(Icode.DUP);
+        gen.stackChange(1);
+        gen.addStringOp(Icode.CLASS_BOUND_NAME, node.getString());
+        return true;
+    }
 
     /** Emits the icodes of a {@link Token#CLASS} node, which leaves one value on the stack. */
     static <T extends ScriptOrFn<T>> void generate(CodeGenerator<T> gen, Node node) {
@@ -172,6 +186,7 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_INIT_FIELDS] = new DoClassInitFields();
         instructionObjs[base + Icode.CLASS_STATIC_INIT] = new DoClassStaticInit();
         instructionObjs[base + Icode.CLASS_DESTRUCTURE] = new DoClassDestructure();
+        instructionObjs[base + Icode.CLASS_BOUND_NAME] = new DoClassBoundName();
         SpreadCall.register(instructionObjs, base);
     }
 
@@ -207,6 +222,8 @@ final class ClassInterpreter {
                 return "CLASS_STATIC_INIT";
             case Icode.CLASS_DESTRUCTURE:
                 return "CLASS_DESTRUCTURE";
+            case Icode.CLASS_BOUND_NAME:
+                return "CLASS_BOUND_NAME";
             default:
                 return SpreadCall.icodeName(icode);
         }
@@ -349,6 +366,16 @@ final class ClassInterpreter {
         void dumpICode(int op, String tname, ICodeDumpContext ctx) {
             int step = ctx.compilerData.itsICode[ctx.pc++] & 0xFF;
             ctx.out.println(tname + " local " + ctx.indexReg + " step " + step);
+        }
+    }
+
+    private static final class DoClassBoundName extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.stack[frame.stackTop] =
+                    ClassRuntime.boundValue(
+                            frame.stack[frame.stackTop], cx, frame.scope, state.stringReg);
+            return null;
         }
     }
 

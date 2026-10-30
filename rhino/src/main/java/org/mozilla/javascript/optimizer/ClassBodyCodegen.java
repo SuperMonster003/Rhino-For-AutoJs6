@@ -191,6 +191,22 @@ final class ClassBodyCodegen {
         }
     }
 
+    /**
+     * The read of a compound assignment marked by {@link ClassOp#isBoundRead}: the value of the
+     * name in the scope on the stack, which stays there for the assignment.
+     */
+    static boolean boundRead(BodyCodegen bc, Node node) {
+        if (!ClassOp.isBoundRead(node)) {
+            return false;
+        }
+        ClassFileWriter cfw = bc.cfw;
+        cfw.add(ByteCode.DUP);
+        pushContextAndScope(bc);
+        cfw.addPush(node.getString());
+        invoke(cfw, "boundValue", "(" + OBJECT + CONTEXT_SCOPE + "Ljava/lang/String;)" + OBJECT);
+        return true;
+    }
+
     /** Unwraps the this value on the stack for a super method call. */
     static void receiver(ClassFileWriter cfw) {
         invoke(cfw, "receiver", "(" + OBJECT + ")" + OBJECT);

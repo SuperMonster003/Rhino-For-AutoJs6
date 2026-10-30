@@ -2691,6 +2691,7 @@ public final class IRFactory {
         switch (nodeType) {
             case Token.NAME:
                 {
+                    ClassOp.markBoundRead(left); // AutoJs6: class syntax
                     Node op = new Node(assignOp, left, right);
                     Node lvalueLeft = Node.newString(Token.BINDNAME, left.getString());
                     return propagateSuperFromLhs(new Node(Token.SETNAME, lvalueLeft, op), left);

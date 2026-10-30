@@ -1026,6 +1026,7 @@ class BodyCodegen {
 
             case Token.NAME:
                 {
+                    if (ClassBodyCodegen.boundRead(this, node)) break; // AutoJs6: class syntax
                     cfw.addALoad(variableObjectLocal);
                     cfw.addALoad(contextLocal);
                     addDynamicInvoke("NAME:GET:" + node.getString(), Signatures.NAME_GET);

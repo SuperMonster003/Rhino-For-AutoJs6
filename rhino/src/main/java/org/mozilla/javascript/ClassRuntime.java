@@ -996,6 +996,14 @@ public final class ClassRuntime {
         }
     }
 
+    /**
+     * The read of a compound assignment from the scope {@code bound} that its BINDNAME found, see
+     * {@link ClassOp#markBoundRead}.
+     */
+    public static Object boundValue(Object bound, Context cx, VarScope scope, String name) {
+        return OrdinaryHas.boundValue(bound, cx, scope, name);
+    }
+
     /** RequireObjectCoercible of the value bound to an empty object pattern. */
     public static Object requireObjectCoercible(Object value) {
         if (value == null) {

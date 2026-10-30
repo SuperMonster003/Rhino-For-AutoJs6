@@ -204,8 +204,11 @@ abstract class Icode {
             // AutoJs6: class syntax (array patterns, see ArrayDestructuring)
             CLASS_DESTRUCTURE = SPREAD_REF_CALL - 1, // AutoJs6: class syntax
 
+            // AutoJs6: class syntax (the read of a compound assignment, see OrdinaryHas)
+            CLASS_BOUND_NAME = CLASS_DESTRUCTURE - 1, // AutoJs6: class syntax
+
             // Last icode
-            MIN_ICODE = CLASS_DESTRUCTURE; // AutoJs6: class syntax
+            MIN_ICODE = CLASS_BOUND_NAME; // AutoJs6: class syntax
 
     static String bytecodeName(int bytecode) {
         if (!validBytecode(bytecode)) {

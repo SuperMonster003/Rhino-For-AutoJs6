@@ -1082,6 +1082,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
             case Token.BINDNAME:
             case Token.NAME:
             case Token.STRING:
+                if (ClassInterpreter.boundRead(this, node)) break; // AutoJs6: class syntax
                 addStringOp(type, node.getString());
                 stackChange(1);
                 break;

@@ -3827,7 +3827,7 @@ public class ScriptRuntime {
     public static String typeofName(Context cx, VarScope scope, String id) {
         VarScope val = bind(cx, scope, id);
         if (val == null) return "undefined";
-        return typeof(getObjectProp(val, id, cx));
+        return typeof(OrdinaryHas.typeofValue(val, cx, id)); // AutoJs6: class syntax
     }
 
     public static boolean isObject(Object value) {

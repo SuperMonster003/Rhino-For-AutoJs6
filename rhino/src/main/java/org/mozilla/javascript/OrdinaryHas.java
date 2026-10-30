@@ -125,6 +125,40 @@ final class OrdinaryHas {
     }
 
     /**
+     * The value of a name that {@code bind} resolved, for a compound assignment (ROADMAP P6.16,
+     * appendix C Q37, see {@link ClassOp#markBoundRead}): GetBindingValue of the scope it found,
+     * without resolving the name again. An unresolvable name is a ReferenceError; an E4X scope, and
+     * a scope that does not give the value, look the name up as before.
+     */
+    static Object boundValue(Object bound, Context cx, VarScope scope, String name) {
+        if (bound instanceof WithScope) {
+            Scriptable withObj = ((WithScope) bound).getObject();
+            if (!(withObj instanceof XMLObject)) {
+                return bindingValue(cx, withObj, name);
+            }
+        } else if (bound instanceof VarScope) {
+            Object value = ((VarScope) bound).get(name, (VarScope) bound);
+            if (value != Scriptable.NOT_FOUND) {
+                return value;
+            }
+        } else if (bound == null) {
+            throw ScriptRuntime.notFoundError(scope, name);
+        }
+        return ScriptRuntime.name(cx, scope, name);
+    }
+
+    /** The value that {@code typeof name} looks at, once {@code bind} found {@code bound}. */
+    static Object typeofValue(VarScope bound, Context cx, String name) {
+        if (bound instanceof WithScope) {
+            Scriptable withObj = ((WithScope) bound).getObject();
+            if (!(withObj instanceof XMLObject)) {
+                return bindingValue(cx, withObj, name);
+            }
+        }
+        return bound.get(name, bound);
+    }
+
+    /**
      * SetMutableBinding of the scope of a {@code with} statement in strict mode code, which {@code
      * bound} is when this returns true: ReferenceError when the binding is gone, as a getter of
      * {@code @@unscopables} or of the old value of a compound assignment can delete it.
