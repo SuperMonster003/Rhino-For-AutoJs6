@@ -1014,6 +1014,20 @@ public final class ClassRuntime {
         return OrdinaryHas.logicalTarget(bound, cx, scope, name);
     }
 
+    /**
+     * The put of a TypedArray for a receiver other than itself (ROADMAP P6.17, appendix C Q43), see
+     * {@link OrdinarySet#typedArrayPut}: true when it handled the assignment.
+     */
+    public static boolean typedArrayPut(Scriptable ta, Scriptable start, int index, Object value) {
+        return OrdinarySet.typedArrayPut(ta, start, index, value);
+    }
+
+    /** {@link #typedArrayPut(Scriptable, Scriptable, int, Object)} with a String key. */
+    public static boolean typedArrayPut(
+            Scriptable ta, Scriptable start, String name, Object value) {
+        return OrdinarySet.typedArrayPut(ta, start, name, value);
+    }
+
     /** RequireObjectCoercible of the value bound to an empty object pattern. */
     public static Object requireObjectCoercible(Object value) {
         if (value == null) {

@@ -27,6 +27,7 @@ import org.mozilla.javascript.ArrayLikeAbstractOperations.IterativeOperation;
 import org.mozilla.javascript.ArrayLikeAbstractOperations.ReduceOperation;
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.ClassDescriptor;
+import org.mozilla.javascript.ClassRuntime; // AutoJs6: class syntax
 import org.mozilla.javascript.Constructable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ExternalArrayData;
@@ -202,11 +203,13 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
 
     @Override
     public void put(int index, Scriptable start, Object val) {
+        if (ClassRuntime.typedArrayPut(this, start, index, val)) return; // AutoJs6: class syntax
         js_set(index, val);
     }
 
     @Override
     public void put(String name, Scriptable start, Object val) {
+        if (ClassRuntime.typedArrayPut(this, start, name, val)) return; // AutoJs6: class syntax
         Optional<Double> num = ScriptRuntime.canonicalNumericIndexString(name);
         if (num.isPresent()) {
             int ix = toIndex(num.get());

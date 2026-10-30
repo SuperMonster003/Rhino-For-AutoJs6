@@ -27,16 +27,26 @@ import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
  * [[GetOwnProperty]] and [[DefineOwnProperty]] when it is a Proxy, otherwise with put as before
  * (dense arrays, Java backed slots) once the checks that make the result false have passed. An
  * accessor is written with put on its holder, which calls the setter with the receiver.
+ *
+ * <p>A TypedArray handles a CanonicalNumericIndexString itself, without asking its prototypes
+ * (ROADMAP P6.17, appendix C Q43): with another receiver an invalid index is not written and a
+ * valid one is written to the receiver. Upstream wrote a valid index to the TypedArray and created
+ * the other keys on the receiver.
  */
 final class OrdinarySet {
 
     private OrdinarySet() {}
 
-    /** The object whose put handles an assignment: the first that has the property, or a Proxy. */
+    /**
+     * The object whose put handles an assignment: the first that has the property, a Proxy, or a
+     * TypedArray with a CanonicalNumericIndexString (see {@link #typedArrayPut}).
+     */
     static Scriptable base(Scriptable obj, String name) {
         Scriptable o = obj;
         do {
-            if (o instanceof NativeProxy || o.has(name, obj)) {
+            if (o instanceof NativeProxy
+                    || o.has(name, obj)
+                    || (o instanceof NativeTypedArrayView && canonicalNumeric(name))) {
                 return o;
             }
             o = o.getPrototype();
@@ -44,11 +54,16 @@ final class OrdinarySet {
         return null;
     }
 
-    /** The object whose put handles an assignment: the first that has the property, or a Proxy. */
+    /**
+     * The object whose put handles an assignment: the first that has the property, a Proxy, or a
+     * TypedArray (see {@link #typedArrayPut}).
+     */
     static Scriptable base(Scriptable obj, int index) {
         Scriptable o = obj;
         do {
-            if (o instanceof NativeProxy || o.has(index, obj)) {
+            if (o instanceof NativeProxy
+                    || o.has(index, obj)
+                    || o instanceof NativeTypedArrayView) {
                 return o;
             }
             o = o.getPrototype();
@@ -99,6 +114,13 @@ final class OrdinarySet {
                     holder = null;
                     break;
                 }
+                if (canonicalNumeric(s.stringId)) {
+                    // not a valid integer index: nothing is written, the prototypes are not asked
+                    if (holder == receiver) {
+                        holder.put(s.stringId, holder, value);
+                    }
+                    return true;
+                }
             }
             if (holder instanceof ScriptableObject) {
                 ownDesc = ((ScriptableObject) holder).getOwnPropertyDescriptor(cx, key);
@@ -147,6 +169,20 @@ final class OrdinarySet {
                 return false;
             }
             return define(cx, r, key, value, existing == null);
+        }
+        if (r instanceof NativeTypedArrayView && !(key instanceof Symbol)) {
+            // its [[DefineOwnProperty]] writes an element, and is false for an invalid index
+            StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
+            if (s.stringId == null) {
+                if (!r.has(s.index, r)) {
+                    return false;
+                }
+                r.put(s.index, r, value);
+                return true;
+            }
+            if (canonicalNumeric(s.stringId)) {
+                return false;
+            }
         }
         if (r != holder && r instanceof ScriptableObject) {
             ScriptableObject obj = (ScriptableObject) r;
@@ -209,6 +245,41 @@ final class OrdinarySet {
                         ? ScriptableObject.hasProperty(o, Long.toString(index))
                         : ScriptableObject.hasProperty(o, (int) index);
         return present ? ArrayLikeAbstractOperations.getRawElem(o, index) : Scriptable.NOT_FOUND;
+    }
+
+    /**
+     * The put of a TypedArray for another receiver (10.4.5.5, ROADMAP P6.17, appendix C Q43): an
+     * assignment reaches it when the TypedArray is in the prototype chain of the receiver ({@link
+     * #base} stops there). A valid integer index is written to the receiver as a data property, an
+     * invalid one is not written, and the prototypes of the TypedArray are not asked. False when
+     * the receiver is the TypedArray or the key is not a CanonicalNumericIndexString: its put goes
+     * on as before.
+     */
+    static boolean typedArrayPut(Scriptable ta, Scriptable start, int index, Object value) {
+        if (start == ta) {
+            return false;
+        }
+        if (ta.has(index, ta)) {
+            start.put(index, start, value);
+        }
+        return true;
+    }
+
+    /** {@link #typedArrayPut(Scriptable, Scriptable, int, Object)} with a String key. */
+    static boolean typedArrayPut(Scriptable ta, Scriptable start, String name, Object value) {
+        if (start == ta || !canonicalNumeric(name)) {
+            return false;
+        }
+        StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(name);
+        return s.stringId != null || typedArrayPut(ta, start, s.index, value);
+    }
+
+    /**
+     * CanonicalNumericIndexString(name) is not undefined. Unlike upstream's {@link
+     * ScriptRuntime#canonicalNumericIndexString}, "NaN" is one.
+     */
+    private static boolean canonicalNumeric(String name) {
+        return "NaN".equals(name) || ScriptRuntime.canonicalNumericIndexString(name).isPresent();
     }
 
     /** proxy.[[Set]](key, value, receiver). */
