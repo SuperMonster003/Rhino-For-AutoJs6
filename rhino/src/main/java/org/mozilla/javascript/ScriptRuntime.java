@@ -2356,7 +2356,7 @@ public class ScriptRuntime {
         StringIdOrIndex s = toStringIdOrIndex(elem);
         if (s.stringId == null) {
             target.delete(s.index);
-            return !target.has(s.index, target);
+            return !OrdinaryDelete.stays(target, s.index, cx); // AutoJs6: class syntax
         }
         target.delete(s.stringId);
         return !target.has(s.stringId, target);

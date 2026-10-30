@@ -167,7 +167,7 @@ final class NativeReflect extends ScriptableObject {
         }
 
         DescriptorInfo desc = new DescriptorInfo(ScriptableObject.ensureScriptableObject(args[2]));
-        if (target instanceof NativeProxy) { // AutoJs6: class syntax
+        if (OwnProperty.exotic(target)) { // AutoJs6: class syntax
             return OwnProperty.reflect(cx, target, key, desc); // AutoJs6: class syntax
         } // AutoJs6: class syntax
 

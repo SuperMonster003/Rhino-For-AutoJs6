@@ -15,7 +15,6 @@ import java.math.BigInteger;
 import org.mozilla.javascript.ClassDescriptor;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.JSFunction;
-import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.SymbolKey;
 import org.mozilla.javascript.TopLevel;
@@ -96,7 +95,7 @@ public class NativeBigInt64Array extends NativeBigIntArrayView {
 
     @Override
     protected Object js_set(int index, Object c) {
-        var val = ScriptRuntime.toBigInt(c);
+        var val = TypedArrayKey.toBigInt(c); // AutoJs6: class syntax
         if (checkIndex(index)) {
             return Undefined.instance;
         }

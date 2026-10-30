@@ -2,7 +2,6 @@ package org.mozilla.javascript.typedarrays;
 
 import java.io.Serial;
 import java.math.BigInteger;
-import org.mozilla.javascript.ScriptRuntime;
 
 public abstract class NativeBigIntArrayView extends NativeTypedArrayView<BigInteger> {
     @Serial private static final long serialVersionUID = -3349222145964894609L;
@@ -15,6 +14,6 @@ public abstract class NativeBigIntArrayView extends NativeTypedArrayView<BigInte
 
     @Override
     protected Object toNumeric(Object num) {
-        return ScriptRuntime.toBigInt(num);
+        return TypedArrayKey.toBigInt(num); // AutoJs6: class syntax
     }
 }

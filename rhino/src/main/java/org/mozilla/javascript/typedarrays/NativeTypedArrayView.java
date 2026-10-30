@@ -28,6 +28,7 @@ import org.mozilla.javascript.ArrayLikeAbstractOperations.ReduceOperation;
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.ClassDescriptor;
 import org.mozilla.javascript.ClassRuntime; // AutoJs6: class syntax
+import org.mozilla.javascript.CompoundOperationMap; // AutoJs6: class syntax
 import org.mozilla.javascript.Constructable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ExternalArrayData;
@@ -173,13 +174,14 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
 
     @Override
     public Object get(String name, Scriptable start) {
-        Optional<Double> num = ScriptRuntime.canonicalNumericIndexString(name);
+        Optional<Double> num = TypedArrayKey.canonical(name); // AutoJs6: class syntax
         if (num.isPresent()) {
             // Now we had a valid number, so no matter what we try to return an array element
             int ix = toIndex(num.get());
             if (ix >= 0) {
                 return js_get(ix);
             }
+            return Undefined.instance; // AutoJs6: class syntax
         }
         return super.get(name, start);
     }
@@ -191,12 +193,13 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
 
     @Override
     public boolean has(String name, Scriptable start) {
-        Optional<Double> num = ScriptRuntime.canonicalNumericIndexString(name);
+        Optional<Double> num = TypedArrayKey.canonical(name); // AutoJs6: class syntax
         if (num.isPresent()) {
             int ix = toIndex(num.get());
             if (ix >= 0) {
                 return !checkIndex(ix);
             }
+            return false; // AutoJs6: class syntax
         }
         return super.has(name, start);
     }
@@ -226,22 +229,24 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
 
     @Override
     public void delete(String name) {
-        Optional<Double> num = ScriptRuntime.canonicalNumericIndexString(name);
+        Optional<Double> num = TypedArrayKey.canonical(name); // AutoJs6: class syntax
         if (!num.isPresent()) {
             // No delete for indexed elements, so only delete if "name" is not a number
             super.delete(name);
         }
     }
 
-    @Override
-    public Object[] getIds() {
-        int len = getLength();
-        Object[] ret = new Object[len];
-        for (int i = 0; i < len; i++) {
-            ret[i] = Integer.valueOf(i);
-        }
-        return ret;
-    }
+    @Override // AutoJs6: class syntax
+    public Object[] getIds( // AutoJs6: class syntax
+            CompoundOperationMap<Scriptable> map, boolean e, boolean s) { // AutoJs6: class syntax
+        return TypedArrayKey.ids(this, super.getIds(map, e, s)); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
+    @Override // AutoJs6: class syntax
+    public DescriptorInfo getOwnPropertyDescriptor(Context cx, Object id) { // AutoJs6: class syntax
+        var own = super.getOwnPropertyDescriptor(cx, id); // AutoJs6: class syntax
+        return TypedArrayKey.descriptor(this, id, own); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
 
     private boolean isFixedLength() {
         return !isAutoLength && !arrayBuffer.isResizable();
@@ -258,6 +263,7 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
     @Override
     protected boolean defineOwnProperty(
             Context cx, Object id, DescriptorInfo desc, boolean checkValid) {
+        if (TypedArrayKey.defineOrThrow(this, id, desc)) return true; // AutoJs6: class syntax
         if (id instanceof CharSequence) {
             // Definition of [[DefineOwnProperty]] for typed array from the spec
             Optional<Double> num = ScriptRuntime.canonicalNumericIndexString(id.toString());

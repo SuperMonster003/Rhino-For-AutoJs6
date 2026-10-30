@@ -2551,7 +2551,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
      */
     public static boolean hasProperty(Scriptable obj, String name) {
         if (OrdinaryHas.proxies) return OrdinaryHas.has(obj, name); // AutoJs6: class syntax
-        return null != getBase(obj, name);
+        return OrdinaryHas.found(obj, getBase(obj, name), name); // AutoJs6: class syntax
     }
 
     public static boolean hasProperty(VarScope obj, String name) {
@@ -2598,7 +2598,7 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
      */
     public static boolean hasProperty(Scriptable obj, int index) {
         if (OrdinaryHas.proxies) return OrdinaryHas.has(obj, index); // AutoJs6: class syntax
-        return null != getBase(obj, index);
+        return OrdinaryHas.found(obj, getBase(obj, index)); // AutoJs6: class syntax
     }
 
     /** A version of hasProperty for properties with Symbol keys. */

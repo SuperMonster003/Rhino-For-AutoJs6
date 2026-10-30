@@ -9,6 +9,7 @@ package org.mozilla.javascript;
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
 import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
+import org.mozilla.javascript.typedarrays.TypedArrayKey;
 
 /**
  * AutoJs6: [[Set]] with its result, for {@code Reflect.set}, the put of a Proxy and an assignment
@@ -46,7 +47,7 @@ final class OrdinarySet {
         do {
             if (o instanceof NativeProxy
                     || o.has(name, obj)
-                    || (o instanceof NativeTypedArrayView && canonicalNumeric(name))) {
+                    || (o instanceof NativeTypedArrayView && TypedArrayKey.isCanonical(name))) {
                 return o;
             }
             o = o.getPrototype();
@@ -114,7 +115,7 @@ final class OrdinarySet {
                     holder = null;
                     break;
                 }
-                if (canonicalNumeric(s.stringId)) {
+                if (TypedArrayKey.isCanonical(s.stringId)) {
                     // not a valid integer index: nothing is written, the prototypes are not asked
                     if (holder == receiver) {
                         holder.put(s.stringId, holder, value);
@@ -170,19 +171,8 @@ final class OrdinarySet {
             }
             return define(cx, r, key, value, existing == null);
         }
-        if (r instanceof NativeTypedArrayView && !(key instanceof Symbol)) {
-            // its [[DefineOwnProperty]] writes an element, and is false for an invalid index
-            StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(key);
-            if (s.stringId == null) {
-                if (!r.has(s.index, r)) {
-                    return false;
-                }
-                r.put(s.index, r, value);
-                return true;
-            }
-            if (canonicalNumeric(s.stringId)) {
-                return false;
-            }
+        if (r instanceof NativeTypedArrayView && TypedArrayKey.isNumeric(key)) {
+            return typedArrayDefine(r, key, value);
         }
         if (r != holder && r instanceof ScriptableObject) {
             ScriptableObject obj = (ScriptableObject) r;
@@ -254,6 +244,9 @@ final class OrdinarySet {
      * invalid one is not written, and the prototypes of the TypedArray are not asked. False when
      * the receiver is the TypedArray or the key is not a CanonicalNumericIndexString: its put goes
      * on as before.
+     *
+     * <p>With the TypedArray as the receiver only a valid index goes on: the value of an invalid
+     * one is still converted (10.4.5.16), which the put of an {@code int} key does as well.
      */
     static boolean typedArrayPut(Scriptable ta, Scriptable start, int index, Object value) {
         if (start == ta) {
@@ -267,19 +260,23 @@ final class OrdinarySet {
 
     /** {@link #typedArrayPut(Scriptable, Scriptable, int, Object)} with a String key. */
     static boolean typedArrayPut(Scriptable ta, Scriptable start, String name, Object value) {
-        if (start == ta || !canonicalNumeric(name)) {
+        if (!TypedArrayKey.isCanonical(name)) {
             return false;
         }
         StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(name);
-        return s.stringId != null || typedArrayPut(ta, start, s.index, value);
+        if (s.stringId == null) {
+            return typedArrayPut(ta, start, s.index, value);
+        }
+        if (start == ta) {
+            ta.put(-1, ta, value);
+        }
+        return true;
     }
 
-    /**
-     * CanonicalNumericIndexString(name) is not undefined. Unlike upstream's {@link
-     * ScriptRuntime#canonicalNumericIndexString}, "NaN" is one.
-     */
-    private static boolean canonicalNumeric(String name) {
-        return "NaN".equals(name) || ScriptRuntime.canonicalNumericIndexString(name).isPresent();
+    /** r.[[DefineOwnProperty]](key, { [[Value]]: value }) of a TypedArray and a numeric key. */
+    private static boolean typedArrayDefine(Scriptable r, Object key, Object value) {
+        return TypedArrayKey.define(
+                (NativeTypedArrayView<?>) r, key, new DescriptorInfo(true, true, true, value));
     }
 
     /** proxy.[[Set]](key, value, receiver). */
@@ -327,6 +324,9 @@ final class OrdinarySet {
                 return proxy.defineOwnProperty(cx, key, desc);
             }
             r = target;
+        }
+        if (r instanceof NativeTypedArrayView && TypedArrayKey.isNumeric(key)) {
+            return typedArrayDefine(r, key, value);
         }
         if (r instanceof ScriptableObject) {
             ScriptableObject obj = (ScriptableObject) r;

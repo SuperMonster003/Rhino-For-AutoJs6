@@ -8,6 +8,8 @@ package org.mozilla.javascript;
 
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
+import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
+import org.mozilla.javascript.typedarrays.TypedArrayKey;
 
 /**
  * AutoJs6: the own properties of a Proxy (ROADMAP P6.15, appendix C Q34). Not related to classes.
@@ -69,6 +71,9 @@ final class OwnProperty {
         if (orThrow) {
             return o.defineOwnProperty(cx, key, desc);
         }
+        if (o instanceof NativeTypedArrayView && TypedArrayKey.isNumeric(key)) {
+            return TypedArrayKey.define((NativeTypedArrayView<?>) o, key, desc);
+        }
         try {
             return o.defineOwnProperty(cx, key, desc);
         } catch (EcmaError e) {
@@ -77,6 +82,14 @@ final class OwnProperty {
             }
             return false;
         }
+    }
+
+    /**
+     * The objects whose {@code Reflect.defineProperty} is {@link #reflect}: an error that is not
+     * the refusal has to get through, like the conversion of the value of a TypedArray element.
+     */
+    static boolean exotic(ScriptableObject o) {
+        return o instanceof NativeProxy || o instanceof NativeTypedArrayView;
     }
 
     /** {@code Reflect.defineProperty} on a Proxy: ToPropertyDescriptor, then its result. */

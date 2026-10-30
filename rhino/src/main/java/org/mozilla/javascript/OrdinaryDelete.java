@@ -8,6 +8,7 @@ package org.mozilla.javascript;
 
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
+import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
 
 /**
  * AutoJs6: [[Delete]] with its result, for {@code Reflect.deleteProperty} and the {@code delete}
@@ -65,6 +66,19 @@ final class OrdinaryDelete {
         }
         o.delete(s.stringId);
         return !o.has(s.stringId, o);
+    }
+
+    /**
+     * Whether an element is still there after the {@code delete} operator, a TypeError in strict
+     * code for a TypedArray ([[Delete]] of a valid index is false, ROADMAP P6.18, appendix C Q44).
+     * Other objects throw in their delete.
+     */
+    static <T extends PropHolder<T>> boolean stays(T target, int index, Context cx) {
+        boolean stays = target.has(index, target);
+        if (stays && cx.isStrictMode() && target instanceof NativeTypedArrayView) {
+            throw ScriptRuntime.typeErrorById("msg.delete.property.with.configurable.false", index);
+        }
+        return stays;
     }
 
     /**

@@ -8,6 +8,8 @@ package org.mozilla.javascript;
 
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
+import org.mozilla.javascript.typedarrays.NativeTypedArrayView;
+import org.mozilla.javascript.typedarrays.TypedArrayKey;
 import org.mozilla.javascript.xml.XMLObject;
 
 /**
@@ -50,7 +52,7 @@ final class OrdinaryHas {
     /** HasProperty(obj, name). */
     static boolean has(Scriptable obj, String name) {
         if (!proxies) {
-            return ScriptableObject.getBase(obj, name) != null;
+            return found(obj, ScriptableObject.getBase(obj, name), name);
         }
         for (Scriptable o = obj; o != null; o = o.getPrototype()) {
             if (o instanceof NativeProxy) {
@@ -59,6 +61,9 @@ final class OrdinaryHas {
             if (o.has(name, obj)) {
                 return true;
             }
+            if (o instanceof NativeTypedArrayView && TypedArrayKey.isCanonical(name)) {
+                return false;
+            }
         }
         return false;
     }
@@ -66,7 +71,7 @@ final class OrdinaryHas {
     /** HasProperty(obj, index). */
     static boolean has(Scriptable obj, int index) {
         if (!proxies) {
-            return ScriptableObject.getBase(obj, index) != null;
+            return found(obj, ScriptableObject.getBase(obj, index));
         }
         for (Scriptable o = obj; o != null; o = o.getPrototype()) {
             if (o instanceof NativeProxy) {
@@ -74,6 +79,9 @@ final class OrdinaryHas {
             }
             if (o.has(index, obj)) {
                 return true;
+            }
+            if (o instanceof NativeTypedArrayView) {
+                return false;
             }
         }
         return false;
@@ -89,6 +97,33 @@ final class OrdinaryHas {
                 return proxyHas((NativeProxy) o, key);
             }
             if (ScriptableObject.ensureSymbolScriptable(o).has(key, obj)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * HasProperty from the object that {@code getBase} found: a TypedArray on the way there answers
+     * for a CanonicalNumericIndexString itself, without its prototypes (10.4.5.2, ROADMAP P6.18,
+     * appendix C Q44). The chain is only walked for a key found on a prototype that may be one.
+     */
+    static boolean found(Scriptable obj, Scriptable base, String name) {
+        return base == obj
+                || (base != null
+                        && !(TypedArrayKey.mayBeCanonical(name)
+                                && typedArrayBefore(obj, base)
+                                && TypedArrayKey.isCanonical(name)));
+    }
+
+    /** {@link #found(Scriptable, Scriptable, String)} for an index. */
+    static boolean found(Scriptable obj, Scriptable base) {
+        return base == obj || (base != null && !typedArrayBefore(obj, base));
+    }
+
+    private static boolean typedArrayBefore(Scriptable obj, Scriptable base) {
+        for (Scriptable o = obj; o != base && o != null; o = o.getPrototype()) {
+            if (o instanceof NativeTypedArrayView) {
                 return true;
             }
         }
