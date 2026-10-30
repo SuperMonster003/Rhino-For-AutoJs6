@@ -582,7 +582,7 @@ P6.8 是 P6.6 / P6.7 时发现的两个上游缺陷 (维护者要求修复, 附�
 
 ### 计时
 
-`bench-p618.js` 19 种形式 (解释 `-opt -1` 与编译 `-opt 9`; TypedArray 下标的读 taRead / taReadF, 写 taWrite / taWriteF / taWriteB, `in` taIn / taInMiss, `delete` taDelete, `Object.keys` taKeys, for-in taForIn, 命名属性 taLength / taNamed / taNamedSet, 字符串下标 taStrKey, 普通对象沿原型链的 `in` inOwn / inInherited / inMiss / inIndex, baseline; 进程里没有 Proxy; JDK 21, 每个形式单独一个进程, 修前修后交替, 30 次暖机后 31 轮, 每轮 20000 次). 修前是 ff29aac47 的类 (代码同 789eaf97f, 会话 scratchpad `before/`). 机器上有其他会话的构建, 12 线程 CPU 负载 24-74%. 下面的数是每进程最小值之比的中位数.
+`bench-p618.js` 19 种形式 (解释 `-opt -1` 与编译 `-opt 9`; TypedArray 下标的读 taRead / taReadF, 写 taWrite / taWriteF / taWriteB, `in` taIn / taInMiss, `delete` taDelete, `Object.keys` taKeys, for-in taForIn, 命名属性 taLength / taNamed / taNamedSet, 字符串下标 taStrKey, 普通对象沿原型链的 `in` inOwn / inInherited / inMiss / inIndex, baseline; 进程里没有 Proxy; JDK 21, 每个形式单独一个进程, 修前修后交替, 30 次暖机后 31 轮, 每轮 20000 次). 修前是 ff29aac47 的类 (代码同 789eaf97f, 会话 scratchpad `before/`). 计时期间 12 线程 CPU 负载 24-74%, 来源没有逐一确认. 下面的数是每进程最小值之比的中位数.
 
 | 形式 | 解释 | 编译 |
 |---|---|---|
@@ -616,6 +616,6 @@ taKeys / taForIn / inInherited 是终版 b74240190 的 21 轮 (`bench-p618-rerun
 
 - 提交: ff29aac47 (登记 P6.18 与附录 C Q44 / Q45 已决), 621f5f531 (功能与 HOOKS.md), f34511cc5 (`TypedArrayInternalMethodsTest` 17 例, 每例 `assertWithAllModes_ES6`), f40fe89f3 (命名写入只判断一次, `with` 绑定经 `found`), 1fe68d5ef (只含 properties), a65e30b9e (`canonical` 的首字符判断), b74240190 (保留上游的无参 `getIds()`), f50d26ac5 (两个上游测试改为规范的期望), 本条勾选提交 (NOTES, roadmap, 附录 C Q46, P8 附记).
 - 第一次全量 (b74240190) 比 P6.17 多 4 个失败: `harmony.TypedArraysTest` 两模式 (`typedarrays.js` 的 `a[nan]`) 与 `es6.TypedArrayJavaTest` 两例 (Number 构造 BigInt 数组). 都是上游测试的期望与规范冲突, 不是实现回归, 按 AGENTS.md 第三节第 5 条改为验证规范行为 (f50d26ac5, 见上游 PR 拆分边界), 断言没有删除.
-- 五模块全量 (f50d26ac5, JDK 21, `--rerun-tasks`, 含全部模块的 `spotlessCheck`, 19 分 58 秒, 与其他会话的构建同时): 149364 例 (P6.17 的 149347 加 `TypedArrayInternalMethodsTest` 17) 27 失败 21 跳过, 与 P6.17 的 `current-failures-p617.txt` 逐条相同 (含消息, 对象哈希归一后比较), 新增 0; Test262SuiteTest 137526 例失败 0, 39 个 "marked as failing but it does not" 数量同 P6.17, 其中没有 TypedArray 的文件.
+- 五模块全量 (f50d26ac5, JDK 21, `--rerun-tasks`, 含全部模块的 `spotlessCheck`, 19 分 58 秒): 149364 例 (P6.17 的 149347 加 `TypedArrayInternalMethodsTest` 17) 27 失败 21 跳过, 与 P6.17 的 `current-failures-p617.txt` 逐条相同 (含消息, 对象哈希归一后比较), 新增 0; Test262SuiteTest 137526 例失败 0, 39 个 "marked as failing but it does not" 数量同 P6.17, 其中没有 TypedArray 的文件.
 - 钩子标记行 691 (class syntax 641, async 50; `rhino/src/main/java` 679, `tests/src` 12), 本条新增 29; `HooksRegistryTest` 通过. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过.
 - 证据 `build/upstream-sync/class-p6h-20261030/`: `full-tests-p618.log`, `current-failures-p618.txt`, `bench-p618.js`, `bench-p618-run.py`, `bench-p618.txt`, `bench-p618-aa.txt`, `bench-p618-rerun2.txt`, `bench-p618-rerun-aa.txt`, `bench-p618-rerun3.txt`, `bench-p618-rerun3-aa.txt`, `regen-p618.log`, `props-before-p618.properties`, `pd618/`.
