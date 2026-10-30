@@ -44,14 +44,32 @@ import org.mozilla.javascript.Interpreter.NewState;
  *   <li>{@code CLASS_BOUND_NAME}: string register = the name. Stack: scope -&gt; value, the read of
  *       a compound assignment after a {@code DUP} of the scope its BINDNAME found ({@link
  *       ClassOp#markBoundRead}).
+ *   <li>{@code CLASS_LOGICAL_BIND}: a byte, the step of a {@link ClassOp#LOGICAL_NAME}, and for the
+ *       first two the string register = the name. 0: pushes the binding ({@link
+ *       ClassRuntime#logicalBind}) and the value read from it, the read itself emits nothing; 1:
+ *       binding -&gt; binding, scope the assignment writes to ({@link ClassRuntime#logicalTarget});
+ *       2: binding, value -&gt; value.
  * </ul>
  */
 final class ClassInterpreter {
 
     private ClassInterpreter() {}
 
-    /** Emits the read of a compound assignment marked by {@link ClassOp#markBoundRead}. */
+    /**
+     * Emits the read of a compound assignment marked by {@link ClassOp#markBoundRead}, and the read
+     * and the BINDNAME of the assignment of a {@link ClassOp#LOGICAL_NAME}.
+     */
     static <T extends ScriptOrFn<T>> boolean boundRead(CodeGenerator<T> gen, Node node) {
+        if (ClassOp.isLogicalRead(node)) {
+            gen.stackChange(1);
+            return true;
+        }
+        if (ClassOp.isBoundBind(node)) {
+            gen.addStringOp(Icode.CLASS_LOGICAL_BIND, node.getString());
+            gen.addUint8(1);
+            gen.stackChange(1);
+            return true;
+        }
         if (!ClassOp.isBoundRead(node)) {
             return false;
         }
@@ -165,6 +183,24 @@ final class ClassInterpreter {
                     }
                     break;
                 }
+            case ClassOp.LOGICAL_NAME:
+                {
+                    // The binding stays under the value of the operator: step 0 pushes it with the
+                    // value of the read, the BINDNAME of the assignment gets its scope from it.
+                    Node read = child.getFirstChild();
+                    if (!ClassOp.isLogicalName(read, read.getNext())) {
+                        gen.visitExpression(child, 0);
+                        break;
+                    }
+                    gen.addStringOp(Icode.CLASS_LOGICAL_BIND, read.getString());
+                    gen.addUint8(0);
+                    gen.stackChange(1);
+                    gen.visitExpression(child, 0);
+                    gen.addIcode(Icode.CLASS_LOGICAL_BIND);
+                    gen.addUint8(2);
+                    gen.stackChange(-1);
+                    break;
+                }
             default:
                 throw Kit.codeBug();
         }
@@ -187,6 +223,7 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_STATIC_INIT] = new DoClassStaticInit();
         instructionObjs[base + Icode.CLASS_DESTRUCTURE] = new DoClassDestructure();
         instructionObjs[base + Icode.CLASS_BOUND_NAME] = new DoClassBoundName();
+        instructionObjs[base + Icode.CLASS_LOGICAL_BIND] = new DoClassLogicalBind();
         SpreadCall.register(instructionObjs, base);
     }
 
@@ -224,6 +261,8 @@ final class ClassInterpreter {
                 return "CLASS_DESTRUCTURE";
             case Icode.CLASS_BOUND_NAME:
                 return "CLASS_BOUND_NAME";
+            case Icode.CLASS_LOGICAL_BIND:
+                return "CLASS_LOGICAL_BIND";
             default:
                 return SpreadCall.icodeName(icode);
         }
@@ -376,6 +415,45 @@ final class ClassInterpreter {
                     ClassRuntime.boundValue(
                             frame.stack[frame.stackTop], cx, frame.scope, state.stringReg);
             return null;
+        }
+    }
+
+    private static final class DoClassLogicalBind extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            Object[] stack = frame.stack;
+            int top = frame.stackTop;
+            switch (frame.compilerData.itsICode[frame.pc++]) {
+                case 0:
+                    {
+                        Object bound = ClassRuntime.logicalBind(cx, frame.scope, state.stringReg);
+                        Object value =
+                                ClassRuntime.boundValue(bound, cx, frame.scope, state.stringReg);
+                        stack[top + 1] = bound;
+                        stack[top + 2] = value;
+                        frame.stackTop = top + 2;
+                        break;
+                    }
+                case 1:
+                    stack[top + 1] =
+                            ClassRuntime.logicalTarget(
+                                    stack[top], cx, frame.scope, state.stringReg);
+                    frame.stackTop = top + 1;
+                    break;
+                default:
+                    stack[top - 1] = stack[top];
+                    frame.doubleStack[top - 1] = frame.doubleStack[top];
+                    stack[top] = null;
+                    frame.stackTop = top - 1;
+                    break;
+            }
+            return null;
+        }
+
+        @Override
+        void dumpICode(int op, String tname, ICodeDumpContext ctx) {
+            int step = ctx.compilerData.itsICode[ctx.pc++];
+            ctx.out.println(tname + " step " + step);
         }
     }
 

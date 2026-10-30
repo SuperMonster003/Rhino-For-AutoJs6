@@ -186,6 +186,9 @@ final class ClassBodyCodegen {
                     }
                     break;
                 }
+            case ClassOp.LOGICAL_NAME:
+                logicalName(bc, child, node);
+                break;
             default:
                 throw Kit.codeBug();
         }
@@ -205,6 +208,74 @@ final class ClassBodyCodegen {
         cfw.addPush(node.getString());
         invoke(cfw, "boundValue", "(" + OBJECT + CONTEXT_SCOPE + "Ljava/lang/String;)" + OBJECT);
         return true;
+    }
+
+    /**
+     * A {@link ClassOp#LOGICAL_NAME}: the binding ({@code ClassRuntime.logicalBind}) stays under
+     * the value read from it, and the assignment, unless the operator short circuits, writes to the
+     * scope it gives.
+     */
+    private static void logicalName(BodyCodegen bc, Node logical, Node node) {
+        Node read = logical.getFirstChild();
+        Node write = read.getNext();
+        if (!ClassOp.isLogicalName(read, write)) {
+            bc.generateExpression(logical, node);
+            return;
+        }
+        ClassFileWriter cfw = bc.cfw;
+        Node bind = write.getFirstChild();
+        String name = bind.getString();
+        pushContextAndScope(bc);
+        cfw.addPush(name);
+        invoke(cfw, "logicalBind", "(" + CONTEXT_SCOPE + "Ljava/lang/String;)" + OBJECT);
+        cfw.add(ByteCode.DUP);
+        pushContextAndScope(bc);
+        cfw.addPush(name);
+        invoke(cfw, "boundValue", "(" + OBJECT + CONTEXT_SCOPE + "Ljava/lang/String;)" + OBJECT);
+        cfw.add(ByteCode.DUP);
+        int shortCircuit = cfw.acquireLabel();
+        if (logical.getType() == Token.NULLISH_COALESCING) {
+            cfw.addInvoke(
+                    ByteCode.INVOKESTATIC,
+                    "org/mozilla/javascript/optimizer/OptRuntime",
+                    "isNullOrUndefined",
+                    "(" + OBJECT + ")Z");
+            cfw.add(ByteCode.IFEQ, shortCircuit);
+        } else {
+            // as the logical operators of BodyCodegen, whose linkers convert numbers inline
+            cfw.addInvokeDynamic(
+                    "MATH:TOBOOLEAN", Signatures.MATH_TO_BOOLEAN, Bootstrapper.BOOTSTRAP_HANDLE);
+            cfw.add(logical.getType() == Token.AND ? ByteCode.IFEQ : ByteCode.IFNE, shortCircuit);
+        }
+        int stack = cfw.getStackTop();
+        cfw.add(ByteCode.POP);
+        pushContextAndScope(bc);
+        cfw.addPush(name);
+        invoke(
+                cfw,
+                "logicalTarget",
+                "("
+                        + OBJECT
+                        + CONTEXT_SCOPE
+                        + "Ljava/lang/String;)Lorg/mozilla/javascript/VarScope;");
+        bc.generateExpression(bind.getNext(), write);
+        pushContextAndScope(bc);
+        cfw.addPush(name);
+        cfw.addInvoke(
+                ByteCode.INVOKESTATIC,
+                "org/mozilla/javascript/ScriptRuntime",
+                write.getType() == Token.STRICT_SETNAME ? "strictSetName" : "setName",
+                "(Lorg/mozilla/javascript/VarScope;"
+                        + OBJECT
+                        + CONTEXT_SCOPE
+                        + "Ljava/lang/String;)"
+                        + OBJECT);
+        int end = cfw.acquireLabel();
+        cfw.add(ByteCode.GOTO, end);
+        cfw.markLabel(shortCircuit, stack);
+        cfw.add(ByteCode.SWAP);
+        cfw.add(ByteCode.POP);
+        cfw.markLabel(end);
     }
 
     /** Unwraps the this value on the stack for a super method call. */

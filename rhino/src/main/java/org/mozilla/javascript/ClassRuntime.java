@@ -1004,6 +1004,16 @@ public final class ClassRuntime {
         return OrdinaryHas.boundValue(bound, cx, scope, name);
     }
 
+    /** The binding of a logical assignment to a name, see {@link ClassOp#LOGICAL_NAME}. */
+    public static Object logicalBind(Context cx, VarScope scope, String name) {
+        return OrdinaryHas.logicalBind(cx, scope, name);
+    }
+
+    /** The scope that the write of a logical assignment to a name goes to. */
+    public static VarScope logicalTarget(Object bound, Context cx, VarScope scope, String name) {
+        return OrdinaryHas.logicalTarget(bound, cx, scope, name);
+    }
+
     /** RequireObjectCoercible of the value bound to an empty object pattern. */
     public static Object requireObjectCoercible(Object value) {
         if (value == null) {

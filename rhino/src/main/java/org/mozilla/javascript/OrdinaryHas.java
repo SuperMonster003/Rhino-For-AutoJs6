@@ -132,10 +132,14 @@ final class OrdinaryHas {
     /**
      * The value of a name that {@code bind} resolved, for a compound assignment (ROADMAP P6.16,
      * appendix C Q37, see {@link ClassOp#markBoundRead}): GetBindingValue of the scope it found,
-     * without resolving the name again. An unresolvable name is a ReferenceError; an E4X scope, and
-     * a scope that does not give the value, look the name up as before.
+     * without resolving the name again. An unresolvable name is a ReferenceError; an E4X scope, a
+     * scope that does not give the value, and NOT_FOUND from {@link #logicalBind} look the name up
+     * as before.
      */
     static Object boundValue(Object bound, Context cx, VarScope scope, String name) {
+        if (bound == Scriptable.NOT_FOUND) {
+            return ScriptRuntime.name(cx, scope, name);
+        }
         if (bound instanceof WithScope) {
             Scriptable withObj = ((WithScope) bound).getObject();
             if (!(withObj instanceof XMLObject)) {
@@ -150,6 +154,29 @@ final class OrdinaryHas {
             throw ScriptRuntime.notFoundError(scope, name);
         }
         return ScriptRuntime.name(cx, scope, name);
+    }
+
+    /**
+     * The binding of a logical assignment to a name (ROADMAP P6.17, appendix C Q42, see {@link
+     * ClassOp#LOGICAL_NAME}): the scope that {@code bind} finds, or NOT_FOUND when no {@code with}
+     * scope is on the chain. Without one, resolving the name for the read and again for the write
+     * finds the same binding (only declarative scopes and the global scope are left), and the read
+     * and the write look the name up as before ({@link #boundValue}, {@link #logicalTarget}).
+     */
+    static Object logicalBind(Context cx, VarScope scope, String name) {
+        for (VarScope s = scope; s != null; s = s.getParentScope()) {
+            if (s instanceof WithScope) {
+                return ScriptRuntime.bind(cx, scope, name);
+            }
+        }
+        return Scriptable.NOT_FOUND;
+    }
+
+    /** The scope that the write of a logical assignment goes to, see {@link #logicalBind}. */
+    static VarScope logicalTarget(Object bound, Context cx, VarScope scope, String name) {
+        return bound == Scriptable.NOT_FOUND
+                ? ScriptRuntime.bind(cx, scope, name)
+                : (VarScope) bound;
     }
 
     /** The value that {@code typeof name} looks at, once {@code bind} found {@code bound}. */
@@ -225,6 +252,13 @@ final class OrdinaryHas {
 
     /** GetBindingValue of the scope of a {@code with} statement. */
     private static Object bindingValue(Context cx, Scriptable withObj, String name) {
+        if (!proxies) {
+            // without a Proxy nothing observes HasProperty: a value found by Get is the binding's
+            Object value = ScriptableObject.getProperty(withObj, name);
+            if (value != Scriptable.NOT_FOUND) {
+                return value;
+            }
+        }
         if (!has(withObj, name)) {
             if (cx.isStrictMode()) {
                 throw ScriptRuntime.notFoundError(null, name);

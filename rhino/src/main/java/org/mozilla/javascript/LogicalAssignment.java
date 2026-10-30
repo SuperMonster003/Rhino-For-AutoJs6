@@ -24,6 +24,11 @@ import org.mozilla.javascript.ast.Scope;
  * instead; private names are constant keys. With a key that is not constant, the read first
  * requires the object to be coercible ({@link ClassOp#REQUIRE_OBJECT}): GetValue converts a null or
  * undefined base before the key, which the element read of Rhino does the other way round.
+ *
+ * <p>A name is resolved once (ROADMAP P6.17, appendix C Q42): the operator is wrapped in a {@link
+ * ClassOp#LOGICAL_NAME}, whose read and write use the scope of one BINDNAME: a {@code with} object
+ * is asked for the binding once, and the value goes to the scope found before the read even when a
+ * getter removed the binding there.
  */
 final class LogicalAssignment {
 
@@ -54,7 +59,12 @@ final class LogicalAssignment {
                 {
                     Node read = parser.createName(left.getString());
                     read.setLineColumnNumber(left.getLineno(), left.getColumn());
-                    return new Node(op, read, parser.simpleAssignment(left, right));
+                    Node write = parser.simpleAssignment(left, right);
+                    ClassOp.markLogicalRead(read);
+                    ClassOp.markBoundBind(write.getFirstChild());
+                    Node logical = ClassLowering.newClassNode(ClassOp.LOGICAL_NAME);
+                    logical.addChildToBack(new Node(op, read, write));
+                    return logical;
                 }
             case Token.GETPROP:
             case Token.GETELEM:

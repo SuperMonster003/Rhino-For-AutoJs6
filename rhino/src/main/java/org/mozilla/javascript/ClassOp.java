@@ -73,6 +73,14 @@ public final class ClassOp {
      */
     public static final int DESTRUCTURE = 12;
 
+    /**
+     * A logical assignment to a name (ROADMAP P6.17, appendix C Q42): the only child is the logical
+     * operator applied to the read and to the assignment of {@link LogicalAssignment#lower}. While
+     * NodeTransformer leaves both as name lookups ({@link #isLogicalName}), the backends resolve
+     * the binding once: its read and its write use the scope that one BINDNAME found.
+     */
+    public static final int LOGICAL_NAME = 13;
+
     /** Element kinds, in the low bits of the int {@link Node#CLASS_PROP} of an element. */
     public static final int ELEMENT_METHOD = 0, ELEMENT_GETTER = 1, ELEMENT_SETTER = 2;
 
@@ -147,7 +155,49 @@ public final class ClassOp {
 
     /** Whether {@code node} is a read marked by {@link #markBoundRead}. */
     public static boolean isBoundRead(Node node) {
-        return node.getType() == Token.NAME && node.getIntProp(Node.CLASS_PROP, 0) != 0;
+        return node.getType() == Token.NAME && node.getIntProp(Node.CLASS_PROP, 0) == 1;
+    }
+
+    /**
+     * Marks the read of a {@link #LOGICAL_NAME}: the interpreter pushed its value together with the
+     * binding, and the read emits nothing.
+     */
+    static void markLogicalRead(Node name) {
+        name.putIntProp(Node.CLASS_PROP, 2);
+    }
+
+    /** Whether {@code node} is a read marked by {@link #markLogicalRead}. */
+    static boolean isLogicalRead(Node node) {
+        return node.getType() == Token.NAME && node.getIntProp(Node.CLASS_PROP, 0) == 2;
+    }
+
+    /**
+     * Marks the BINDNAME of the assignment of a {@link #LOGICAL_NAME}: the interpreter takes the
+     * scope from the binding on the stack instead of looking the name up again.
+     */
+    static void markBoundBind(Node bind) {
+        bind.putIntProp(Node.CLASS_PROP, 1);
+    }
+
+    /** Whether {@code node} is a BINDNAME marked by {@link #markBoundBind}. */
+    static boolean isBoundBind(Node node) {
+        return node.getType() == Token.BINDNAME && node.getIntProp(Node.CLASS_PROP, 0) != 0;
+    }
+
+    /**
+     * Whether the read and the write of a {@link #LOGICAL_NAME} are still name lookups; otherwise
+     * (local variables) the marks are dropped and the logical operator is generated as it is.
+     */
+    public static boolean isLogicalName(Node read, Node write) {
+        int type = write.getType();
+        if (read.getType() == Token.NAME
+                && (type == Token.SETNAME || type == Token.STRICT_SETNAME)
+                && write.getFirstChild().getType() == Token.BINDNAME) {
+            return true;
+        }
+        read.removeProp(Node.CLASS_PROP);
+        write.getFirstChild().removeProp(Node.CLASS_PROP);
+        return false;
     }
 
     public int getKind() {
