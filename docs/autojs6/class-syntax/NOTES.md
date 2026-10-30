@@ -511,3 +511,111 @@ P6.8 是 P6.6 / P6.7 时发现的两个上游缺陷 (维护者要求修复, 附�
 - test262: 目标 42 个文件 (Q41 相关的 32 个 `*-calls-putvalue-*` 含 P6.16 解锁的 `with` 版本, Q43 的 8 个 `internals/Set/key-is-*-set.js` 与 `with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain{,-strict-mode}.js`) 用 `run262.py` 两模式 (含严格版) 100 次全部通过 (`run262-p617.txt` 在会话 scratchpad, 未保留). properties 用 JDK 17 `-DupdateTest262properties=all` 重生成 (全部目录三模式, 16 分 50 秒): 失败登记 19854 -> 19829 个文件 (`propdiff.py`), 解锁 25, 新增失败 0, 标签变化 0, 与预期 25 相同. 分布: Q41 16 (`compound-assignment-operator-calls-putvalue-lref--v--{1,3,...,21}.js` 11, prefix / postfix increment / decrement 的 `*-calls-putvalue-lhs-newvalue--1.js` 4, `assignment-operator-calls-putvalue-lref--rval--1.js` 1), Q43 9 (`TypedArrayConstructors/internals/Set` 的 `key-is-{canonical-invalid,valid}-index-{prototype-chain,reflect}-set.js`, Number 与 BigInt 各 4; `with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js`). Q42 没有 test262 用例 (`logical-assignment` 目录修前修后都全过). 证据 `regen-p617.log`, `props-before-p617.properties`, `pd617/`.
 - 计时 (`bench-p617.js` 21 种形式: Q41 的全局赋值, 自增与复合赋值 (非严格 globalSet / globalInc / globalCompound, `'use strict'` 函数里 strictSet / strictInc / strictCompound, class 体里 classSet / classInc), Q42 的逻辑赋值 (局部 logicalLocal, 全局 logicalGlobal 短路与 logicalGlobalWrite 写入, `with` 块里 logicalWith 短路与 logicalWithWrite 写入), Q43 的 TypedArray 下标写入 taWrite 与以 TypedArray 为原型的对象的下标写入 taHeirWrite, 沿原型链找写入位置的 assignOwn / createDeep / createNew / index / indexNew, baseline; 进程里没有 Proxy; 修前是 3788e771a 的 Gradle 产物 (会话 scratchpad `before/`), 修后是 df2d272ed 的产物, logicalWith 另测 be87c090a; JDK 21, 每个形式单独一个进程, 修前修后交替, 9 轮全表, 可疑形式 15 轮复测). 机器被其他会话占满 (12 线程 CPU 负载 100%), 中位数之比的 A/A 在 0.78-1.17 之间, 计时脚本因此同时输出每个进程 31 轮里的最小值 (受干扰最少的一轮); 下面的数是每进程最小值之比的中位数, 括号里是中位数之比 (与 P6.16 及以前的数可比). 最小值的 A/A: 解释模式 0.94-1.01 (classInc 1.24), 编译模式 0.92-1.06 (`bench-p617-aa.txt`, `bench-p617-15-aa.txt`). 全表 9 轮 (`bench-p617.txt`): 解释模式 globalSet 1.00 (1.09), globalInc 0.91, globalCompound 1.05 (0.82), strictSet 0.96, strictInc 0.93, strictCompound 0.98, classSet 0.97, classInc 0.97 (1.17), logicalLocal 1.02, logicalGlobal 1.00, logicalGlobalWrite 0.99, logicalWith 1.00, logicalWithWrite 1.00, taWrite 1.00, taHeirWrite 1.02, assignOwn 1.00, createDeep 0.96, createNew 0.98, index 1.01, indexNew 1.01, baseline 1.00; 编译模式 globalSet 1.08, globalInc 1.14 (1.41), globalCompound 1.09, strictSet 0.83, strictInc 0.86, strictCompound 0.81, classSet 0.82, classInc 0.93, logicalLocal 1.00, logicalGlobal 1.15, logicalGlobalWrite 1.02 (1.15), logicalWith 1.24, logicalWithWrite 0.94, taWrite 1.02 (1.67), taHeirWrite 1.56 (1.49), assignOwn 1.00, createDeep 1.02, createNew 0.93, index 1.08, indexNew 1.07, baseline 1.00. 编译模式 15 轮复测 (`bench-p617-15.txt`): globalSet 1.05, globalInc 1.09 (A/A 0.95), globalCompound 1.02, logicalGlobal 1.09 (A/A 1.01; 修后生成的码与修前相同, 是噪声), logicalWith 1.22 (A/A 1.05). 最内层 `with` 作用域直接 HasBinding (be87c090a) 后 15 轮 (`bench-p617-with.txt`): 编译模式 logicalWith 1.16 (1.26), logicalWithWrite 0.90 (只解析一次, 比修前快), 解释模式 logicalWith 1.05. 中途的版本: Q42 第一版 (读写都 `bind` 后取值, 短路判断 invokestatic `ScriptRuntime.toBoolean`) 编译模式 1.9-2.4 倍, 改 `MATH:TOBOOLEAN` invokedynamic 后与修前同级; 解释器用 `SWAP` / `POP` 丢绑定时 1.17-1.36, 合并为 `CLASS_LOGICAL_BIND` 的三步后 logicalGlobal 仍 1.17 / 1.21, 加 `mayBeInWith` 后 1.00. 结论: 解释模式全部在 1.05 以内; 编译模式 Q41 的严格模式形式 0.81-0.93 (一次查找兼作 HasProperty 与写入的 base, 比修前的 `TopLevel.put` 少一层), 非严格的全局形式在 1.09 以内 (与 A/A 同量级); Q43 的 TypedArray 下标写入 1.02, taHeirWrite 1.56 是行为变化 (修后写在对象自己的普通属性上, 修前写进 TypedArray 的元素), 不可比; 只有 `with` 块里短路的逻辑赋值超过 1.1: 编译模式 1.16, 查找次数与修前相同 (HasProperty, @@unscopables 守卫, Get 各一次), 差在读取拆成 `logicalBind` 与 `boundValue` 两次运行时调用 (修前一次 `ScriptRuntime.name`), 登记附录 C Q45 (按推荐 A 保持现状先行). 修前的类在会话结束时随 scratchpad 删除, 要在轻负载下复测时按 3788e771a 重建.
 - 验证: 提交 3a6597550 (登记 P6.17 与附录 C Q41-Q43 已决), c4f274399 (Q41 功能与 HOOKS.md), 7354285ee (Q42), 898e21d53 (Q42 只在可能有 `with` 作用域处单次解析), df2d272ed (Q43), 5a7c1cd3c (`SetMutableBindingAndTypedArraySetTest`, 每例 `assertWithAllModes_ES6`), 4473be46c (只含 properties), be87c090a (Q42 最内层 `with` 作用域直接 HasBinding), 本条勾选提交 (NOTES, HOOKS.md 第 1 / 8 节, 附录 C Q44 / Q45, P8 附记); `SetMutableBindingAndTypedArraySetTest` 8 例, `LogicalAssignmentTest`, `WithScopeAndProtoTest`, `ProxySetAndDeleteTest`, `ProxyInternalMethodsTest`, `ReflectKeyTest`, `IteratorProtocolFixesTest`, `HooksRegistryTest`, `ClassChainUniquenessTest` 通过; be87c090a 之后 `language/statements/with` 与 `language/expressions/logical-assignment` 两目录两模式 628 次运行, 失败的 6 次都属已登记的 3 个文件 (完成值 2, `let-block-with-newline.js`). 五模块全量 (JDK 21, `--rerun-tasks`, 含全部模块的 `spotlessCheck`, 21 分 49 秒, 与其他会话的构建同时): 149347 例 (P6.16 的 149339 加 `SetMutableBindingAndTypedArraySetTest` 8) 27 失败 21 跳过, 与 P6.16 的 `current-failures-p616.txt` 逐条相同 (含消息, 对象哈希归一后比较), 新增 0; Test262SuiteTest 137526 例失败 0, 39 个 "marked as failing but it does not" 同 P6.16 (Unicode 版本相关). 钩子标记行 662 (class syntax 612, async 50; `rhino/src/main/java` 652, `tests/src` 10), 本条新增 5. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过. 证据 `full-tests-p617.log`, `current-failures-p617.txt`, `bench-p617*.txt`, `bench-p617.js`, `bench-p617-run.py` (同时输出每进程最小值), `regen-p617.log`, `props-before-p617.properties`, `pd617/`.
+
+## P6.18 TypedArray 自己的内部方法对数字规范字符串键的规范偏差 (2026-10-30, 附录 C Q44 = A, 维护者 15:2x 拍板)
+
+- 原状 (上游既有, 宿主 2026-10-24 的 jar 同样): TypedArray exotic object (ES2024 10.4.5) 的七个内部方法只有 [[Set]] 的 receiver 不是自己的情形由 P6.17 修过. 修前: `ScriptRuntime.canonicalNumericIndexString` 排除 "NaN" (上游注释 "According to tests"), `ta.NaN = 1` 新建属性; `get(String)` / `has(String)` 对不是有效下标的键落到 `super`, 再由原型链接着问; `defineOwnProperty` 对 `"1.5"` 用 `intValue()` 取整后写入下标 1, 描述符不合格时返回 false 但 `Object.defineProperty` 不看结果; `getOwnPropertyDescriptor` 只看槽, 元素没有描述符; 无参 `getIds()` 只列下标 (丢了自有字符串键), 三参 `getIds` 只列槽 (丢了下标), 入口不同结果不同; `delete` 运算符对有效下标返回 false 但严格模式不报错; `put(String)` 对无效下标不转换值; BigInt 数组写 Number 不报错 (`ScriptRuntime.toBigInt` 同时服务 `BigInt()`, 接受 Number).
+
+### 45 个登记用例的归因
+
+`built-ins/TypedArrayConstructors/internals` 登记的 45 个 (不含 SharedArrayBuffer 的 unsupported) 在修前用 `run262.py` 逐个跑了两模式 (含严格版, 168 次运行, 全部失败), 全部属于本项, 没有 detached buffer / resizable ArrayBuffer 功能缺失; 修后 168 次全部通过. 下表 `(2)` 表示 Number 与 BigInt 各一个.
+
+| 文件 (internals/ 下) | 个数 | 修前的报错 | 归因 |
+|---|---|---|---|
+| `DefineOwnProperty/key-is-numericindex.js` (2) | 2 | 读 `getOwnPropertyDescriptor(...).value` 时 TypeError | [[GetOwnProperty]] 没有元素 |
+| `DefineOwnProperty/key-is-numericindex-accessor-desc-throws.js` (2) | 2 | `Object.defineProperty` 没有报 TypeError | [[DefineOwnProperty]] 的 false 没有变成 TypeError |
+| `DefineOwnProperty/key-is-numericindex-desc-not-{configurable,enumerable,writable}-throws.js` (2 × 3) | 6 | 同上 | 同上 |
+| `DefineOwnProperty/key-is-not-canonical-index.js` (2) | 2 | `obj[1.0]` 不可枚举 (`verifyProperty` 经 for-in) | [[OwnPropertyKeys]]: 无参 `getIds()` 没有自有字符串键 |
+| `DefineOwnProperty/non-extensible-redefine-key.js` (2) | 2 | `obj[foo]` 不可枚举 | 同上 |
+| `Delete/indexed-value-ab-strict.js` (2) | 2 | 严格模式 `delete` 没有报 TypeError | [[Delete]] 有效下标为 false, 严格模式下丢了 |
+| `Delete/key-is-not-minus-zero-strict.js` (2) | 2 | 同上 (`delete sample[-0]` 即下标 0) | 同上 |
+| `Delete/key-is-out-of-bounds-strict.js` (2) | 2 | 同上 (用例里同样删有效下标) | 同上 |
+| `Get/key-is-not-integer.js` (2) | 2 | "OrdinaryGet was called!" | [[Get]] 无效下标问了原型 |
+| `Get/key-is-not-minus-zero.js` (2) | 2 | 同上 | 同上 |
+| `Get/key-is-out-of-bounds.js` (2) | 2 | 同上 (`sample["-1"]`) | 同上 |
+| `GetOwnProperty/index-prop-desc.js` (2) | 2 | 读 `.value` 时 TypeError | [[GetOwnProperty]] 没有元素 |
+| `HasProperty/key-is-lower-than-zero.js` (2) | 2 | `Reflect.has(sample, "-1")` 为 true | [[HasProperty]] 无效下标问了原型 |
+| `HasProperty/key-is-minus-zero.js` (2) | 2 | `Reflect.has(sample, "-0")` 为 true | 同上 |
+| `HasProperty/key-is-not-integer.js` (2) | 2 | `"1.1"` 为 true | 同上 |
+| `OwnPropertyKeys/integer-indexes.js` (2) | 2 | `Reflect.ownKeys` 没有下标 | [[OwnPropertyKeys]]: 三参 `getIds` 没有下标 |
+| `OwnPropertyKeys/integer-indexes-and-string-keys.js` (2) | 2 | 同上 | 同上 |
+| `OwnPropertyKeys/integer-indexes-and-string-and-symbol-keys-.js` (2) | 2 | 同上 | 同上 |
+| `OwnPropertyKeys/integer-indexes-resizable-array-buffer-{auto,fixed}.js` (只有 Number) | 2 | 第一条断言 `"initial"` 就失败 | 同上; 不是 resizable 的功能缺失, 缓冲区缩小后视图越界时键为空也由 `TypedArrayKey.ids` 保证 |
+| `Set/tonumber-value-throws.js` (2) | 2 | `sample["1.1"] = obj` 没有转换值 | TypedArraySetElement (10.4.5.16) 对无效下标也先转换值 |
+| `Set/BigInt/number-tobigint.js` | 1 | `typedArray[0] = 1` 没有报 TypeError | ToBigInt 对 Number 报 TypeError, 上游接受 |
+
+合计 14 + 6 + 6 + 2 + 6 + 8 + 3 = 45, 与登记数相同. 另外修后还解锁 3 个不在这 45 个里的同根因用例: `built-ins/TypedArray/out-of-bounds-behaves-like-detached.js` ([[HasProperty]]: 视图越界后原型上的 `2` 不再被问到), `built-ins/TypedArray/prototype/set/BigInt/number-tobigint.js` 与 `built-ins/TypedArrayConstructors/ctors-bigint/object-arg/number-tobigint.js` (ToBigInt).
+
+### 做法
+
+- 新文件 `typedarrays/TypedArrayKey`: 放在 `typedarrays` 包是为了用受保护的 `js_get` / `js_set` / `checkIndex` / `getLength`, 不再经 `ClassRuntime` 转一层. `canonical` 含 "NaN", 不改上游的 `canonicalNumericIndexString` (上游有意排除, PR 里说明); 开头用 `mayBeCanonical` 按首字符挡掉不可能的键 (数字的字符串只以数字, `-`, `I`, `N` 开头), 普通名字不再转 Number (计时一节).
+- [[Get]] / [[HasProperty]]: `get(String)` / `has(String)` 用 `canonical`, 不是有效下标时直接 undefined / false. `get(int)` 本来就返回 undefined; `has` 在 Rhino 里只问自有属性, 返回 false 后 `getBase` 还会接着问原型, 所以 `hasProperty` 的 String / int 两个重载在 `getBase` 之后经 `OrdinaryHas.found`: 找到的就是对象自己时不多做事, 找到的在原型上时才看键是否可能是数字 (`mayBeCanonical`, 只看首字符) 并沿链找 TypedArray; 循环内不加判断 (P6.15 的教训: 每层判断让编译模式的 `in` 慢到 2 倍). 建过 Proxy 之后走 `OrdinaryHas.has` 的循环, 循环里多一个判断. `with` 的绑定查找 (`withValue`) 同样经 `found`.
+- [[Set]]: 整数键的路径不变 (`js_set` 本来就先转换值再判断下标); `put(String)` 用 `canonical`, 无效下标 `toNumeric` 后不写入. 第一版把这一步放进 `OrdinarySet.typedArrayPut` (不加钩子行), 但 `ta.foo = v` 会多算一次规范字符串, 改回 2 行钩子.
+- [[GetOwnProperty]]: `getOwnPropertyDescriptor` 覆盖, 槽没有时按元素 (`TypedArrayKey.descriptor`); 数字键不可能有槽, 不用算规范字符串.
+- [[DefineOwnProperty]]: `defineOwnProperty` 第一行 `TypedArrayKey.defineOrThrow`. 拒绝时 TypeError 与不看 `checkValid` 都是有意的: 传 `checkValid = false` 的只有 `Object.freeze` / `Object.seal`, 规范是 DefinePropertyOrThrow, 上游静默. `Reflect.defineProperty` 原来靠 catch `EcmaError` 得到 false, 这样转换值的 TypeError (BigInt 数组写 Number, Symbol) 也会变成 false, 所以对 TypedArray 也走 `OwnProperty.reflect` (`OwnProperty.exotic`), 由 `TypedArrayKey.define` 返回结果. `OrdinarySet` 里 receiver 是 TypedArray (含 Proxy 没有 trap 时) 的 CreateDataProperty / {[[Value]]} 同样用它, 代替 P6.17 手写的两段.
+- [[Delete]]: `delete(String)` 用 `canonical`; `deleteObjectElem` 的整数键经 `OrdinaryDelete.stays`, 严格模式代码里有效下标 TypeError (`cx` 就在手边, 不用 `Context.isCurrentContextStrict()`). 放在这里而不是 `delete(int)`: `Reflect.deleteProperty` 也走 `delete(int)`, 那里必须返回 false 不抛.
+- [[OwnPropertyKeys]]: 覆盖三参 `getIds` (`TypedArrayKey.ids`: 下标在前, 其余键在后). 上游的无参 `getIds()` 保留: 没有自有键且视图没有越界时照上游只列下标, 否则交给 `SlotMapOwner.getIds()` 再到三参 (2 行钩子; 第一版删除了这个方法, for-in 与 `Object.keys` 每次都经 `startCompoundOp`, 见计时). 视图越界时没有下标 (上游对缩小后的自动长度视图算出负长度).
+- ToBigInt: `TypedArrayKey.toBigInt`: ToPrimitive 后 Number 报 TypeError, 其余交给 `ScriptRuntime.toBigInt`. 只替换 TypedArray 的 3 处; `BigInt.asIntN` / `asUintN` / DataView 不在本项 (见 "未改").
+
+### 行为变化 (宿主脚本可见, 都是规范行为)
+
+`Object.keys` / for-in / `JSON.stringify` / `Object.values` / `Object.entries` 包含 TypedArray 上自己加的字符串键 (修前只有下标); `Reflect.ownKeys` / `Object.getOwnPropertyNames` / `Object.assign` / 对象展开 / `Object.getOwnPropertyDescriptors` 包含下标 (修前没有); `Object.getOwnPropertyDescriptor(ta, '0')` 有结果 (修前 undefined); `ta.NaN = 1` 不再新建属性, `'NaN' in ta` 为 false; `ta['1.5']` 等不再问原型; `Object.defineProperty(ta, '1.5', ...)` 与不合格的描述符报 TypeError (修前前者写入下标 1, 后者静默); `Object.freeze` / `Object.seal` 有元素的 TypedArray 报 TypeError (修前静默成功); 严格模式代码里 `delete ta[0]` 报 TypeError; BigInt 数组写 Number (`big[0] = 1`, `big.fill(1)`, `new BigInt64Array([1])`, `big.set([1])`) 报 TypeError (修前转换); 对无效下标赋值时值仍被转换 (valueOf 被调用). 下标的读写, 普通命名属性不变.
+
+### 未改 (登记)
+
+- `BigInt.asIntN` / `asUintN` / `DataView.prototype.setBigInt64` / `setBigUint64` 的 ToBigInt 仍接受 Number; `{ valueOf() { return null; } }` 被 `ScriptableObject.getDefaultValue` 当成非原始值 (`v != null` 判断, Java null 即 JS null), 转而调 toString: `built-ins/BigInt/{asIntN,asUintN}/bigint-tobigint-errors.js` 2 个由此失败 (报 SyntaxError). 与 TypedArray 无关, 根因也不同, 不在本卡, 登记附录 C Q46 (未先行). 同目录 `bits-toindex-wrapped-values.js` 2 个是 ToIndex, 也不是本项.
+- `Array.prototype` 通用方法的 DeletePropertyOrThrow (`deleteElem` 不看结果) 用在 TypedArray 上不报错; `getBase` 的其他 Java 调用者; 见 HOOKS.md 第 8 节.
+
+### 上游 PR 拆分边界 (P8)
+
+- 29 行钩子 (NativeTypedArrayView 21, NativeBigIntArrayView / NativeBigInt64Array / NativeBigUint64Array 各 1, ScriptableObject 2, ScriptRuntime 1, 上游测试 `TypedArrayJavaTest` 2), 另把 P6.15 `NativeReflect.defineProperty` 的 1 条钩子行改调 `OwnProperty.exotic` (行数不变); 新文件 `TypedArrayKey`; fork 文件里的部分: `OrdinaryHas` 的 `found` 两个重载, `typedArrayBefore`, `has` 循环的判断, `withValue` 经 `found`; `OrdinaryDelete.stays`; `OwnProperty.exotic` 与 `define` 的 TypedArray 分支; `OrdinarySet` 的 `typedArrayDefine` 与改用 `TypedArrayKey.isCanonical`.
+- 依赖: P6.14 的 `OrdinarySet` / `OrdinaryDelete`, P6.15 的 `OrdinaryHas` / `OwnProperty`, P6.17 的 `typedArrayPut`, 排在这三个 PR 之后. 上游还没有这些文件时, 可拆开的部分: ToBigInt (3 行钩子加 `toBigInt`, 不依赖其他部分), [[OwnPropertyKeys]] (8 行钩子加 `ids`, 不依赖其他部分), [[Get]] / [[GetOwnProperty]] / [[Delete]] 的 `delete(String)` 也只用 `TypedArrayKey`; [[HasProperty]] 与严格模式的 [[Delete]] 要 `OrdinaryHas` / `OrdinaryDelete`.
+- PR 里可以少改的地方: `canonicalNumericIndexString` 只有 TypedArray 用, PR 里直接加 "NaN" 与首字符判断, 不要 `canonical`; `defineOwnProperty` 里上游的数字分支可以删 (fork 保留上游原样, 走不到); `put(String)` 的 `if (ix < 0)` 可以写成 `else`.
+- `TypedArrayInternalMethodsTest` 不用 class, 可按内部方法拆开原样用.
+- 要同时改的上游测试 (PR 里说明, 都是期望与规范冲突): `tests/testsrc/jstests/harmony/typedarrays.js` 的两处 `assertEquals(5, a[nan])` 改为 undefined (V8 的老用例, 上游排除 "NaN" 的注释 "According to tests" 指的就是它; test262 要求相反); `es6/TypedArrayJavaTest.allTypes` 的 BigInt 数组用 `[...].map(BigInt)` 构造 (上游 e6e7e6d76 把 BigInt 数组加进通用用例时靠 Number 转换).
+
+### test262
+
+- 45 个登记用例 (`run262.py`, 两模式含严格版, 168 次运行): 修前全部失败, 修后全部通过.
+- 有限范围 (JDK 21, `-Dtest262properties=` 只留 `built-ins/TypedArrayConstructors`, `built-ins/TypedArray`, `built-ins/Reflect`, `built-ins/Object` 的登记) 43826 例 0 失败.
+- properties 用 JDK 17 `-DupdateTest262properties=all` 重生成 (全部目录三模式, 17 分 12 秒, 跑在 f34511cc5 上): 失败登记 19829 -> 19781 个文件, 解锁 48 (`built-ins/TypedArrayConstructors` 46, `built-ins/TypedArray` 2), 新增失败 0, 标签变化 0. 解锁数对照归因表: 45 + 上面说的 3 个. 之后的 f40fe89f3 (命名写入, `with`) 与 a65e30b9e (`canonical` 的首字符判断) 由 48 个解锁文件 180 次运行 (f40fe89f3) 与五模块全量里的 Test262SuiteTest (a65e30b9e) 覆盖. 证据 `regen-p618.log`, `props-before-p618.properties`, `pd618/`.
+
+### 计时
+
+`bench-p618.js` 19 种形式 (解释 `-opt -1` 与编译 `-opt 9`; TypedArray 下标的读 taRead / taReadF, 写 taWrite / taWriteF / taWriteB, `in` taIn / taInMiss, `delete` taDelete, `Object.keys` taKeys, for-in taForIn, 命名属性 taLength / taNamed / taNamedSet, 字符串下标 taStrKey, 普通对象沿原型链的 `in` inOwn / inInherited / inMiss / inIndex, baseline; 进程里没有 Proxy; JDK 21, 每个形式单独一个进程, 修前修后交替, 30 次暖机后 31 轮, 每轮 20000 次). 修前是 ff29aac47 的类 (代码同 789eaf97f, 会话 scratchpad `before/`). 机器上有其他会话的构建, 12 线程 CPU 负载 24-74%. 下面的数是每进程最小值之比的中位数.
+
+| 形式 | 解释 | 编译 |
+|---|---|---|
+| taRead | 1.00 | 1.03 |
+| taReadF | 1.01 | 1.01 |
+| taWrite | 1.00 | 0.93 |
+| taWriteF | 1.01 | 1.03 |
+| taWriteB | 1.02 | 1.01 |
+| taIn | 0.98 | 1.00 |
+| taInMiss | 0.98 | 0.95 |
+| taDelete | 0.99 | 0.96 |
+| taKeys | 0.99 | 0.99 |
+| taForIn | 1.04 | 1.00 |
+| taLength | 0.97 | 0.89 |
+| taNamed | 0.96 | 0.88 |
+| taNamedSet | 0.89 | 0.59 |
+| taStrKey | 0.98 | 0.96 |
+| inOwn | 1.00 | 1.01 |
+| inInherited | 1.02 | 1.05 |
+| inMiss | 0.99 | 0.93 |
+| inIndex | 1.03 | 0.84 |
+| baseline | 1.01 | 1.00 |
+
+taKeys / taForIn / inInherited 是终版 b74240190 的 21 轮 (`bench-p618-rerun3.txt`), 编译模式 taLength / taNamed / taNamedSet 是 a65e30b9e 的 21 轮 (`bench-p618-rerun2.txt`), 其余是 a65e30b9e 的 9 轮全表 (`bench-p618.txt`); b74240190 只改无参 `getIds()`, 不影响这些形式. A/A (修前对修前): 9 轮全表 (`bench-p618-aa.txt`) 最小值之比 0.92-1.13, 中位数之比 0.75-1.27, 所以中位数不作判断依据; 21 轮 (`bench-p618-rerun-aa.txt`, `bench-p618-rerun3-aa.txt`) 编译模式 taLength 1.01, taForIn 1.01, taIn 1.03, taKeys 0.98, inInherited 1.01, baseline 1.00.
+
+过程: (1) f40fe89f3 的全表编译模式 taLength 1.68, taForIn 1.27, taIn 1.19, baseline 1.21; 21 轮复测 taIn 0.95, baseline 1.00 是噪声, taLength 1.77 (44 -> 77 ns/次, A/A 1.01) 是真回归. `ta.length` 经 `get(String)`, 差别只是 `canonical` 多一层调用和一次 "NaN" 比较, 33 ns 更像 C2 内联预算的变化, 没有细查, 直接去掉了这段路径上最贵的一步: `canonical` 开头 `mayBeCanonical`, 普通名字不再 `toNumber` (修前也要转), 所以比修前还快 (a65e30b9e). (2) a65e30b9e 的全表编译模式 taKeys 1.13, taForIn 1.09, inInherited 1.11; 21 轮 taKeys 1.09, taForIn 1.10: 删除上游无参 `getIds()` 之后每次都经 `startCompoundOp`, 约 20 ns; 恢复这个方法, 加 2 行钩子后 0.99 / 1.00 (b74240190). inInherited 21 轮 1.05 (A/A 1.01), 解释模式 1.02: 找到的属性不在对象自己身上时 `found` 多一次首字符判断, 每次不到 1 ns; 属于 `in` 的继承属性, 不是 TypedArray 的形式.
+
+结论: 硬门槛的五项 (TypedArray 下标的读, 写, `in`, `delete` 与 `Object.keys`) 两模式全部不超过 1.03, 其余形式不超过 1.05, 没有超过 1.1 的形式, 不登记待决. 修前的类在会话结束时随 scratchpad 删除, 要复测时按 ff29aac47 重建.
+
+### 验证
+
+- 提交: ff29aac47 (登记 P6.18 与附录 C Q44 / Q45 已决), 621f5f531 (功能与 HOOKS.md), f34511cc5 (`TypedArrayInternalMethodsTest` 17 例, 每例 `assertWithAllModes_ES6`), f40fe89f3 (命名写入只判断一次, `with` 绑定经 `found`), 1fe68d5ef (只含 properties), a65e30b9e (`canonical` 的首字符判断), b74240190 (保留上游的无参 `getIds()`), f50d26ac5 (两个上游测试改为规范的期望), 本条勾选提交 (NOTES, roadmap, 附录 C Q46, P8 附记).
+- 第一次全量 (b74240190) 比 P6.17 多 4 个失败: `harmony.TypedArraysTest` 两模式 (`typedarrays.js` 的 `a[nan]`) 与 `es6.TypedArrayJavaTest` 两例 (Number 构造 BigInt 数组). 都是上游测试的期望与规范冲突, 不是实现回归, 按 AGENTS.md 第三节第 5 条改为验证规范行为 (f50d26ac5, 见上游 PR 拆分边界), 断言没有删除.
+- 五模块全量 (f50d26ac5, JDK 21, `--rerun-tasks`, 含全部模块的 `spotlessCheck`, 19 分 58 秒, 与其他会话的构建同时): 149364 例 (P6.17 的 149347 加 `TypedArrayInternalMethodsTest` 17) 27 失败 21 跳过, 与 P6.17 的 `current-failures-p617.txt` 逐条相同 (含消息, 对象哈希归一后比较), 新增 0; Test262SuiteTest 137526 例失败 0, 39 个 "marked as failing but it does not" 数量同 P6.17, 其中没有 TypedArray 的文件.
+- 钩子标记行 691 (class syntax 641, async 50; `rhino/src/main/java` 679, `tests/src` 12), 本条新增 29; `HooksRegistryTest` 通过. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过.
+- 证据 `build/upstream-sync/class-p6h-20261030/`: `full-tests-p618.log`, `current-failures-p618.txt`, `bench-p618.js`, `bench-p618-run.py`, `bench-p618.txt`, `bench-p618-aa.txt`, `bench-p618-rerun2.txt`, `bench-p618-rerun-aa.txt`, `bench-p618-rerun3.txt`, `bench-p618-rerun3-aa.txt`, `regen-p618.log`, `props-before-p618.properties`, `pd618/`.
