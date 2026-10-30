@@ -8,6 +8,7 @@ package org.mozilla.javascript;
 
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
+import org.mozilla.javascript.xml.XMLObject;
 
 /**
  * AutoJs6: HasProperty along a prototype chain that reaches a Proxy (ROADMAP P6.15, appendix C
@@ -22,8 +23,10 @@ import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
  * kept: a check for a Proxy in that loop made {@code in} along a prototype chain up to twice as
  * slow in compiled code (ROADMAP P6.15 timing).
  *
- * <p>Also the name lookup in a {@code with} statement whose object is a Proxy, which upstream did
- * with Get alone (no has trap, and a name the Proxy has with the value undefined was not found).
+ * <p>Also the bindings of a {@code with} statement (ROADMAP P6.15 / P6.16, appendix C Q34 / Q36 /
+ * Q37), which upstream looked up with Get alone: no has trap, a name the Proxy has with the value
+ * undefined was not found, {@code @@unscopables} was not read, and the read of a compound
+ * assignment or of {@code typeof} looked the name up again after {@code bind}.
  */
 final class OrdinaryHas {
 
@@ -89,17 +92,60 @@ final class OrdinaryHas {
 
     /**
      * The value of {@code name} in the scope of a {@code with} statement, NOT_FOUND without such a
-     * binding. A Proxy goes through HasBinding (HasProperty, then {@code @@unscopables}) and
-     * GetBindingValue (HasProperty again, then Get), as its traps observe them; other objects go on
-     * as before (Get alone, upstream ignores {@code @@unscopables}).
+     * binding: HasBinding (HasProperty, then {@code @@unscopables}) and GetBindingValue
+     * (HasProperty again, then Get), as getters and the traps of a Proxy observe them. Without a
+     * Proxy and without {@code @@unscopables} on the prototype chain nothing can observe the steps,
+     * and the value is read once as before.
      */
     static Object withValue(Context cx, Scriptable withObj, String name) {
-        if (!(withObj instanceof NativeProxy)) {
-            return ScriptableObject.getProperty(withObj, name);
+        if (proxies) {
+            return withHas(withObj, name) ? bindingValue(cx, withObj, name) : Scriptable.NOT_FOUND;
         }
-        if (!withHas(withObj, name)) {
+        Scriptable base = ScriptableObject.getBase(withObj, name);
+        if (base == null) {
             return Scriptable.NOT_FOUND;
         }
+        Object unscopables = unscopables(withObj);
+        if (unscopables == Scriptable.NOT_FOUND) {
+            return base.get(name, withObj);
+        }
+        if (blocked(unscopables, name)) {
+            return Scriptable.NOT_FOUND;
+        }
+        return bindingValue(cx, withObj, name);
+    }
+
+    /** HasBinding of the scope of a {@code with} statement (see {@link #withValue}). */
+    static boolean withHas(Scriptable withObj, String name) {
+        if (!has(withObj, name)) {
+            return false;
+        }
+        Object unscopables = unscopables(withObj);
+        return unscopables == Scriptable.NOT_FOUND || !blocked(unscopables, name);
+    }
+
+    /**
+     * SetMutableBinding of the scope of a {@code with} statement in strict mode code, which {@code
+     * bound} is when this returns true: ReferenceError when the binding is gone, as a getter of
+     * {@code @@unscopables} or of the old value of a compound assignment can delete it.
+     */
+    static boolean strictSet(VarScope bound, String name, Object value) {
+        if (!(bound instanceof WithScope)) {
+            return false;
+        }
+        Scriptable withObj = ((WithScope) bound).getObject();
+        if (withObj instanceof XMLObject) {
+            return false;
+        }
+        if (!has(withObj, name)) {
+            throw ScriptRuntime.notFoundError(null, name);
+        }
+        ScriptableObject.putProperty(withObj, name, value);
+        return true;
+    }
+
+    /** GetBindingValue of the scope of a {@code with} statement. */
+    private static Object bindingValue(Context cx, Scriptable withObj, String name) {
         if (!has(withObj, name)) {
             if (cx.isStrictMode()) {
                 throw ScriptRuntime.notFoundError(null, name);
@@ -110,20 +156,36 @@ final class OrdinaryHas {
         return value == Scriptable.NOT_FOUND ? Undefined.instance : value;
     }
 
-    /** HasBinding of the scope of a {@code with} statement (see {@link #withValue}). */
-    static boolean withHas(Scriptable withObj, String name) {
-        if (!has(withObj, name)) {
+    /**
+     * Get(withObj, @@unscopables), or NOT_FOUND when no object of the prototype chain has that
+     * property and none is a Proxy: then nothing was read.
+     */
+    private static Object unscopables(Scriptable withObj) {
+        for (Scriptable o = withObj; o != null; o = o.getPrototype()) {
+            Object value;
+            if (o instanceof NativeProxy) {
+                value = ScriptableObject.getProperty(withObj, SymbolKey.UNSCOPABLES);
+            } else if (!(o instanceof SymbolScriptable)) {
+                break;
+            } else if (((SymbolScriptable) o).has(SymbolKey.UNSCOPABLES, withObj)) {
+                value = ((SymbolScriptable) o).get(SymbolKey.UNSCOPABLES, withObj);
+            } else {
+                continue;
+            }
+            return value == Scriptable.NOT_FOUND ? Undefined.instance : value;
+        }
+        return Scriptable.NOT_FOUND;
+    }
+
+    /** Whether the {@code @@unscopables} object blocks {@code name}. */
+    private static boolean blocked(Object unscopables, String name) {
+        if (!(unscopables instanceof Scriptable)
+                || Undefined.isUndefined(unscopables)
+                || ScriptRuntime.isSymbol(unscopables)) {
             return false;
         }
-        if (!(withObj instanceof NativeProxy)) {
-            return true;
-        }
-        Object unscopables = ScriptableObject.getProperty(withObj, SymbolKey.UNSCOPABLES);
-        if (!(unscopables instanceof Scriptable) || ScriptRuntime.isSymbol(unscopables)) {
-            return true;
-        }
         Object blocked = ScriptableObject.getProperty((Scriptable) unscopables, name);
-        return blocked == Scriptable.NOT_FOUND || !ScriptRuntime.toBoolean(blocked);
+        return blocked != Scriptable.NOT_FOUND && ScriptRuntime.toBoolean(blocked);
     }
 
     /** proxy.[[HasProperty]](key), the key being a String or a Symbol (10.5.7). */

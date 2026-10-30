@@ -2737,6 +2737,7 @@ public class ScriptRuntime {
     public static Object strictSetName(
             VarScope bound, Object value, Context cx, VarScope scope, String id) {
         if (bound != null) {
+            if (OrdinaryHas.strictSet(bound, id, value)) return value; // AutoJs6: class syntax
             // TODO: The LeftHandSide also may not be a reference to a
             // data property with the attribute value {[[Writable]]:false},
             // to an accessor property with the attribute value
