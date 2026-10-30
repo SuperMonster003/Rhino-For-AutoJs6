@@ -34,6 +34,9 @@ public final class TypedArrayKey {
      * ScriptRuntime#canonicalNumericIndexString}, "NaN" is one.
      */
     static Optional<Double> canonical(String name) {
+        if (!mayBeCanonical(name)) {
+            return Optional.empty();
+        }
         return "NaN".equals(name) ? NAN : ScriptRuntime.canonicalNumericIndexString(name);
     }
 
@@ -51,7 +54,10 @@ public final class TypedArrayKey {
         return s.getStringId() == null || isCanonical(s.getStringId());
     }
 
-    /** False for the keys that can only be cheaply told not to be {@link #isCanonical}. */
+    /**
+     * False for the names that cannot be {@link #isCanonical}, going by the first character the
+     * string of a Number can have. Names of ordinary properties skip the conversion to a Number.
+     */
     public static boolean mayBeCanonical(String name) {
         if (name.isEmpty()) {
             return false;
