@@ -122,6 +122,8 @@ public class TypedArrayJavaTest {
 
                     for (String type : allNativeTypes) {
                         String scr = script.replace("§§type§§", type);
+                        boolean big = type.startsWith("Big"); // AutoJs6: class syntax
+                        if (big) scr = scr.replace("])", "].map(BigInt))"); // AutoJs6: class syntax
                         Object obj = cx.evaluateString(scope, scr, "", 1, null);
                         assertEquals(expected, obj);
                     }

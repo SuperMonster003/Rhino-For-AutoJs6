@@ -546,7 +546,7 @@ function TestTypedArraysWithIllegalIndices() {
   assertEquals(undefined, a[1.5]);
   var nan = Math.sqrt(-1);
   a[nan] = 5;
-  assertEquals(5, a[nan]);
+  assertEquals(undefined, a[nan]); // AutoJs6: class syntax ("NaN" is a CanonicalNumericIndexString)
 
   var x = 0;
   var y = -0;
@@ -595,7 +595,7 @@ function TestTypedArraysWithIllegalIndicesStrict() {
   assertEquals(undefined, a[1.5]);
   var nan = Math.sqrt(-1);
   a[nan] = 5;
-  assertEquals(5, a[nan]);
+  assertEquals(undefined, a[nan]); // AutoJs6: class syntax ("NaN" is a CanonicalNumericIndexString)
 
   var x = 0;
   var y = -0;
