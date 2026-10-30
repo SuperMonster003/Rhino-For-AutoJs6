@@ -178,6 +178,18 @@ final class OrdinaryHas {
         return true;
     }
 
+    /**
+     * The put of a name increment or decrement: a {@code with} scope in strict mode code goes
+     * through {@link #strictSet}, other scopes put as before.
+     */
+    static void incrDecrPut(VarScope target, String name, Object value) {
+        if (!(target instanceof WithScope
+                && Context.isCurrentContextStrict()
+                && strictSet(target, name, value))) {
+            target.put(name, target, value);
+        }
+    }
+
     /** GetBindingValue of the scope of a {@code with} statement. */
     private static Object bindingValue(Context cx, Scriptable withObj, String name) {
         if (!has(withObj, name)) {

@@ -133,10 +133,12 @@ class WithScopeAndProtoTest {
 
     @Test
     void bindingDeletedAfterResolution() {
-        // GetBindingValue and SetMutableBinding ask HasProperty again: ReferenceError in strict
+        // GetBindingValue and SetMutableBinding (also of x++) ask HasProperty again: ReferenceError
+        // in strict
         // mode code, undefined or a new property otherwise. Upstream read and wrote the object.
         assertWithAllModes_ES6(
-                "ReferenceError|ReferenceError|set|2|undefined|ReferenceError|ReferenceError|5|false",
+                "ReferenceError|ReferenceError|set|2|undefined|ReferenceError|ReferenceError|5|false"
+                        + "|ReferenceError|false|3",
                 SETUP
                         + """
                 var called = 0;
@@ -158,6 +160,11 @@ class WithScopeAndProtoTest {
                   r.push(run(function () { 'use strict'; x ^= 3; return 'set'; }));
                 }
                 r.push(called, 'x' in scope);
+                var scope2 = { get x() { delete this.x; return 2; } };
+                with (scope2) { r.push(run(function () { 'use strict'; x++; return 'set'; })); }
+                var scope3 = { get x() { delete this.x; return 2; } };
+                with (scope3) { x++; }
+                r.push('x' in scope2, scope3.x);
                 r.join('|');
                 """);
     }

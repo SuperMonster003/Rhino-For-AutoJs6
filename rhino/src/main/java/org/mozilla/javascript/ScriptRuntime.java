@@ -4359,7 +4359,7 @@ public class ScriptRuntime {
             }
         }
 
-        target.put(id, target, result);
+        OrdinaryHas.incrDecrPut(target, id, result); // AutoJs6: class syntax
         if (post) {
             return number;
         }
