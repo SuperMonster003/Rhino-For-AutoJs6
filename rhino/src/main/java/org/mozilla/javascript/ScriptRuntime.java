@@ -4252,6 +4252,7 @@ public class ScriptRuntime {
             } while (scopeChain != null);
             throw notFoundError(null, id);
         }
+        incrDecrMask = OrdinaryHas.incrDecrMask(cx, incrDecrMask); // AutoJs6: class syntax
         return doScopeIncrDecr(target, id, value, incrDecrMask);
     }
 
@@ -4359,7 +4360,7 @@ public class ScriptRuntime {
             }
         }
 
-        OrdinaryHas.incrDecrPut(target, id, result); // AutoJs6: class syntax
+        OrdinaryHas.incrDecrPut(target, id, result, incrDecrMask); // AutoJs6: class syntax
         if (post) {
             return number;
         }

@@ -26,12 +26,17 @@ import org.mozilla.javascript.xml.XMLObject;
  * <p>Also the bindings of a {@code with} statement (ROADMAP P6.15 / P6.16, appendix C Q34 / Q36 /
  * Q37), which upstream looked up with Get alone: no has trap, a name the Proxy has with the value
  * undefined was not found, {@code @@unscopables} was not read, and the read of a compound
- * assignment or of {@code typeof} looked the name up again after {@code bind}.
+ * assignment or of {@code typeof} looked the name up again after {@code bind}. Strict mode code
+ * also checks that a binding of the global scope is still there before writing it (ROADMAP P6.17,
+ * appendix C Q41).
  */
 final class OrdinaryHas {
 
     /** Whether a Proxy was created. */
     static volatile boolean proxies;
+
+    /** A bit of the mask of a name increment or decrement that no {@link Node} flag uses. */
+    private static final int STRICT_INCR_DECR = 1 << 30;
 
     private OrdinaryHas() {}
 
@@ -159,11 +164,15 @@ final class OrdinaryHas {
     }
 
     /**
-     * SetMutableBinding of the scope of a {@code with} statement in strict mode code, which {@code
-     * bound} is when this returns true: ReferenceError when the binding is gone, as a getter of
-     * {@code @@unscopables} or of the old value of a compound assignment can delete it.
+     * SetMutableBinding in strict mode code of the scope of a {@code with} statement and of the
+     * global scope (ROADMAP P6.17, appendix C Q41), which {@code bound} is when this returns true:
+     * ReferenceError when the binding is gone, as the right side, a getter of {@code @@unscopables}
+     * or of the old value of a compound assignment can delete it.
      */
     static boolean strictSet(VarScope bound, String name, Object value) {
+        if (bound instanceof TopLevel) {
+            return strictGlobalSet((TopLevel) bound, name, value);
+        }
         if (!(bound instanceof WithScope)) {
             return false;
         }
@@ -179,15 +188,39 @@ final class OrdinaryHas {
     }
 
     /**
-     * The put of a name increment or decrement: a {@code with} scope in strict mode code goes
-     * through {@link #strictSet}, other scopes put as before.
+     * The mask of a name increment or decrement, with {@link #STRICT_INCR_DECR} in strict mode
+     * code: the put comes after the old value was converted, where the context is not at hand.
      */
-    static void incrDecrPut(VarScope target, String name, Object value) {
-        if (!(target instanceof WithScope
-                && Context.isCurrentContextStrict()
-                && strictSet(target, name, value))) {
+    static int incrDecrMask(Context cx, int mask) {
+        return cx.isStrictMode() ? mask | STRICT_INCR_DECR : mask;
+    }
+
+    /**
+     * The put of a name increment or decrement: a {@code with} scope or the global scope in strict
+     * mode code goes through {@link #strictSet}, other scopes put as before.
+     */
+    static void incrDecrPut(VarScope target, String name, Object value, int mask) {
+        if (!((mask & STRICT_INCR_DECR) != 0 && strictSet(target, name, value))) {
             target.put(name, target, value);
         }
+    }
+
+    /**
+     * The put of {@link TopLevel}, a lexical binding of the global scope or else the global object,
+     * which first asks the HasProperty of the object record: the object whose put handles the
+     * assignment is the one that has the property, so nothing is looked up twice.
+     */
+    private static boolean strictGlobalSet(TopLevel top, String name, Object value) {
+        if (top.getMap().query(name, 0) != null) {
+            return false;
+        }
+        ScriptableObject global = top.getGlobalThis();
+        Scriptable base = OrdinarySet.base(global, name);
+        if (base == null || (base instanceof NativeProxy && !has(global, name))) {
+            throw ScriptRuntime.notFoundError(null, name);
+        }
+        base.put(name, global, value);
+        return true;
     }
 
     /** GetBindingValue of the scope of a {@code with} statement. */
