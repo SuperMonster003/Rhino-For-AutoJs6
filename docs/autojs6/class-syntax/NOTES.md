@@ -619,3 +619,97 @@ taKeys / taForIn / inInherited 是终版 b74240190 的 21 轮 (`bench-p618-rerun
 - 五模块全量 (f50d26ac5, JDK 21, `--rerun-tasks`, 含全部模块的 `spotlessCheck`, 19 分 58 秒): 149364 例 (P6.17 的 149347 加 `TypedArrayInternalMethodsTest` 17) 27 失败 21 跳过, 与 P6.17 的 `current-failures-p617.txt` 逐条相同 (含消息, 对象哈希归一后比较), 新增 0; Test262SuiteTest 137526 例失败 0, 39 个 "marked as failing but it does not" 数量同 P6.17, 其中没有 TypedArray 的文件.
 - 钩子标记行 691 (class syntax 641, async 50; `rhino/src/main/java` 679, `tests/src` 12), 本条新增 29; `HooksRegistryTest` 通过. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过.
 - 证据 `build/upstream-sync/class-p6h-20261030/`: `full-tests-p618.log`, `current-failures-p618.txt`, `bench-p618.js`, `bench-p618-run.py`, `bench-p618.txt`, `bench-p618-aa.txt`, `bench-p618-rerun2.txt`, `bench-p618-rerun-aa.txt`, `bench-p618-rerun3.txt`, `bench-p618-rerun3-aa.txt`, `regen-p618.log`, `props-before-p618.properties`, `pd618/`.
+
+## P6.19 ToBigInt 与 getDefaultValue 的规范偏差 (2026-10-30, 附录 C Q46 = A, 维护者 22:3x 拍板)
+
+- 原状 (上游既有, 宿主 2026-10-24 的 jar 同样): (1) `ScriptRuntime.toBigInt(Object)` 同时服务 `BigInt()`, 接受 Number; P6.18 只把 TypedArray 的 3 处换成规范的 ToBigInt, `BigInt.asIntN(8, 1)`, `dv.setBigInt64(0, 1)` 仍转换后继续 (规范 TypeError). (2) `ScriptableObject.getDefaultValue` (OrdinaryToPrimitive, ES2024 7.1.1.1) 用 `v != null` 判断方法的结果, Rhino 的 JS null 就是 Java null, 所以 null 被当成非原始值: 接着试另一个方法, 两个方法都试过时报 TypeError "Cannot find default value for object".
+
+### `ScriptRuntime.toBigInt` 的调用点
+
+| 位置 | 规范操作 | 处理 |
+|---|---|---|
+| `NativeBigInt.js_constructorFunc` | `BigInt(value)`: ToPrimitive 后 Number 走 NumberToBigInt, 其余 ToBigInt | 保持, 这是接受 Number 的那条路径 |
+| `NativeBigInt.js_asIntOrUintN` | ToBigInt (21.2.2.1 / 21.2.2.2) | 改用 `ToBigInt.of` |
+| `NativeDataView.js_setBigInt` | SetViewValue 第 4 步 ToBigInt (25.3.1.5) | 改用 `ToBigInt.of` |
+| `NativeBigIntArrayView.toNumeric`, `NativeBigInt64Array.js_set`, `NativeBigUint64Array.js_set` | ToBigInt | P6.18 已是规范行为, 改调 `ToBigInt.of` |
+| `NativeJavaObject` 的 Java 参数转换 (目标类型 `BigInteger`) | 不是规范操作, Java 互操作 | 保持, JS 的 Number 传给 Java 的 `BigInteger` 参数必须继续可用 |
+| `ScriptRuntime.toBigInt(Object)` 内部对 `String` / `CharSequence` 转调 `toBigInt(String)` | StringToBigInt | 保持 |
+| `ScriptRuntime.eqBigInt`, `eqString` | IsLooselyEqual 的 StringToBigInt, 只传字符串 | 保持, 解析失败 catch 后为 false, 同规范的 undefined |
+| `ScriptRuntime.compare` 的 BigInt 与字符串比较 | IsLessThan 的 StringToBigInt, 只传字符串 | 保持, 同上 |
+
+没有其他应为 ToBigInt 却用了构造路径的调用点 (`Atomics` 不存在; TypedArray 的 `fill` / `with` / `set` 经 `toNumeric`; 字节码后端没有按名字调用 `toBigInt` 的地方).
+
+### 做法
+
+- 新文件 `ToBigInt`: `of(value)` 是 P6.18 `TypedArrayKey.toBigInt` 搬过来的 ToPrimitive(number) + Number 报 TypeError, 其余交给 `ScriptRuntime.toBigInt`; `of(args, index)` 取实参 (写法同 `ReflectKey.of`), 让钩子行短到放得下标记 (gjf 会把超过 100 列的行尾注释折行, 标记就断了). 放在 `org.mozilla.javascript` 包: 不是 TypedArray 的概念, `BigInt.asIntN` 调 `TypedArrayKey` 说不过去, 代价是 typedarrays 包的 4 个文件各多 1 行 import 钩子.
+- `getDefaultValue`: `fun.call` 之后加一行 `if (v == null) return null;`. 上游下一行的 `if (v != null)` 保留原样 (改它要动整段缩进). 这里的 `v` 是函数调用的结果, null 只可能是 JS null; `Scriptable.NOT_FOUND` 走不到这一行 (取不到方法时 `v` 不是 `Function`, 在上面 `continue`). 属性值本身是 null (`{ valueOf: null }`) 也在上面 `continue`, 仍试另一个方法, 与规范的 IsCallable 相同.
+- 没有 ToPrimitive 调用者依赖结果非 null: 逐个看过 `ScriptRuntime` 的 `toBoolean` / `toNumber` / `toBigInt` / `toNumeric` / `toString` / `add` / `eq` / `eqNumber` / `eqString` / `eqBigInt` / `compare`, `NativeDate` 的构造器与 `toJSON`, `NativeObject.fromEntries`, `ClassRuntime.toPropertyKey`, `ReflectKey.of`, V2 的 `AnyStringAdd` / `StringAnyAdd`; 都能处理 null (`toString` 给 "null", `toNumber` 给 0).
+- `Symbol.toPrimitive` 路径 (`ScriptRuntime.toPrimitive` 自己调 exoticToPrim) 不经 `getDefaultValue`, 不受影响. Date 的 hint: `Date.prototype[@@toPrimitive]` 决定 hint 后调同一个 `getDefaultValue`, hint 处理不变, 结果里的 null 同样按原始值返回 (修前 `d.toString = () => null; d + ''` 得到 valueOf 的数字, 规范与修后是 "null"). `FunctionClass` hint (`realFunction`, `getCallable`) 的调用者对 null 同样走 "不是函数" 的 TypeError (上游对其他原始值也是直接返回); 只有 `valueOf` 返回 null 且 `toString` 返回函数的对象, 修前可以被当函数调用, 修后不行, 这是非规范的扩展, 不保留.
+- 宿主: 唯一覆盖 `getDefaultValue` 的 `JavaProxyObject` (Kotlin, 返回类型是非空的 `Any`) 委托给 Java 对象的包装 (`NativeJavaObject` 自己的实现), 不经 `ScriptableObject.getDefaultValue`, 不受影响; 宿主 `assets/modules` 没有用到 `asIntN` / `asUintN` / `setBigInt64` / `setBigUint64`, 也没有返回 null 的 `valueOf` / `toString`.
+
+### `bits-toindex-wrapped-values.js` 的归因
+
+`built-ins/BigInt/{asIntN,asUintN}/bits-toindex-wrapped-values.js` 不是 ToIndex 的问题: `ScriptRuntime.toIndex` 符合规范, 用例停在 `{ toString() { return null; } }` (第 71 行): number hint 先调 `valueOf` 得到对象自身, 再调 `toString` 得到 null, 修前两个方法都没有 "原始值", 报 TypeError "Cannot find default value for object". 与 `getDefaultValue` 同一根因, `v == null` 这一行修好了它, 不需要单独的钩子, 也不需要 Q47.
+
+### 行为变化 (宿主脚本可见, 都是规范行为)
+
+- `BigInt.asIntN(n, x)`, `BigInt.asUintN(n, x)`, `dv.setBigInt64(i, x)`, `dv.setBigUint64(i, x)` 的 `x` 是 Number (含 Java 方法返回的数字) 或 valueOf 给出 Number 的对象时报 TypeError (修前转换); 写法要改成 `BigInt(x)`.
+- `valueOf` 返回 null 的对象 (`vn`): `vn + 1` 为 1 (修前 `"[object Object]1"`), `vn + ''` 为 "null", `+vn` / `Number(vn)` 为 0 (修前 NaN), `vn < 1` 为 true (修前 false), `new Date(vn).getTime()` 为 0, `isNaN(vn)` 为 false.
+- `toString` 返回 null 的对象 (`sn`): `String(sn)`, `` `${sn}` ``, `sn + ''`, `[sn].join()` 为 "null", `sn + 1` 为 1, `Number(sn)` 为 0, 作属性键时键名 "null" (修前都报 TypeError "Cannot find default value for object").
+- 两个方法都有时只用先调到的那个: `{ valueOf() { return null; }, toString() { return 'S'; } } + ''` 为 "null" (修前 "S"), `String({ valueOf() { return 'V'; }, toString() { return null; } })` 为 "null" (修前 "V"). 探测脚本与修前修后的输出在证据目录 (`probe-to-primitive.js`, `probe-before.txt`, `probe-after.txt`).
+
+### test262
+
+- 四个登记用例 (`run262.py`, 两模式含严格版, 16 次运行): 修前全部失败, 修后全部通过.
+- properties 用 JDK 17 `-DupdateTest262properties=all` 重生成 (全部目录三模式, 20 分 22 秒, 跑在 c1b732dde 上, 覆盖卡片列的 `built-ins/BigInt`, `built-ins/DataView`, `built-ins/TypedArrayConstructors`, `built-ins/Object`, `built-ins/Date`, `language/expressions` 与其余目录): 失败登记 19781 -> 19773 个文件, 解锁 8, 新增失败 0, 标签变化 0. 分布: `built-ins/BigInt` 4 (预期的 `{asIntN,asUintN}/bigint-tobigint-errors.js` 与 `bits-toindex-wrapped-values.js`), `built-ins/DataView` 2 (`prototype/{getBigInt64,getBigUint64}/toindex-byteoffset-wrapped-values.js`), `built-ins/String` 2 (`prototype/indexOf/{position-tointeger,searchstring-tostring}-wrapped-values.js`); 后 4 个不在预期里, 都是 `{ toString() { return null; } }` 这类包装值, 与 `getDefaultValue` 同一根因. 证据 `regen-p619.log`, `props-before-p619.properties`, `pd619/`.
+
+### 上游 PR 拆分边界 (P8)
+
+- 7 行钩子 (NativeBigInt 1, NativeDataView 2, NativeBigIntArrayView / NativeBigInt64Array / NativeBigUint64Array 各 1 行 import, ScriptableObject 1), P6.18 那三个文件的钩子行改调 `ToBigInt.of` (行数不变), 新文件 `ToBigInt`. 不依赖 fork 其他部分.
+- 两项可各自单独成 PR: `getDefaultValue` 只有 1 行, 单独解锁 6 个 (`bits-toindex-wrapped-values.js` 2, DataView `toindex-byteoffset-wrapped-values.js` 2, `String.prototype.indexOf` 2); ToBigInt 随 P6.18 的 ToBigInt 部分一起; `bigint-tobigint-errors.js` 2 个要两项都在才通过.
+- PR 里可以少改的地方: `if (v == null) return null;` 与上游的 `if (v != null)` 可以合成 `if (v == null || !(v instanceof Scriptable)) return v;`, 下面少一层缩进; ToBigInt 可以不要新文件, 把 `ScriptRuntime.toBigInt(Object)` 改成规范的 ToBigInt, Number 分支移到 `BigInt()` 与 `NativeJavaObject` 的 `BigInteger` 转换 (它是 public API, 由评审定; fork 不改以少碰上游行).
+- `ToBigIntAndToPrimitiveTest` 只有 `propertyKeys` 一例用到 class (计算属性名), PR 里去掉那一行即可原样用. 没有与规范冲突的上游测试要改: 五模块全量失败清单与 P6.18 相同.
+
+### 计时
+
+`bench-p619.js` 24 种形式 (解释 `-opt -1` 与编译 `-opt 9`; 普通对象的 `+` objPlusNum / numPlusObj / objPlusObj, 字符串拼接 objConcat / concatObj / plainConcat / template, `String()` stringOf, `Number()` numberOf, 一元加 unaryPlus, 比较 objLess / objLessNum, 相等 objEq, 包装对象 boxedPlus, Date dateLess / dateMinus / dateNumber / datePlus, `BigInt.asIntN` / `asUintN`, `BigInt()` bigIntCtor, DataView dvSetBig, BigInt 数组写入 taWriteB, baseline; JDK 21, 每个形式单独一个进程, 修前修后交替, 30 次暖机后 31 轮, 每轮 20000 次). 修前是 d18f8cf92 的类 (`before/`), 修后是 c1b732dde 的类 (之后没有改 `rhino/src/main`). 9 轮全表与 9 轮 A/A 期间 12 线程 CPU 负载 32-100%, 中位数 91% (`bench-load.txt`, 每分钟采样, 43 个样本), 来源是其他会话的 Java 进程与模拟器, 没有动它们; 21 轮复测没有采样. 下面的数是每进程最小值之比的中位数, 带 `*` 的是 21 轮复测 (`bench-p619-rerun.txt`), 其余是 9 轮全表 (`bench-p619.txt`).
+
+| 形式 | 解释 | 编译 |
+|---|---|---|
+| objPlusNum | 0.96 | 1.00* |
+| numPlusObj | 1.00 | 1.01 |
+| objPlusObj | 1.01* | 0.99 |
+| objConcat | 1.02 | 0.99 |
+| concatObj | 1.00* | 1.02 |
+| plainConcat | 1.02 | 0.89 |
+| template | 0.95 | 0.99 |
+| stringOf | 0.94 | 0.96 |
+| numberOf | 1.06* | 1.03 |
+| unaryPlus | 1.00* | 1.02 |
+| objLess | 0.92 | 1.02 |
+| objLessNum | 0.76 | 1.03 |
+| objEq | 1.05 | 0.95 |
+| boxedPlus | 0.97 | 1.01 |
+| dateLess | 0.96 | 1.01 |
+| dateMinus | 0.91 | 1.02* |
+| dateNumber | 1.00 | 0.84 |
+| datePlus | 1.07 | 1.00* |
+| asIntN | 0.85 | 1.00 |
+| asUintN | 0.98* | 1.00 |
+| bigIntCtor | 1.05 | 0.99 |
+| dvSetBig | 0.94 | 1.00 |
+| taWriteB | 1.04 | 1.00 |
+| baseline | 0.98 | 1.00 |
+
+A/A (修前对修前): 9 轮全表 (`bench-p619-aa.txt`) 最小值之比 0.87-1.20, 中位数之比 0.80-1.23, 所以 9 轮单项超过 1.1 不作判断依据; 21 轮 (`bench-p619-rerun-aa.txt`) 最小值之比 0.98-1.01.
+
+过程: 9 轮全表里解释模式 numberOf 1.19, 编译模式 dateMinus 1.15 超过 1.1, objPlusObj 1.09, datePlus 1.08 也偏高, 负载同时在 100%. 这 8 个形式 (连同 concatObj, unaryPlus, asUintN, 编译模式 objPlusNum) 跑 21 轮, 全部回到 1.06 以内: 只有解释模式 numberOf 1.06 (同形式 A/A 1.01) 高于噪声, 在 1.1 之内, 没有再查. 修改本身只在 `fun.call` 之后多一次 null 判断, `ToBigInt.of` 比 `ScriptRuntime.toBigInt` 多一次 `instanceof`.
+
+结论: 所有形式不超过 1.07 (表里最高是解释模式 datePlus 1.07), 没有超过 1.1 的形式, 不登记待决. 修前的类在会话结束时随 scratchpad 删除, 要复测时按 d18f8cf92 重建.
+
+### 验证
+
+- 提交: 9663d5f70 (登记 P6.19 与附录 C Q46 已决), 5c16594fd (ToBigInt 与 HOOKS.md), 71adeef66 (`getDefaultValue` 与 HOOKS.md), c1b732dde (`ToBigIntAndToPrimitiveTest` 23 例, 每例 `assertWithAllModes_ES6`), 09a9ba835 (只含 properties), 本条勾选提交 (NOTES, HOOKS.md, roadmap, P8 附记). ToIndex 没有单独的提交, 同根因.
+- 五模块全量 (09a9ba835, JDK 21, `--rerun-tasks`, 含全部模块的 `spotlessCheck`, 39 分 21 秒, 机器负载高): 149387 例 (P6.18 的 149364 加 `ToBigIntAndToPrimitiveTest` 23) 27 失败 21 跳过, 与 P6.18 的 `current-failures-p618.txt` 逐条相同 (含消息, 对象哈希归一后比较), 新增 0; Test262SuiteTest 137526 例失败 0, 39 个 "marked as failing but it does not" 数量同 P6.18.
+- 钩子标记行 698 (class syntax 648, async 50; `rhino/src/main/java` 686, `tests/src` 12), 本条新增 7; `HooksRegistryTest` 通过. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过.
+- 证据 `build/upstream-sync/class-p6i-20261030/`: `full-tests-p619.log`, `current-failures-p619.txt`, `bench-p619.js`, `bench-p619-run.py`, `bench-p619.txt`, `bench-p619-aa.txt`, `bench-p619-rerun.txt`, `bench-p619-rerun-aa.txt`, `bench-load.txt`, `regen-p619.log`, `props-before-p619.properties`, `pd619/`, `probe-to-primitive.js`, `probe-to-bigint.js`, `probe-before.txt`, `probe-after.txt`.
