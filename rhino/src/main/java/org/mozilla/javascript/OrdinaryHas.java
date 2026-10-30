@@ -164,6 +164,15 @@ final class OrdinaryHas {
      * and the write look the name up as before ({@link #boundValue}, {@link #logicalTarget}).
      */
     static Object logicalBind(Context cx, VarScope scope, String name) {
+        if (scope instanceof WithScope) {
+            // the assignment is directly in the with statement: HasBinding of its object
+            Scriptable withObj = ((WithScope) scope).getObject();
+            if (!(withObj instanceof XMLObject)) {
+                return withHas(withObj, name)
+                        ? scope
+                        : ScriptRuntime.bind(cx, scope.getParentScope(), name);
+            }
+        }
         for (VarScope s = scope; s != null; s = s.getParentScope()) {
             if (s instanceof WithScope) {
                 return ScriptRuntime.bind(cx, scope, name);
