@@ -27,6 +27,7 @@
 | P6.14 | 完成 (2026-10-29) | Proxy 的 [[Set]] / [[Delete]] (附录 C Q33 = A, 通用修复): `Reflect.set` 与 Proxy 的 put 按规范的 [[Set]] (新文件 `OrdinarySet`: OrdinarySet 沿原型链找自有描述符, 遇到 Proxy 把 receiver 交给它的 [[Set]], receiver 是 Proxy 时经它的 getOwnPropertyDescriptor / defineProperty trap 写入, 访问器以 receiver 为 this, 结果为 false 的情形逐项返回 false; 修好 set trap 以 `Reflect.set(t, k, v, r)` 转发时的栈溢出), `Reflect.set` 返回 [[Set]] 的结果; 赋值的原型链查找遇到 Proxy 即停 (调它的 set trap, 不问 has trap); `Reflect.deleteProperty` 与 `delete` 运算符对 Proxy 取 deleteProperty trap 的结果 (新文件 `OrdinaryDelete`, 不变量检查), 不可配置属性对 `Reflect.deleteProperty` 返回 false 不抛; 严格模式下 Proxy 的 [[Set]] / [[Delete]] 为 false 时报 TypeError; getOwnPropertyDescriptor trap 返回 undefined 且目标没有该属性时的空指针; 重生成 test262 时补的两处: 以原始值为 base 的赋值按 PutValue (`ToObject(base).[[Set]](k, v, base)`, 严格模式不再一律报错, 原型上的 setter / Proxy 收到原始值), `Array.prototype.copyWithin` 先 HasProperty 再 Get (上游把值为 undefined 当作没有, 并靠赋值问 Proxy 的 has trap) |
 | P6.15 | 完成 (2026-10-29) | Proxy 其余的规范偏差 (附录 C Q34 = A, 通用修复): 没有 get trap 的 Proxy 让目标沿自己的原型链查找且 receiver 不变 (getter 的 this 是 Proxy), 原型链读取在 Proxy 之后不再经 getPrototypeOf trap (新文件 `OrdinaryGet`); `in` 与 HasProperty 在原型链上遇到 Proxy 时以它的 has trap 或目标的 HasProperty 为准 (新文件 `OrdinaryHas`); `Object.setPrototypeOf` / `__proto__` 的 setter / `Reflect.setPrototypeOf` 按 [[SetPrototypeOf]] (环检查遇到 Proxy 即停, trap 结果与不可扩展目标的原型比较, 新文件 `OrdinarySetPrototype`); getOwnPropertyDescriptor trap 的结果按 ToPropertyDescriptor 与 CompletePropertyDescriptor 并检查不变量 (访问器不再变成数据属性), [[DefineOwnProperty]] 沿没有 trap 的 Proxy 走到底, `Reflect.defineProperty` 保留不变量的 TypeError, `Object.defineProperty` 对 false 报错, HasOwnProperty 问 [[GetOwnProperty]], `Reflect.ownKeys` 保留 ownKeys trap 的顺序, String 对象下标的 [[DefineOwnProperty]] (新文件 `OwnProperty`); `Proxy.revocable` 的 revoke 函数不是构造器; `with (proxy)` 的名字查找经 has trap 与 `Symbol.unscopables` (HasBinding / GetBindingValue) |
 | P6.16 | 完成 (2026-10-30) | `with` 与 `__proto__` 的规范偏差 (附录 C Q36 / Q37 / Q38 = A, 通用修复): Q36 `with` 对一切对象按 HasBinding 读 `Symbol.unscopables` (对象与原型链上都没有它且没有 Proxy 时不读, 照旧只 Get 一次), 严格模式代码的赋值与自增自减按 SetMutableBinding (绑定已消失时 ReferenceError); Q37 名字的复合赋值与 `typeof` 在 `bind` 找到的作用域上读值, 不再二次解析 (IRFactory 标记读取, 解释器 icode `CLASS_BOUND_NAME`, 编译器 `ClassBodyCodegen.boundRead`); Q38 `__proto__` 的读写 (`SpecialRef`) 对 Proxy 按普通属性经 get / set trap, 赋值的环检查遇到 Proxy 即停 (`OrdinaryGet.next`) |
+| P6.17 | 完成 (2026-10-30) | 严格模式的全局赋值, `with` 里名字的逻辑赋值, TypedArray 不是 receiver 时数字键的 [[Set]] (附录 C Q41 / Q42 / Q43 = A, 通用修复): Q41 严格模式代码给全局对象上的绑定赋值, 复合赋值与自增自减写入前 HasProperty, 绑定已被删除时 ReferenceError (`OrdinaryHas.strictGlobalSet`, 词法绑定照旧; 自增自减的严格性经 `nameIncrDecr` 写进 mask); Q42 名字的逻辑赋值在作用域链上可能有 `with` 作用域时 (`with` 语句里, 含外层函数的, 与 eval 代码) 只解析一次, 读与写用同一个作用域 (`ClassOp.LOGICAL_NAME`, 解释器 icode `CLASS_LOGICAL_BIND`, 编译器 `ClassBodyCodegen.logicalName`), 其他地方照旧; Q43 TypedArray 自己处理数字规范字符串键 (含 "NaN"): receiver 是别的对象时有效下标写到 receiver, 无效下标不写, 不问它的原型 (`OrdinarySet.base` / `typedArrayPut` / `set`, `NativeTypedArrayView.put` 两行钩子) |
 | P7-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
@@ -521,6 +522,15 @@ P6.13 (Set, `Reflect`, 解构默认值与数组赋值模式的成员目标, 记�
 
 - 数组赋值模式的 `super[k]` 目标: 键先求值, `super` (与派生构造器里 this 的检查) 在写入时求值; 不在其函数语句里的模式 (参数默认值里的解构赋值等) 仍按 P6.12 的下标读, 成员目标照旧先取值后求引用.
 - (P6.13 登记的 Proxy set trap 以 receiver 转发时的栈溢出与 `Reflect.deleteProperty` 对 Proxy 的结果, 已由 P6.14 修正, 附录 C Q33.)
+
+P6.17 (严格模式的全局赋值, 名字的逻辑赋值, TypedArray 的 [[Set]], 记录与理由见 NOTES.md "P6.17"):
+
+- 名字的逻辑赋值只在作用域链上可能有 `with` 作用域时单次解析 (`LogicalAssignment.mayBeInWith`: AST 祖先里有 `with` 语句, 含外层函数的, 或是 eval 代码); 宿主或调试器直接以 `with` 作用域为作用域执行的脚本 (不经 eval) 与 E4X 过滤谓词 (`x.(a ||= 1)`, 它的作用域是 XML 的 `WithScope`) 里照旧解析两次.
+- 编译模式下 `with` 块里短路 (不写入) 的名字逻辑赋值为修前的 1.16 倍 (读取拆成 `logicalBind` 与 `boundValue` 两次运行时调用, 查找次数相同; 解释模式 1.05, 写入的形式 0.90); 附录 C Q45.
+- `CLASS_LOGICAL_BIND` 没有 V2 指令类 (同 `CLASS_DESTRUCTURE`, 附录 C Q11).
+- 严格模式的全局赋值只对 `TopLevel` 顶层作用域查绑定; 宿主以别的 `VarScope` 为顶层作用域执行的脚本照旧写入.
+- TypedArray 自己的内部方法对数字规范字符串键仍照上游: "NaN" 按普通键 (读, 写, `in`, `defineProperty` 都落到普通属性), `defineProperty` 对不是整数的键 (`"1.5"`) 返回 true 并写入取整后的下标; 附录 C Q44.
+- `super[k] = v` (`putSuperProperty`, 上游的 `getBase`) 的原型链上有 TypedArray 时仍照上游.
 
 P6.16 (`with` 与 `__proto__` 的规范偏差, 记录与理由见 NOTES.md "P6.16"):
 
