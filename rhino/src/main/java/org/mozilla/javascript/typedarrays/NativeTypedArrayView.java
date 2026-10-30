@@ -237,6 +237,18 @@ public abstract class NativeTypedArrayView<T> extends NativeArrayBufferView
         }
     }
 
+    @Override
+    public Object[] getIds() {
+        boolean plain = super.isEmpty() && !isTypedArrayOutOfBounds(); // AutoJs6: class syntax
+        if (!plain) return super.getIds(); // AutoJs6: class syntax
+        int len = getLength();
+        Object[] ret = new Object[len];
+        for (int i = 0; i < len; i++) {
+            ret[i] = Integer.valueOf(i);
+        }
+        return ret;
+    }
+
     @Override // AutoJs6: class syntax
     public Object[] getIds( // AutoJs6: class syntax
             CompoundOperationMap<Scriptable> map, boolean e, boolean s) { // AutoJs6: class syntax
