@@ -36,6 +36,7 @@ class SpecialRef extends Ref {
         int type;
         if (name.equals(NativeObject.PROTO_PROPERTY)) {
             type = SPECIAL_PROTO;
+            if (target instanceof NativeProxy) type = SPECIAL_NONE; // AutoJs6: class syntax
         } else if (name.equals(NativeObject.PARENT_PROPERTY)) {
             type = SPECIAL_PARENT;
         } else {
@@ -97,7 +98,7 @@ class SpecialRef extends Ref {
                             if (search == target) {
                                 throw Context.reportRuntimeErrorById("msg.cyclic.value", name);
                             }
-                            search = search.getPrototype();
+                            search = OrdinaryGet.next(search); // AutoJs6: class syntax
                         } while (search != null);
                     }
                     if (target instanceof ScriptableObject
