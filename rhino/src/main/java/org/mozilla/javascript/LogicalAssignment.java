@@ -8,7 +8,9 @@ package org.mozilla.javascript;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.mozilla.javascript.ast.AstNode;
 import org.mozilla.javascript.ast.Scope;
+import org.mozilla.javascript.ast.WithStatement;
 
 /**
  * AutoJs6: the short circuit of the logical assignments {@code a ||= b}, {@code a &&= b} and {@code
@@ -28,7 +30,8 @@ import org.mozilla.javascript.ast.Scope;
  * <p>A name is resolved once (ROADMAP P6.17, appendix C Q42): the operator is wrapped in a {@link
  * ClassOp#LOGICAL_NAME}, whose read and write use the scope of one BINDNAME: a {@code with} object
  * is asked for the binding once, and the value goes to the scope found before the read even when a
- * getter removed the binding there.
+ * getter removed the binding there. Only where a {@code with} scope can be on the scope chain;
+ * elsewhere the name is looked up for the read and for the write as before.
  */
 final class LogicalAssignment {
 
@@ -57,9 +60,13 @@ final class LogicalAssignment {
         switch (left.getType()) {
             case Token.NAME:
                 {
+                    boolean inWith = mayBeInWith(parser, left);
                     Node read = parser.createName(left.getString());
                     read.setLineColumnNumber(left.getLineno(), left.getColumn());
                     Node write = parser.simpleAssignment(left, right);
+                    if (!inWith) {
+                        return new Node(op, read, write);
+                    }
                     ClassOp.markLogicalRead(read);
                     ClassOp.markBoundBind(write.getFirstChild());
                     Node logical = ClassLowering.newClassNode(ClassOp.LOGICAL_NAME);
@@ -77,6 +84,23 @@ final class LogicalAssignment {
             default:
                 return null;
         }
+    }
+
+    /**
+     * Whether a {@code with} scope can be on the scope chain of a name: it is in a {@code with}
+     * statement, also one around its function, or in eval code, which runs in the scope of the
+     * caller. Elsewhere looking the name up twice is not observable.
+     */
+    private static boolean mayBeInWith(Parser parser, Node name) {
+        if (!(name instanceof AstNode) || parser.compilerEnv.isInEval()) {
+            return true;
+        }
+        for (AstNode n = ((AstNode) name).getParent(); n != null; n = n.getParent()) {
+            if (n instanceof WithStatement) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Node member(Parser parser, int op, Node left, Node right) {
