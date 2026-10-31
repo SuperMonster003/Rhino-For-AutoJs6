@@ -64,6 +64,27 @@ AutoJs6 referencia el JAR completo en `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar
 
 Este historial registra por fecha los cambios de mantenimiento de esta bifurcación. El historial de versiones oficiales de Rhino permanece en las notas de versión originales y no se presenta como versiones nuevas de esta bifurcación.
 
+### 2026-10-31
+
+###### 2026/10/31
+
+* `Nuevo` Sintaxis `class`: declaraciones y expresiones de clase, `extends` / `super`, campos de instancia y estáticos, bloques estáticos y nombres privados (`#x`), con `toString` devolviendo el código de la clase; modos interpretado y compilado, los métodos `async` quedan para una versión posterior
+* `Nuevo` Los constructores integrados se pueden extender con `class`: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, los TypedArray y otros crean instancias según `new.target`, y los métodos integrados devuelven instancias de la subclase
+* `Nuevo` `class` puede extender clases e interfaces Java (solo en esta rama): `class X extends java.lang.Thread`, o `class X extends JavaAdapter(Base, I1, I2)` para varias interfaces; una instancia envuelve el objeto Java, su prototipo es `X.prototype` y tiene los miembros que el `WrapFactory` del host agrega a ese objeto
+* `Nuevo` Argumentos expandidos en llamadas y `new`: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (antes su compilación fallaba con un error interno y el script completo no podía ejecutarse)
+* `Corrección` La asignación lógica `&&=` / `||=` / `??=` no hacía cortocircuito (siempre escribía, llamaba a los setters y fallaba en propiedades de solo lectura)
+* `Corrección` La desestructuración de arrays, la expansión y `for...of` se apartaban del protocolo de iteración: la desestructuración de variables no usaba iteradores (un `Set` o un generador daba undefined), la expansión no consultaba la cadena de prototipos en los huecos, y los iteradores no se cerraban, o se cerraban de más, al salir; desestructurar un objeto tipo array no iterable ahora lanza TypeError
+* `Corrección` `Proxy` y `Reflect` se apartaban de los métodos internos de ES2024: reenvío y comprobación de invariantes de las traps, Proxy en la cadena de prototipos, claves de índice de array de `Reflect` y `__proto__` pasando por las traps de un Proxy
+* `Corrección` La sentencia `with` ignoraba `Symbol.unscopables` y resolvía un enlace más de una vez, y el modo estricto no lanzaba ReferenceError al asignar a un enlace global eliminado
+* `Corrección` Lectura y escritura, `in`, `delete`, `Object.defineProperty` y orden de claves de TypedArray se apartaban de la especificación con claves de cadena numérica canónica (incluidas `NaN` y `-0`)
+* `Corrección` Los métodos de conjunto de `Set` (`union` y otros) se apartaban de la especificación al leer un argumento tipo conjunto, y `Object.fromEntries` no consultaba la cadena de prototipos de una entrada
+* `Corrección` Los valores por defecto de la desestructuración no surtían efecto cuando el destino ya tenía valor, y había resultados erróneos al convertir a primitivo un objeto cuyo `valueOf` / `toString` devuelve null
+* `Corrección` Un `yield` sin paréntesis en un generador fallaba al analizarse en expresiones con coma, ramas condicionales, expansión de objetos y nombres de propiedad calculados
+* `Corrección` En modo compilado, `super` leía undefined en un literal de objeto con `__proto__` en línea, y llamar a una variable numérica lanzaba VerifyError en lugar de TypeError
+* `Mejora` `BigInt.asIntN` / `BigInt.asUintN`, `setBigInt64` / `setBigUint64` de DataView y los TypedArray BigInt lanzan TypeError con un Number como indica la especificación (antes lo convertían); hay que escribir `BigInt(x)`
+* `Mejora` En modo estricto, incluidos los cuerpos de `class`, una asignación lanza TypeError cuando la trap `set` de un `Proxy` devuelve false, y también al escribir en un accesor con `set: undefined`
+* `Mejora` La expansión `[...a]` y los argumentos expandidos usan una ruta rápida para arrays densos normales, copiando directamente si los iteradores no se han modificado
+
 ### 2026-10-24
 
 ###### 2026/10/24
@@ -79,14 +100,6 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 ###### 2026/10/20
 
 * `Corrección` `Object.defineProperty` que lanzaba TypeError por error en una propiedad enumerable con configurable en false cuando el descriptor omite `enumerable` (como `{ value: 5 }`)
-
-### 2026-10-15
-
-###### 2026/10/15
-
-* `Corrección` Marcadores de argumentos y escape de llaves en los mensajes de error, para evitar la pérdida de contexto o excepciones de MessageFormat en los diagnósticos traducidos
-* `Corrección` Expresiones regulares con escapes de propiedades Unicode (como `\p{L}`) que lanzaban UnsupportedOperationException en Android 7.x
-* `Mejora` Traducciones completas a 9 idiomas distintos del inglés para 28 mensajes de error del motor sobre ArrayBuffer, DataView, TypedArray, expresiones regulares, desestructuración y funciones relacionadas
 
 [Historial completo de mantenimiento de la bifurcación](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-es.md)
 

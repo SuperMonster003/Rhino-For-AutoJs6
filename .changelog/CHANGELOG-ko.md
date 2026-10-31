@@ -17,6 +17,27 @@
 
 [Rhino 공식 README 원본 읽기](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 이 링크는 커밋 `d878324a6f515c09d8ca49005fdd22b944b4df89`에 고정되어 원래 언어와 상대 링크의 참조 맥락을 보존합니다. 원본 문서는 번역 없이 보관하며, 이 페이지와 다른 언어 버전에서는 이 포크를 소개합니다.
 
+# 2026-10-31
+
+###### 2026/10/31
+
+* `추가` `class` 구문: 클래스 선언과 표현식, `extends` / `super`, 인스턴스 및 정적 필드, 정적 블록, 비공개 이름 (`#x`), `toString` 은 클래스 정의 소스를 반환; 해석 및 컴파일 모드 모두 지원, `async` 메서드는 이후 버전에서 지원
+* `추가` 내장 생성자를 `class` 로 상속 가능: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, TypedArray 등은 `new.target` 에 따라 인스턴스를 만들고, 내장 메서드는 하위 클래스 인스턴스를 반환
+* `추가` `class` 로 Java 클래스와 인터페이스 상속 가능 (이 포크 전용): `class X extends java.lang.Thread`, 여러 인터페이스는 `class X extends JavaAdapter(Base, I1, I2)`; 인스턴스는 Java 객체를 감싸고 프로토타입은 `X.prototype` 이며, 호스트의 `WrapFactory` 가 그 객체에 추가한 멤버도 가짐
+* `추가` 호출과 `new` 의 스프레드 인수: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (이전에는 컴파일 시 내부 오류가 발생해 스크립트 전체를 실행할 수 없었음)
+* `수정` 논리 대입 `&&=` / `||=` / `??=` 이 단락되지 않던 문제 (항상 다시 기록하여 setter 가 호출되고 읽기 전용 속성에서 오류 발생)
+* `수정` 배열 구조 분해, 스프레드, `for...of` 가 반복 프로토콜에서 벗어나던 문제: 변수 구조 분해가 반복자를 쓰지 않음 (`Set` 이나 제너레이터에서 undefined), 스프레드가 빈 칸에서 프로토타입 체인을 보지 않음, 조기 종료 시 반복자를 닫지 않거나 불필요하게 닫음; 반복 불가능한 유사 배열 객체의 구조 분해는 이제 TypeError
+* `수정` `Proxy` 와 `Reflect` 가 ES2024 내부 메서드에서 벗어나던 문제: 각 트랩의 전달과 불변식 검사, 프로토타입 체인의 Proxy, `Reflect` 의 배열 인덱스 키, Proxy 에 대한 `__proto__` 의 트랩 경유
+* `수정` `with` 문이 `Symbol.unscopables` 를 읽지 않고 바인딩을 여러 번 해석하던 문제, 그리고 엄격 모드에서 삭제된 전역 바인딩에 대입해도 ReferenceError 가 나지 않던 문제
+* `수정` TypedArray 의 정규 숫자 문자열 키 (`NaN`, `-0` 포함) 에 대한 읽기와 쓰기, `in`, `delete`, `Object.defineProperty`, 키 순서가 사양에서 벗어나던 문제
+* `수정` `Set` 의 집합 메서드 (`union` 등) 가 유사 집합 인수를 읽는 순서와 검사가 사양에서 벗어나던 문제, 그리고 `Object.fromEntries` 가 항목의 프로토타입 체인을 보지 않던 문제
+* `수정` 대상에 이미 값이 있으면 구조 분해 기본값이 적용되지 않던 문제, 그리고 `valueOf` / `toString` 이 null 을 반환하는 객체의 원시값 변환 결과가 잘못되던 문제
+* `수정` 제너레이터의 괄호 없는 `yield` 가 쉼표 표현식, 조건 분기, 객체 스프레드, 계산된 속성 이름에서 구문 분석에 실패하던 문제
+* `수정` 컴파일 모드에서 인라인 `__proto__` 가 있는 객체 리터럴의 `super` 가 undefined 를 읽던 문제, 그리고 숫자 변수를 호출하면 TypeError 대신 VerifyError 가 나던 문제
+* `개선` `BigInt.asIntN` / `BigInt.asUintN`, DataView 의 `setBigInt64` / `setBigUint64`, BigInt 타입 TypedArray 는 Number 를 넘기면 사양대로 TypeError (이전에는 변환 후 계속); `BigInt(x)` 로 작성해야 함
+* `개선` 엄격 모드 (`class` 본문 포함) 에서 `Proxy` 의 `set` 트랩이 false 를 반환하면 대입이 TypeError 이며, `set: undefined` 접근자에 쓰는 것도 동일
+* `개선` 배열 스프레드 `[...a]` 와 스프레드 인수는 밀집 일반 배열에서 반복자가 변경되지 않았으면 바로 복사하는 빠른 경로를 사용
+
 # 2026-10-24
 
 ###### 2026/10/24

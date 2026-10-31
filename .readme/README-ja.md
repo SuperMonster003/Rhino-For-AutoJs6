@@ -64,6 +64,27 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 
 ここでは本派生版の保守変更を日付ごとに記録します. Rhino 公式のリリース履歴は上流のリリースノートに保持し, 本派生版の新しいバージョンとして記録しません.
 
+### 2026-10-31
+
+###### 2026/10/31
+
+* `新機能` `class` 構文: クラス宣言と式, `extends` / `super`, インスタンスと静的フィールド, 静的ブロック, プライベート名 (`#x`), `toString` はクラス定義のソースを返す; インタープリタとコンパイルの両モードに対応, `async` メソッドは今後のバージョンで対応
+* `新機能` 組み込みコンストラクタを `class` で継承可能: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, TypedArray などは `new.target` に従ってインスタンスを生成し, 組み込みメソッドはサブクラスのインスタンスを返す
+* `新機能` `class` で Java クラスとインターフェースを継承可能 (本フォーク独自): `class X extends java.lang.Thread`, 複数のインターフェースは `class X extends JavaAdapter(Base, I1, I2)`; インスタンスは Java オブジェクトをラップし, プロトタイプは `X.prototype` で, ホストの `WrapFactory` がそのオブジェクトに加えたメンバーも持つ
+* `新機能` 呼び出しと `new` のスプレッド引数: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (以前はコンパイル時に内部エラーとなり, スクリプト全体が実行できなかった)
+* `修正` 論理代入 `&&=` / `||=` / `??=` が短絡しない問題 (常に書き戻すため setter が呼ばれ, 読み取り専用プロパティでエラーになっていた)
+* `修正` 配列の分割代入, スプレッド, `for...of` が反復プロトコルから外れていた問題: 変数の分割代入がイテレータを使わず (`Set` やジェネレータで undefined になる), スプレッドが穴でプロトタイプチェーンを見ず, 途中終了時にイテレータを閉じない, または余分に閉じていた; 反復不可能な配列風オブジェクトの分割代入は TypeError になった
+* `修正` `Proxy` と `Reflect` が ES2024 の内部メソッドから外れていた問題: 各トラップの転送と不変条件チェック, プロトタイプチェーン上の Proxy, `Reflect` の配列インデックスキー, Proxy に対する `__proto__` のトラップ経由
+* `修正` `with` 文が `Symbol.unscopables` を読まず束縛を複数回解決する問題, および strict モードで削除済みのグローバル束縛への代入が ReferenceError にならない問題
+* `修正` TypedArray の数値正規文字列キー (`NaN`, `-0` を含む) に対する読み書き, `in`, `delete`, `Object.defineProperty` とキー順序が仕様から外れていた問題
+* `修正` `Set` の集合メソッド (`union` など) が集合風の引数を読む順序と検査が仕様から外れていた問題, および `Object.fromEntries` がエントリのプロトタイプチェーンを見ない問題
+* `修正` 分割代入の既定値が対象に値があるとき効かない問題, および `valueOf` / `toString` が null を返すオブジェクトのプリミティブ変換結果が誤っていた問題
+* `修正` ジェネレータ内の括弧なし `yield` がカンマ式, 条件分岐, オブジェクトスプレッド, 計算プロパティ名で解析に失敗する問題
+* `修正` コンパイルモードで, インライン `__proto__` を持つオブジェクトリテラル内の `super` が undefined を読む問題, および数値変数の呼び出しが TypeError ではなく VerifyError になる問題
+* `改善` `BigInt.asIntN` / `BigInt.asUintN`, DataView の `setBigInt64` / `setBigUint64`, BigInt 型の TypedArray は Number を渡すと仕様どおり TypeError になる (以前は変換して続行); `BigInt(x)` と書く必要がある
+* `改善` strict モード (`class` 本体を含む) では, `Proxy` の `set` トラップが false を返すと代入が TypeError になり, `set: undefined` のアクセサへの書き込みも同様
+* `改善` 配列スプレッド `[...a]` とスプレッド引数は, 密な通常配列でイテレータが変更されていなければ直接コピーする高速経路を使う
+
 ### 2026-10-24
 
 ###### 2026/10/24
@@ -79,14 +100,6 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 ###### 2026/10/20
 
 * `修正` configurable が false の列挙可能なプロパティに対し, `enumerable` を省略した記述子 (`{ value: 5 }` など) で `Object.defineProperty` を呼ぶと誤って TypeError をスローする問題を修正
-
-### 2026-10-15
-
-###### 2026/10/15
-
-* `修正` エラーメッセージの引数プレースホルダーと波括弧のエスケープを修正し, ローカライズされた診断での情報欠落や MessageFormat 例外を防止
-* `修正` Unicode プロパティエスケープ (`\p{L}` など) を含む正規表現が Android 7.x で UnsupportedOperationException をスローする問題を修正
-* `改善` ArrayBuffer, DataView, TypedArray, 正規表現, 分割代入などのエラーメッセージ 28 件について, 英語以外の 9 言語の翻訳を補完
 
 [派生版の全保守履歴](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-ja.md)
 

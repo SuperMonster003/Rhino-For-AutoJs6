@@ -17,6 +17,27 @@ Cet historique consigne par date les changements de maintenance de cette variant
 
 [Lire le README officiel original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Ce lien cible le commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservant la langue d'origine et le contexte des liens relatifs. Le document original est conservé sans traduction; cette page et ses autres versions linguistiques présentent cette variante.
 
+# 2026-10-31
+
+###### 2026/10/31
+
+* `Fonctionnalité` Syntaxe `class`: déclarations et expressions de classe, `extends` / `super`, champs d'instance et statiques, blocs statiques et noms privés (`#x`), `toString` renvoyant le source de la classe; modes interprété et compilé, les méthodes `async` sont prévues pour une version ultérieure
+* `Fonctionnalité` Les constructeurs intégrés peuvent être étendus avec `class`: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, les TypedArray et d'autres créent les instances selon `new.target`, et les méthodes intégrées renvoient des instances de la sous-classe
+* `Fonctionnalité` `class` peut étendre des classes et interfaces Java (propre à cette branche): `class X extends java.lang.Thread`, ou `class X extends JavaAdapter(Base, I1, I2)` pour plusieurs interfaces; une instance enveloppe l'objet Java, son prototype est `X.prototype`, et elle a les membres que le `WrapFactory` de l'hôte ajoute à cet objet
+* `Fonctionnalité` Arguments étalés dans les appels et `new`: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (leur compilation échouait auparavant avec une erreur interne, le script entier ne pouvait pas s'exécuter)
+* `Correction` L'affectation logique `&&=` / `||=` / `??=` ne court-circuitait pas (elle écrivait toujours, appelant les setters et échouant sur les propriétés en lecture seule)
+* `Correction` Destructuration de tableaux, étalement et `for...of` s'écartant du protocole d'itération: la destructuration de variables n'utilisait pas les itérateurs (un `Set` ou un générateur donnait undefined), l'étalement ne consultait pas la chaîne de prototypes pour les trous, et les itérateurs n'étaient pas fermés, ou l'étaient inutilement, en sortie; destructurer un objet de type tableau non itérable lève maintenant une TypeError
+* `Correction` `Proxy` et `Reflect` s'écartant des méthodes internes d'ES2024: transmission et vérification des invariants des traps, Proxy sur la chaîne de prototypes, clés d'indice de tableau de `Reflect`, et `__proto__` passant par les traps d'un Proxy
+* `Correction` L'instruction `with` ignorant `Symbol.unscopables` et résolvant une liaison plusieurs fois, et le mode strict ne levant pas ReferenceError lors d'une affectation à une liaison globale supprimée
+* `Correction` Lecture et écriture, `in`, `delete`, `Object.defineProperty` et ordre des clés des TypedArray s'écartant de la spécification pour les clés chaînes numériques canoniques (dont `NaN` et `-0`)
+* `Correction` Les méthodes ensemblistes de `Set` (`union` et autres) s'écartant de la spécification dans la lecture d'un argument de type ensemble, et `Object.fromEntries` ne consultant pas la chaîne de prototypes d'une entrée
+* `Correction` Les valeurs par défaut de destructuration sans effet quand la cible avait déjà une valeur, et des résultats erronés en convertissant en primitive un objet dont `valueOf` / `toString` renvoie null
+* `Correction` Un `yield` sans parenthèses dans un générateur échouant à l'analyse dans les expressions à virgule, les branches conditionnelles, l'étalement d'objet et les noms de propriétés calculés
+* `Correction` En mode compilé, `super` lisant undefined dans un littéral d'objet avec `__proto__` en ligne, et l'appel d'une variable numérique levant VerifyError au lieu de TypeError
+* `Amélioration` `BigInt.asIntN` / `BigInt.asUintN`, `setBigInt64` / `setBigUint64` de DataView et les TypedArray BigInt lèvent TypeError pour un Number comme le dit la spécification (ils le convertissaient auparavant); écrire `BigInt(x)`
+* `Amélioration` En mode strict, corps de `class` compris, une affectation lève TypeError quand le trap `set` d'un `Proxy` renvoie false, de même que l'écriture dans un accesseur avec `set: undefined`
+* `Amélioration` L'étalement `[...a]` et les arguments étalés prennent un chemin rapide pour les tableaux denses ordinaires, avec copie directe quand les itérateurs n'ont pas ete modifiés
+
 # 2026-10-24
 
 ###### 2026/10/24

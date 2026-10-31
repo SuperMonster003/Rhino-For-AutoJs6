@@ -17,6 +17,27 @@
 
 [閱讀原始 Rhino 官方 README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 該入口固定至提交 `d878324a6f515c09d8ca49005fdd22b944b4df89`, 保留上游原有語言與相對連結的上下文. 這份原始文檔僅作留存, 不參與翻譯; 本頁及其其他語言版本介紹本分支.
 
+# 2026-10-31
+
+###### 2026/10/31
+
+* `新增` `class` 語法: 類宣告與運算式, `extends` / `super`, 實例與靜態欄位, 靜態區塊, 私有名稱 (`#x`), 類定義的原始碼由 `toString` 傳回; 解釋與編譯模式均支援, `async` 方法留待後續版本
+* `新增` 內建建構函式可被 `class` 繼承: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, TypedArray 等按 `new.target` 建立實例, 內建方法傳回子類實例
+* `新增` `class` 可繼承 Java 類與介面 (本分支獨有): `class X extends java.lang.Thread`, 多個介面寫 `class X extends JavaAdapter(Base, I1, I2)`; 實例包裝 Java 物件, 原型指向 `X.prototype`, 並帶有宿主 `WrapFactory` 為該物件加入的成員
+* `新增` 呼叫與 `new` 中的引數展開: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (此前編譯時報內部錯誤, 整個腳本無法執行)
+* `修復` 邏輯賦值 `&&=` / `||=` / `??=` 不短路的問題 (總是寫回, 會呼叫 setter, 在唯讀屬性上報錯)
+* `修復` 陣列解構, 陣列展開與 `for...of` 偏離迭代協定的問題: 變數解構不走迭代器 (`Set` 與產生器解構得到 undefined), 展開時空洞不查原型鏈, 提前退出時未關閉或多餘關閉迭代器; 不可迭代的類陣列物件解構時改為報 TypeError
+* `修復` `Proxy` 與 `Reflect` 偏離 ES2024 內部方法的問題: 各 trap 的轉發與不變式檢查, 原型鏈上的 Proxy, `Reflect` 的陣列下標鍵, `__proto__` 對 Proxy 經 trap
+* `修復` `with` 陳述式不讀取 `Symbol.unscopables` 與重複解析綁定的問題, 以及嚴格模式下給已刪除的全域綁定賦值未報 ReferenceError 的問題
+* `修復` TypedArray 對數字規範字串鍵 (含 `NaN`, `-0`) 的讀寫, `in`, `delete`, `Object.defineProperty` 與鍵順序偏離規範的問題
+* `修復` `Set` 的集合方法 (`union` 等) 讀取類集合參數的順序與檢查偏離規範, 以及 `Object.fromEntries` 讀條目時不查原型鏈的問題
+* `修復` 解構預設值在目標已有值時不生效的問題, 以及 `valueOf` / `toString` 傳回 null 的物件轉原始值時結果錯誤的問題
+* `修復` 產生器中未加括號的 `yield` 在逗號運算式, 條件分支, 物件展開與計算屬性名稱中解析失敗的問題
+* `修復` 編譯模式下內聯 `__proto__` 的物件字面值裡 `super` 讀到 undefined, 以及數字變數作被呼叫者時拋出 VerifyError (應為 TypeError) 的問題
+* `優化` `BigInt.asIntN` / `BigInt.asUintN`, DataView 的 `setBigInt64` / `setBigUint64` 與 BigInt 類型的 TypedArray 傳入 Number 時按規範報 TypeError (此前轉換後繼續), 需寫 `BigInt(x)`
+* `優化` 嚴格模式 (含 `class` 體) 下 `Proxy` 的 `set` trap 傳回 false 時賦值報 TypeError, 寫入 `set: undefined` 的存取器同樣報 TypeError
+* `優化` 陣列展開 `[...a]` 與引數展開對密集普通陣列使用快速路徑, 迭代器未被改寫時直接複製
+
 # 2026-10-24
 
 ###### 2026/10/24

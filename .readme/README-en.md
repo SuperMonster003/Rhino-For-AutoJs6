@@ -64,6 +64,27 @@ AutoJs6 references the complete JAR at `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.ja
 
 This history records maintenance changes to this fork by date. Official Rhino release history remains in the upstream release notes and is not presented as new releases of this fork.
 
+### 2026-10-31
+
+###### 2026/10/31
+
+* `Feature` `class` syntax: class declarations and expressions, `extends` / `super`, instance and static fields, static blocks and private names (`#x`), with `toString` giving the source of the class; both interpreted and compiled modes, `async` methods are left for a later version
+* `Feature` Built-in constructors can be extended with `class`: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, the TypedArrays and others create instances from `new.target`, and built-in methods return instances of the subclass
+* `Feature` `class` can extend Java classes and interfaces (this fork only): `class X extends java.lang.Thread`, or `class X extends JavaAdapter(Base, I1, I2)` for several interfaces; an instance wraps the Java object, its prototype is `X.prototype`, and it has the members the `WrapFactory` of the host adds to that object
+* `Feature` Spread arguments in calls and `new`: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (compiling them failed with an internal error before, so the whole script could not run)
+* `Fix` Logical assignment `&&=` / `||=` / `??=` not short-circuiting (it always wrote back, calling setters and failing on read-only properties)
+* `Fix` Array destructuring, array spread and `for...of` departing from the iteration protocol: destructuring variables did not use iterators (a `Set` or a generator gave undefined), spread did not look up the prototype chain for holes, and iterators were not closed, or closed needlessly, on exit; destructuring a non-iterable array-like object is now a TypeError
+* `Fix` `Proxy` and `Reflect` departing from the ES2024 internal methods: forwarding and invariant checks of the traps, a Proxy on the prototype chain, array index keys of `Reflect`, and `__proto__` going through the traps of a Proxy
+* `Fix` The `with` statement ignoring `Symbol.unscopables` and resolving a binding more than once, and strict mode code not getting a ReferenceError when assigning to a global binding that was deleted
+* `Fix` TypedArray reads and writes, `in`, `delete`, `Object.defineProperty` and key order departing from the specification for canonical numeric string keys (including `NaN` and `-0`)
+* `Fix` The set methods of `Set` (`union` and others) departing from the specification in how they read a set-like argument, and `Object.fromEntries` not looking up the prototype chain of an entry
+* `Fix` Destructuring defaults having no effect when the target already had a value, and wrong results when converting to a primitive an object whose `valueOf` / `toString` returns null
+* `Fix` An unparenthesized `yield` in a generator failing to parse in comma expressions, conditional branches, object spread and computed property names
+* `Fix` In compiled mode, `super` reading undefined in an object literal with an inline `__proto__`, and calling a numeric variable throwing VerifyError instead of TypeError
+* `Improvement` `BigInt.asIntN` / `BigInt.asUintN`, `setBigInt64` / `setBigUint64` of DataView and BigInt TypedArrays throw TypeError for a Number as the specification says (they converted it before); write `BigInt(x)`
+* `Improvement` In strict mode, `class` bodies included, an assignment throws TypeError when the `set` trap of a `Proxy` returns false, and so does writing to an accessor with `set: undefined`
+* `Improvement` Array spread `[...a]` and spread arguments take a fast path for dense plain arrays, copying directly when the iterators have not been changed
+
 ### 2026-10-24
 
 ###### 2026/10/24
@@ -79,14 +100,6 @@ This history records maintenance changes to this fork by date. Official Rhino re
 ###### 2026/10/20
 
 * `Fix` `Object.defineProperty` wrongly throwing TypeError for an enumerable property whose configurable is false when the descriptor omits `enumerable` (such as `{ value: 5 }`)
-
-### 2026-10-15
-
-###### 2026/10/15
-
-* `Fix` Argument placeholders and brace escaping in error messages, preventing localized diagnostics from losing context or throwing MessageFormat exceptions
-* `Fix` Regular expressions with Unicode property escapes (such as `\p{L}`) throwing UnsupportedOperationException on Android 7.x
-* `Improvement` Complete 9 non-English translations for 28 engine error messages covering ArrayBuffer, DataView, TypedArray, regular expressions, destructuring and related features
 
 [Full fork maintenance history](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-en.md)
 

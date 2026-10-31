@@ -7,6 +7,75 @@
     "dependency": "依赖"
   },
   "$data": {
+    "2026-10-31": {
+      "released_date": "2026/10/31",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`class` 语法: 类声明与表达式, `extends` / `super`, 实例与静态字段, 静态块, 私有名 (`#x`), 类定义的源码由 `toString` 返回; 解释与编译模式均支持, `async` 方法留待后续版本"
+        },
+        {
+          "category": "feature",
+          "text": "内建构造器可被 `class` 继承: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, TypedArray 等按 `new.target` 创建实例, 内建方法返回子类实例"
+        },
+        {
+          "category": "feature",
+          "text": "`class` 可继承 Java 类与接口 (本分支独有): `class X extends java.lang.Thread`, 多个接口写 `class X extends JavaAdapter(Base, I1, I2)`; 实例包装 Java 对象, 原型指向 `X.prototype`, 并带有宿主 `WrapFactory` 为该对象添加的成员"
+        },
+        {
+          "category": "feature",
+          "text": "调用与 `new` 中的实参展开: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (此前编译时报内部错误, 整个脚本无法运行)"
+        },
+        {
+          "category": "fix",
+          "text": "逻辑赋值 `&&=` / `||=` / `??=` 不短路的问题 (总是写回, 会调用 setter, 在只读属性上报错)"
+        },
+        {
+          "category": "fix",
+          "text": "数组解构, 数组展开与 `for...of` 偏离迭代协议的问题: 变量解构不走迭代器 (`Set` 与生成器解构得到 undefined), 展开时空洞不查原型链, 提前退出时未关闭或多余关闭迭代器; 不可迭代的类数组对象解构时改为报 TypeError"
+        },
+        {
+          "category": "fix",
+          "text": "`Proxy` 与 `Reflect` 偏离 ES2024 内部方法的问题: 各 trap 的转发与不变式检查, 原型链上的 Proxy, `Reflect` 的数组下标键, `__proto__` 对 Proxy 经 trap"
+        },
+        {
+          "category": "fix",
+          "text": "`with` 语句不读取 `Symbol.unscopables` 与重复解析绑定的问题, 以及严格模式下给已删除的全局绑定赋值未报 ReferenceError 的问题"
+        },
+        {
+          "category": "fix",
+          "text": "TypedArray 对数字规范字符串键 (含 `NaN`, `-0`) 的读写, `in`, `delete`, `Object.defineProperty` 与键顺序偏离规范的问题"
+        },
+        {
+          "category": "fix",
+          "text": "`Set` 的集合方法 (`union` 等) 读取类集合参数的顺序与检查偏离规范, 以及 `Object.fromEntries` 读条目时不查原型链的问题"
+        },
+        {
+          "category": "fix",
+          "text": "解构默认值在目标已有值时不生效的问题, 以及 `valueOf` / `toString` 返回 null 的对象转原始值时结果错误的问题"
+        },
+        {
+          "category": "fix",
+          "text": "生成器中未加括号的 `yield` 在逗号表达式, 条件分支, 对象展开与计算属性名中解析失败的问题"
+        },
+        {
+          "category": "fix",
+          "text": "编译模式下内联 `__proto__` 的对象字面量里 `super` 读到 undefined, 以及数字变量作被调用者时抛 VerifyError (应为 TypeError) 的问题"
+        },
+        {
+          "category": "improvement",
+          "text": "`BigInt.asIntN` / `BigInt.asUintN`, DataView 的 `setBigInt64` / `setBigUint64` 与 BigInt 类型的 TypedArray 传入 Number 时按规范报 TypeError (此前转换后继续), 需写 `BigInt(x)`"
+        },
+        {
+          "category": "improvement",
+          "text": "严格模式 (含 `class` 体) 下 `Proxy` 的 `set` trap 返回 false 时赋值报 TypeError, 写入 `set: undefined` 的访问器同样报 TypeError"
+        },
+        {
+          "category": "improvement",
+          "text": "数组展开 `[...a]` 与实参展开对密集普通数组使用快速路径, 迭代器未被改写时直接复制"
+        }
+      ]
+    },
     "2026-10-24": {
       "released_date": "2026/10/24",
       "entries": [

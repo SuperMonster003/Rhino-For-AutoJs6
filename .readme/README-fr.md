@@ -64,6 +64,27 @@ AutoJs6 référence le JAR complet à l'emplacement `libs/org-mozilla-rhino-2_0_
 
 Cet historique consigne par date les changements de maintenance de cette variante. L'historique des versions officielles de Rhino reste dans les notes de version amont et n'est pas présenté comme de nouvelles versions de cette variante.
 
+### 2026-10-31
+
+###### 2026/10/31
+
+* `Fonctionnalité` Syntaxe `class`: déclarations et expressions de classe, `extends` / `super`, champs d'instance et statiques, blocs statiques et noms privés (`#x`), `toString` renvoyant le source de la classe; modes interprété et compilé, les méthodes `async` sont prévues pour une version ultérieure
+* `Fonctionnalité` Les constructeurs intégrés peuvent être étendus avec `class`: `Error`, `Array`, `Map`, `Set`, `Date`, `RegExp`, les TypedArray et d'autres créent les instances selon `new.target`, et les méthodes intégrées renvoient des instances de la sous-classe
+* `Fonctionnalité` `class` peut étendre des classes et interfaces Java (propre à cette branche): `class X extends java.lang.Thread`, ou `class X extends JavaAdapter(Base, I1, I2)` pour plusieurs interfaces; une instance enveloppe l'objet Java, son prototype est `X.prototype`, et elle a les membres que le `WrapFactory` de l'hôte ajoute à cet objet
+* `Fonctionnalité` Arguments étalés dans les appels et `new`: `f(...args)`, `o.m(...args)`, `super.m(...args)`, `new F(...args)` (leur compilation échouait auparavant avec une erreur interne, le script entier ne pouvait pas s'exécuter)
+* `Correction` L'affectation logique `&&=` / `||=` / `??=` ne court-circuitait pas (elle écrivait toujours, appelant les setters et échouant sur les propriétés en lecture seule)
+* `Correction` Destructuration de tableaux, étalement et `for...of` s'écartant du protocole d'itération: la destructuration de variables n'utilisait pas les itérateurs (un `Set` ou un générateur donnait undefined), l'étalement ne consultait pas la chaîne de prototypes pour les trous, et les itérateurs n'étaient pas fermés, ou l'étaient inutilement, en sortie; destructurer un objet de type tableau non itérable lève maintenant une TypeError
+* `Correction` `Proxy` et `Reflect` s'écartant des méthodes internes d'ES2024: transmission et vérification des invariants des traps, Proxy sur la chaîne de prototypes, clés d'indice de tableau de `Reflect`, et `__proto__` passant par les traps d'un Proxy
+* `Correction` L'instruction `with` ignorant `Symbol.unscopables` et résolvant une liaison plusieurs fois, et le mode strict ne levant pas ReferenceError lors d'une affectation à une liaison globale supprimée
+* `Correction` Lecture et écriture, `in`, `delete`, `Object.defineProperty` et ordre des clés des TypedArray s'écartant de la spécification pour les clés chaînes numériques canoniques (dont `NaN` et `-0`)
+* `Correction` Les méthodes ensemblistes de `Set` (`union` et autres) s'écartant de la spécification dans la lecture d'un argument de type ensemble, et `Object.fromEntries` ne consultant pas la chaîne de prototypes d'une entrée
+* `Correction` Les valeurs par défaut de destructuration sans effet quand la cible avait déjà une valeur, et des résultats erronés en convertissant en primitive un objet dont `valueOf` / `toString` renvoie null
+* `Correction` Un `yield` sans parenthèses dans un générateur échouant à l'analyse dans les expressions à virgule, les branches conditionnelles, l'étalement d'objet et les noms de propriétés calculés
+* `Correction` En mode compilé, `super` lisant undefined dans un littéral d'objet avec `__proto__` en ligne, et l'appel d'une variable numérique levant VerifyError au lieu de TypeError
+* `Amélioration` `BigInt.asIntN` / `BigInt.asUintN`, `setBigInt64` / `setBigUint64` de DataView et les TypedArray BigInt lèvent TypeError pour un Number comme le dit la spécification (ils le convertissaient auparavant); écrire `BigInt(x)`
+* `Amélioration` En mode strict, corps de `class` compris, une affectation lève TypeError quand le trap `set` d'un `Proxy` renvoie false, de même que l'écriture dans un accesseur avec `set: undefined`
+* `Amélioration` L'étalement `[...a]` et les arguments étalés prennent un chemin rapide pour les tableaux denses ordinaires, avec copie directe quand les itérateurs n'ont pas ete modifiés
+
 ### 2026-10-24
 
 ###### 2026/10/24
@@ -79,14 +100,6 @@ Cet historique consigne par date les changements de maintenance de cette variant
 ###### 2026/10/20
 
 * `Correction` `Object.defineProperty` qui levait à tort une TypeError sur une propriété énumérable dont configurable vaut false lorsque le descripteur omet `enumerable` (comme `{ value: 5 }`)
-
-### 2026-10-15
-
-###### 2026/10/15
-
-* `Correction` Paramètres de substitution et échappement des accolades dans les messages d'erreur, pour éviter la perte de contexte ou les exceptions MessageFormat dans les diagnostics traduits
-* `Correction` Expressions régulières avec des échappements de propriétés Unicode (comme `\p{L}`) qui levaient UnsupportedOperationException sous Android 7.x
-* `Amélioration` Traductions complètes en 9 langues autres que l'anglais pour 28 messages d'erreur du moteur concernant ArrayBuffer, DataView, TypedArray, les expressions régulières, la déstructuration et les fonctions associées
 
 [Historique complet de maintenance de la variante](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-fr.md)
 
