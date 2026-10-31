@@ -62,16 +62,17 @@ final class JavaPrototype extends ScriptableObject {
         if (start instanceof JavaSubclassObject) {
             return ((JavaSubclassObject) start).getJavaMember(name);
         }
-        if (start == this && constructor.hasInstanceMethod(name)) {
+        if (constructor.hasInstanceMethod(name)) {
             return superMethod(name);
         }
         return NOT_FOUND;
     }
 
     /**
-     * {@code super.m(args)} looks {@code m} up with this object as the start, not the instance (as
-     * Rhino does for any super call), and calls it with the instance as {@code this}. The method of
-     * the Java object is found when it is called, from the {@code this} it gets.
+     * {@code super.m(args)} looks {@code m} up with the super object as the start, not the instance
+     * (as Rhino does for any super call), and calls it with the instance as {@code this}. The super
+     * object is this object or, in a subclass of a subclass, the prototype of a JavaScript class.
+     * The method of the Java object is found when it is called, from the {@code this} it gets.
      */
     private LambdaFunction superMethod(String name) {
         ConcurrentHashMap<String, LambdaFunction> methods = superMethods;
