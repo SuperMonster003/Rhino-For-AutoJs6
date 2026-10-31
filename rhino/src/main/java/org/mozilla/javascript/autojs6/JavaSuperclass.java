@@ -294,12 +294,16 @@ public final class JavaSuperclass extends BaseFunction {
             return new NativeJavaObject(scope, javaObject, TypeInfo.NONE, false);
         }
 
-        /** The internal members of the adapter class, which the instance does not show. */
+        /**
+         * The internal members of the adapter class, which the instance does not show; the wrapper
+         * of a host can answer {@code __proto__} with its own prototype.
+         */
         boolean hides(String member) {
             return member.startsWith("super$")
                     || member.equals("factory")
                     || member.equals("delegee")
-                    || member.equals("self");
+                    || member.equals("self")
+                    || member.equals("__proto__");
         }
 
         boolean dispatches(String method) {

@@ -30,7 +30,8 @@
 | P6.17 | 完成 (2026-10-30) | 严格模式的全局赋值, `with` 里名字的逻辑赋值, TypedArray 不是 receiver 时数字键的 [[Set]] (附录 C Q41 / Q42 / Q43 = A, 通用修复): Q41 严格模式代码给全局对象上的绑定赋值, 复合赋值与自增自减写入前 HasProperty, 绑定已被删除时 ReferenceError (`OrdinaryHas.strictGlobalSet`, 词法绑定照旧; 自增自减的严格性经 `nameIncrDecr` 写进 mask); Q42 名字的逻辑赋值在作用域链上可能有 `with` 作用域时 (`with` 语句里, 含外层函数的, 与 eval 代码) 只解析一次, 读与写用同一个作用域 (`ClassOp.LOGICAL_NAME`, 解释器 icode `CLASS_LOGICAL_BIND`, 编译器 `ClassBodyCodegen.logicalName`), 其他地方照旧; Q43 TypedArray 自己处理数字规范字符串键 (含 "NaN"): receiver 是别的对象时有效下标写到 receiver, 无效下标不写, 不问它的原型 (`OrdinarySet.base` / `typedArrayPut` / `set`, `NativeTypedArrayView.put` 两行钩子) |
 | P6.18 | 完成 (2026-10-30) | TypedArray 自己的内部方法对数字规范字符串键的规范偏差 (附录 C Q44 = A, 通用修复, 与 class 无关): 七个内部方法 (ES2024 10.4.5) 按 CanonicalNumericIndexString (含 "NaN", 新文件 `TypedArrayKey`): [[Get]] / [[HasProperty]] 无效下标不问原型 (`hasProperty` 经 `OrdinaryHas.found`), [[GetOwnProperty]] 有元素的描述符, [[DefineOwnProperty]] 不取整且拒绝时 TypeError (`Reflect.defineProperty` 为 false), [[Set]] 无效下标也转换值, [[Delete]] 严格模式下有效下标 TypeError, [[OwnPropertyKeys]] 下标在前, 其余键在后, 各入口结果相同; 另加规范的 ToBigInt (BigInt 数组写 Number 报 TypeError) |
 | P6.19 | 完成 (2026-10-31) | ToBigInt 与 `getDefaultValue` 的规范偏差 (附录 C Q46 = A, 通用修复, 与 class 无关): 新文件 `ToBigInt` (规范的 ToBigInt, Number 报 TypeError), 用在 `BigInt.asIntN` / `asUintN`, DataView 的 `setBigInt64` / `setBigUint64` 与 BigInt 类型的 TypedArray; `ScriptableObject.getDefaultValue` 对方法返回的 JS null 直接返回 (OrdinaryToPrimitive, 影响一切 ToPrimitive) |
-| P7-P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
+| P7.2a | 完成 (2026-10-31) | 继承 Java 类的实例带宿主扩展 (附录 C Q15 = A, fork-only D3): 新文件 `HostExtensions`, 查找顺序 JS 类成员 > Java 成员 > 当前 Context 的 `WrapFactory.wrapAsJavaObject` 包装上的其他名字, 函数以包装为 this 调用, 返回 Java 对象自身时映射回实例; 另修 P5 的缺陷: 隔着 JS 类的 `super.m()` 取不到 Java 方法. 全部在 `autojs6` 包, 没有新钩子行 |
+| P7 其余, P8, P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
 
@@ -328,6 +329,7 @@
 - `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaPrototype.java`: fork-only (D3), P5: 超类的 prototype, 原型链上 JS 部分的末端: 从实例查找时给出 Java 对象的成员 (被覆盖的方法给 `super$` 实现, 抽象的不给), 可写 Java 字段 / bean 属性的赋值, `super.m()` 的延迟查找函数.
 - `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaSubclassObject.java`: fork-only (D3), P5: 类实例 (附录 C Q4 = A): 包装适配器对象 (`Wrapper`), 是适配器的 delegee 与 self, 字段与私有元素是它自己的; Java 成员经适配器对象的 `NativeJavaObject` 视图 (含受保护成员), `Iterable` 的 `Symbol.iterator`.
 - `rhino/src/main/java/org/mozilla/javascript/autojs6/JavaSubclass.java`: fork-only (D3), P5: 类适配器实现的标记接口, `WrapFactory` 钩子据此认出类实例的 Java 对象.
+- `rhino/src/main/java/org/mozilla/javascript/autojs6/HostExtensions.java`: fork-only (D3), P7.2a (附录 C Q15 = A): 当前 Context 的 `WrapFactory` 给类实例的 Java 对象加的名字 (宿主的 View 包装有 `attr` / `on` 等). 函数以宿主包装为 this 调用, 返回 Java 对象自身时映射回实例; Rhino 自己的包装 (`NativeJavaObject`, `NativeJavaList`, `NativeJavaMap`) 不算扩展.
 
 - `tests/src/test/java/org/mozilla/javascript/tests/InterpreterV2Mode.java`: P6.2 (T8, 附录 C Q11): `Test262SuiteTest` 的可选 Interpreter V2 模式. 系统属性 `rhino.test262.interpreterV2=true` 请求 (Gradle 把 `rhino.*` 属性都传给测试), 只有 Context 能用 V2 编译脚本时才运行, 否则打印原因并运行 0 例 (现在: `EvaluationMethod` 没有 -2 级别, `setOptimizationLevel(-2)` 抛 `IllegalStateException`; 上游补上级别后还会因 `InterpreterV2.compileScript` 没有编译器抛 `UnsupportedOperationException`); 上游编译器合入后同一开关直接跑全部 test262 (含 class 两目录) 的 V2 模式.
 
@@ -379,6 +381,7 @@
 | `org.mozilla.javascript.tests.classsyntax.BuiltinSubclassingTest` | rhino | 附录 D 的每个构造器至少一个子类用例 (instanceof, 原型方法, species, 自定义成员, 覆盖的 `set` / `add` / `exec`), Proxy / 绑定函数 / 另一 realm 的函数作 new.target, 宿主 LambdaConstructor 被继承, 解释 / 编译两模式 | P4 |
 | `org.mozilla.javascript.tests.BuiltinSubclassingTest262Test` | tests | test262 `subclass-builtins` (两目录 72 个), `subclass/builtin-objects` (70 个) 与 `built-ins` 下含 `newTarget` 的文件 (219 个) 解释 / 编译两模式执行, 跳过规则同 `ClassSyntaxTest262CoreTest`, 已知失败登记附录 E (P9 1 例); 失败明细写到 `tests/build/class-syntax/builtins-<模式>.txt` | P4 |
 | `org.mozilla.javascript.tests.classsyntax.JavaClassInheritanceTest` | rhino | 继承 Java 类 (Thread, AbstractList, 带受保护构造器 / 字段 / 方法的抽象类), 单个接口, `JavaAdapter(Base, I1, I2)`, super() 的重载选择, `super.m()`, Java 构造器调用被覆盖的方法, 静态成员, 字段 / 私有名在实例上, 赋值写 Java 字段, Java API 拿到 Java 对象且回来仍是实例, toString / equals / hashCode, 类的子类, Java 线程池回调, 适配器类缓存, 旧 `JavaAdapter` 写法回归, 各类 TypeError / ReferenceError 消息, 解释 / 编译两模式 | P5 |
+| `org.mozilla.javascript.tests.classsyntax.JavaHostExtensionsTest` | rhino | 继承 Java 类的实例带宿主扩展 (P7.2a, 附录 C Q15 = A): 自定义 `WrapFactory` 给 Java 类的包装加名字, 查找顺序 (JS 类成员 > Java 成员 > 包装), 函数的 this 是包装, 链式返回映射回实例, 同一个函数对象, 受保护成员与 `super.m()` 走适配器视图, 内部成员与 `__proto__` 不外露, `in`, 赋值建自有属性, Java 构造器运行期间没有包装, 每个工厂一个包装, Java 线程的 Context 没有扩展, Rhino 自己的包装不算扩展, 隔着 JS 类的 `super.m()` (P5 的缺陷); 解释 / 编译两模式, 15 例 |
 | `org.mozilla.javascript.tests.classsyntax.SpreadCallTest` | rhino | 实参展开的四种形式, 混合与多个展开, 可选调用, 各种可迭代对象, 数组迭代可观察 (覆写 `Symbol.iterator` 与 `next`), 不可迭代的 TypeError, 求值顺序与中途异常, new.target 与 new 的结果, `super.m` 的 this 与 home object, 不经 `apply` / `Reflect`, 直接 eval, 绑定函数与 call / apply, REF_CALL, 生成器里的 yield, 解释模式的深递归与 continuation (内联帧), 解释 / 编译两模式 | P6.6 |
 | `org.mozilla.javascript.tests.classsyntax.LogicalAssignmentTest` | rhino | 三个运算符的值, 标识符 (const / let / `with` / 全局 / 未声明), 脚本顶层与闭包里的临时绑定, 短路时不调 setter 与冻结对象不报错, 对象与键只求值一次, null 基对象先于键转换报错, 数组元素, 私有名 (只有 getter 的访问器, 静态, 品牌检查), super 属性 (含派生构造器与非常量键), 函数名推断, 生成器, 非法目标的 SyntaxError, `set: undefined` 的严格模式写入 (Q18), 解释 / 编译两模式 | P6.7 |
 | `org.mozilla.javascript.ArraySpreadTest` | rhino | 数组展开的快速路径: 哪些值走快速路径 (直接调 `ArraySpread.elements`: 普通数组, 空数组; 空洞, 长度大于元素, `arguments`, 类数组, 字符串, Set, TypedArray, Proxy, 自身 `Symbol.iterator`, 访问器元素, 改过原型, Array 子类实例, `Array.prototype` 不走; 覆写 `Symbol.iterator` (数据 / 访问器), 包一层的 `next`, `return`, 改 `%ArrayIteratorPrototype%` 的原型, `Object.prototype` 的 `return` / `value` / `done` 之后不走; 把同一内建赋回去仍走; 另一 realm 不走); 与总按协议的 `twin` 数组逐项相同 (七种展开形式); 覆写迭代器与 `next` (含运行中途覆写与恢复, 同一调用的两个展开之间) 按协议可观察; `return` 与结果对象属性上的 setter / getter 同慢路径; 空洞配原型索引属性, 访问器元素, 类数组, `arguments`; 求值顺序, 不可迭代的 TypeError 与消息同数组字面量 (含数字变量); 生成器里 `yield` 作展开的值; 解释 / 编译两模式 | P6.9 |
@@ -437,7 +440,7 @@ P5 起依赖 (Java 类继承, fork-only D3; 上游改动这些机制时 `autojs6
 
 - JavaAdapter 生成类的布局: 字段 `factory` / `delegee` / `self`, 每个非私有基类构造器对应 `(Scriptable, ContextFactory, <基类构造器参数>)`, 方法经 `getFunction(delegee, name)` 与 `callMethod(factory, self, ...)` 派发, 非抽象方法的 `super$name`, 构造器末尾的 `createAdapterWrapper(delegee, this)`; `JavaAdapter.createAdapterCode` / `loadAdapterClass` / `getOverridableMethods` / `JavaAdapterSignature`, `ClassCache.getInterfaceAdapterCacheMap` (每个顶层作用域一份的适配器类缓存).
 - `NativeJavaMethod.findFunction` (重载选择) 与 `ExecutableBox.wrapArgsInternal`, `NativeJavaObject` 的 isAdapter 视图 (含受保护成员) 与 `JavaMembers` 的成员表 (字段, `BeanProperty`, `ExecutableOverload.WithField`).
-- `WrapFactory.wrap` / `wrapNewObject` 是 Java 值进入脚本的出口 (宿主覆盖 `wrapAsJavaObject` 不影响钩子, 钩子在它之前); `NativeJavaClass.hasInstance` 解包 `Wrapper` (instanceof Java 类).
+- `WrapFactory.wrap` / `wrapNewObject` 是 Java 值进入脚本的出口 (宿主覆盖 `wrapAsJavaObject` 不影响钩子, 钩子在它之前; P7.2a 的 `HostExtensions` 直接调 `wrapAsJavaObject`, 绕过钩子取宿主包装, 上游改这个方法的签名或默认返回的类时跟着改); `NativeJavaClass.hasInstance` 解包 `Wrapper` (instanceof Java 类).
 - super 访问: 读取 (`ScriptableObject.getSuperProperty`) 以当前 this 为 start; 方法调用 (`getPropAndThis` + `CALL_ON_SUPER`) 以 super 对象为 start 查找, 调用时换成 this, `JavaPrototype` 为此返回延迟查找的函数. 上游把 super 调用改为以 this 为 start 时, 这层可以去掉.
 - `ContextFactory.call`: 没有 Context 的 Java 线程回调 (`JavaAdapter.callMethod`) 以构造时的 `cx.getFactory()` 进入.
 
@@ -523,6 +526,14 @@ P5 (Java 类继承, 决定与理由见 NOTES.md P5):
 - 实例的 `Object.prototype.toString` 标签为 `JavaObject`, `typeof` 为 `object`; JSON / for-in / `Object.keys` 只列实例自有属性 (字段), 不含 Java 成员.
 - 把类实例当作旧写法 `new JavaAdapter(Base, instance)` 的实现对象时, 方法经 `JavaClassInheritance.method` 查找, 缺失的抽象方法报 TypeError (普通实现对象得到 undefined).
 - 适配器类按顶层作用域缓存 (`ClassCache`), 新的顶层作用域 (宿主每次运行脚本) 重新生成; Android 上每个签名首次构造要经宿主 D8 转 dex (P5.2 结论, P7 测量).
+
+P7.2a (宿主扩展, 决定与理由见 NOTES.md P7):
+
+- 只有查找: 给宿主扩展的名字赋值建实例的自有属性, 不写到宿主包装. 宿主扩展不进 `Object.keys` / for-in.
+- 与 Java 成员同名的扩展不生效 (顺序 JS 类成员 > Java 成员 > 宿主扩展): 宿主的 `PaintProxyObject` 拦截 `setColor`, `class P extends android.graphics.Paint` 的实例用的是 Java 的 `setColor`.
+- 覆盖扩展方法时 `super.attr(...)` 找不到它: 方法调用以 super 对象为 start 查找, 此时没有实例, 不知道宿主包装. 写 `super.attr.call(this, ...)` (读取以 this 为 start, 能找到).
+- Java 构造器运行期间没有扩展 (`this.attr` 为 undefined): 宿主包装要读完整的 Java 对象, 与实例字段在 super() 之后才有一致.
+- Java 线程经 `factory.call` 新建的 Context 用工厂的 WrapFactory, 不是脚本引擎的, 这里没有扩展 (同 P5 的线程回调说明).
 
 P6 (test262 解锁, 记录与理由见 NOTES.md P6):
 

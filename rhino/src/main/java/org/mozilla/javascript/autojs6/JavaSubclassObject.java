@@ -8,6 +8,7 @@ package org.mozilla.javascript.autojs6;
 
 import java.io.Serial;
 import org.mozilla.javascript.Callable;
+import org.mozilla.javascript.Context;
 import org.mozilla.javascript.JavaInheritanceSupport;
 import org.mozilla.javascript.NativeJavaObject;
 import org.mozilla.javascript.Scriptable;
@@ -34,6 +35,11 @@ public final class JavaSubclassObject extends ScriptableObject implements Wrappe
 
     private transient volatile NativeJavaObject view;
 
+    /** False while the Java constructor runs: the wrapper of a host needs the finished object. */
+    private transient volatile boolean constructed;
+
+    private transient volatile HostExtensions extensions;
+
     JavaSubclassObject(JavaSuperclass.Adapter adapter, VarScope scope, Scriptable prototype) {
         this.adapter = adapter;
         setParentScope(scope);
@@ -45,6 +51,10 @@ public final class JavaSubclassObject extends ScriptableObject implements Wrappe
         if (this.javaObject == null) {
             this.javaObject = javaObject;
         }
+    }
+
+    void constructed() {
+        constructed = true;
     }
 
     JavaSuperclass.Adapter adapter() {
@@ -71,6 +81,20 @@ public final class JavaSubclassObject extends ScriptableObject implements Wrappe
         return v;
     }
 
+    /** What the WrapFactory of the current Context adds; null without a Context. */
+    private HostExtensions extensions() {
+        Context cx = Context.getCurrentContext();
+        if (cx == null || !constructed) {
+            return null;
+        }
+        HostExtensions e = extensions;
+        if (e == null || e.factory != cx.getWrapFactory()) {
+            e = new HostExtensions(this, javaObject, cx);
+            extensions = e;
+        }
+        return e;
+    }
+
     boolean hasJavaMember(String name) {
         if (javaObject == null || adapter.hides(name)) {
             return false;
@@ -79,13 +103,18 @@ public final class JavaSubclassObject extends ScriptableObject implements Wrappe
             return adapter.hasSuper(name);
         }
         NativeJavaObject v = view();
-        return v.has(name, v);
+        if (v.has(name, v)) {
+            return true;
+        }
+        HostExtensions e = extensions();
+        return e != null && e.has(name);
     }
 
     /**
      * A member of the Java object: for a method the adapter overrides, the Java implementation
      * ({@code super$} method) or nothing when it is abstract, so that no lookup gets the adapter
-     * method that calls back into the instance.
+     * method that calls back into the instance. The other names go to the wrapper of the host
+     * (appendix C Q15 = A).
      */
     Object getJavaMember(String name) {
         if (javaObject == null || adapter.hides(name)) {
@@ -95,7 +124,12 @@ public final class JavaSubclassObject extends ScriptableObject implements Wrappe
         if (adapter.dispatches(name)) {
             return adapter.hasSuper(name) ? v.get("super$" + name, v) : NOT_FOUND;
         }
-        return v.get(name, v);
+        Object value = v.get(name, v);
+        if (value != NOT_FOUND) {
+            return value;
+        }
+        HostExtensions e = extensions();
+        return e == null ? NOT_FOUND : e.get(name);
     }
 
     /** Assigns a writable Java field or bean property; false when the name is not one. */

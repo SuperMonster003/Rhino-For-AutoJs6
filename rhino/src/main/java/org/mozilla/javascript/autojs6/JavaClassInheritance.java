@@ -240,6 +240,7 @@ public final class JavaClassInheritance {
         if (self.unwrap() == null) {
             throw new IllegalStateException("adapter " + type.getName() + " has no self");
         }
+        self.constructed();
         return self;
     }
 
