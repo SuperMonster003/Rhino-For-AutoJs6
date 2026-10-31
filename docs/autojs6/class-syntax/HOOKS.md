@@ -31,7 +31,8 @@
 | P6.18 | 完成 (2026-10-30) | TypedArray 自己的内部方法对数字规范字符串键的规范偏差 (附录 C Q44 = A, 通用修复, 与 class 无关): 七个内部方法 (ES2024 10.4.5) 按 CanonicalNumericIndexString (含 "NaN", 新文件 `TypedArrayKey`): [[Get]] / [[HasProperty]] 无效下标不问原型 (`hasProperty` 经 `OrdinaryHas.found`), [[GetOwnProperty]] 有元素的描述符, [[DefineOwnProperty]] 不取整且拒绝时 TypeError (`Reflect.defineProperty` 为 false), [[Set]] 无效下标也转换值, [[Delete]] 严格模式下有效下标 TypeError, [[OwnPropertyKeys]] 下标在前, 其余键在后, 各入口结果相同; 另加规范的 ToBigInt (BigInt 数组写 Number 报 TypeError) |
 | P6.19 | 完成 (2026-10-31) | ToBigInt 与 `getDefaultValue` 的规范偏差 (附录 C Q46 = A, 通用修复, 与 class 无关): 新文件 `ToBigInt` (规范的 ToBigInt, Number 报 TypeError), 用在 `BigInt.asIntN` / `asUintN`, DataView 的 `setBigInt64` / `setBigUint64` 与 BigInt 类型的 TypedArray; `ScriptableObject.getDefaultValue` 对方法返回的 JS null 直接返回 (OrdinaryToPrimitive, 影响一切 ToPrimitive) |
 | P7.2a | 完成 (2026-10-31) | 继承 Java 类的实例带宿主扩展 (附录 C Q15 = A, fork-only D3): 新文件 `HostExtensions`, 查找顺序 JS 类成员 > Java 成员 > 当前 Context 的 `WrapFactory.wrapAsJavaObject` 包装上的其他名字, 函数以包装为 this 调用, 返回 Java 对象自身时映射回实例; 另修 P5 的缺陷: 隔着 JS 类的 `super.m()` 取不到 Java 方法. 全部在 `autojs6` 包, 没有新钩子行 |
-| P7 其余, P8, P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
+| P7 | 完成 (2026-11-01) | 宿主集成与真机: jar 换入, 设备用例, changelog, 文档, 都不在 fork 的源码里, 没有新钩子行, 合计仍 698 |
+| P8, P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
 

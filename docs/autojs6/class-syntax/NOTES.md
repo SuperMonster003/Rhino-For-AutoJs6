@@ -713,3 +713,112 @@ A/A (修前对修前): 9 轮全表 (`bench-p619-aa.txt`) 最小值之比 0.87-1.
 - 五模块全量 (09a9ba835, JDK 21, `--rerun-tasks`, 含全部模块的 `spotlessCheck`, 39 分 21 秒, 机器负载高): 149387 例 (P6.18 的 149364 加 `ToBigIntAndToPrimitiveTest` 23) 27 失败 21 跳过, 与 P6.18 的 `current-failures-p618.txt` 逐条相同 (含消息, 对象哈希归一后比较), 新增 0; Test262SuiteTest 137526 例失败 0, 39 个 "marked as failing but it does not" 数量同 P6.18.
 - 钩子标记行 698 (class syntax 648, async 50; `rhino/src/main/java` 686, `tests/src` 12), 本条新增 7; `HooksRegistryTest` 通过. 门禁 `spotlessCheck`, `git diff --check`, `generate_markdown.py --check` 通过.
 - 证据 `build/upstream-sync/class-p6i-20261030/`: `full-tests-p619.log`, `current-failures-p619.txt`, `bench-p619.js`, `bench-p619-run.py`, `bench-p619.txt`, `bench-p619-aa.txt`, `bench-p619-rerun.txt`, `bench-p619-rerun-aa.txt`, `bench-load.txt`, `regen-p619.log`, `props-before-p619.properties`, `pd619/`, `probe-to-primitive.js`, `probe-to-bigint.js`, `probe-before.txt`, `probe-after.txt`.
+
+## P7 宿主集成与真机 (2026-10-31 至 2026-11-01, 子会话 rhino-p7 / local_e819757b)
+
+### P7.2a 宿主扩展 (附录 C Q15 = A)
+
+- 做法: 新文件 `autojs6/HostExtensions`, 一个实例按 `WrapFactory` 持有一份 (Java 线程的 Context 用另一个工厂, 换工厂时重建). `wrapAsJavaObject(cx, 实例的顶层作用域, 适配器对象, Object.class)` 取宿主包装; `JavaSubclassObject.getJavaMember` / `hasJavaMember` 在适配器视图没有这个名字时才问它, 所以 JS 类成员与 Java 成员的路径多的只有一次 `value != NOT_FOUND` 比较.
+- 函数用 `LambdaFunction` 包一层 (`typeof` 是 function, `x.attr === x.attr`, 按名字缓存在 `HostExtensions`), 调用时重新从包装取函数, 以包装为 this: 宿主的 `NativeJavaMethod` 沿 this 的原型链找能 unwrap 成声明类的对象, `attr` 声明在 `ViewPrototype`, 只有 `NativeView` 的原型上才有, 以实例为 this 会报 `msg.nonjava.method`. 结果 (与非函数的值) 经 `Wrapper.unwrap` 判断是 Java 对象本身时换成实例.
+- 三个不在卡片里的决定:
+  - Rhino 自己的包装 (`NativeJavaObject`, `NativeJavaList`, `NativeJavaMap`) 不算扩展. 否则 `class M extends java.util.AbstractMap` 每次查找失败都要调 `containsKey`, 进而调类里覆盖的 `entrySet`, 其中再读一个不存在的名字就无限递归; `AbstractList` 子类多出 `length` 也不是这个功能的目的.
+  - Java 构造器运行期间没有扩展 (`constructed` 标记, `JavaClassInheritance.construct` 在 `newInstance` 之后置位): 宿主的 `NativeView` 构造时要读 View 属性, 不应在半成品上做; 这段时间里读不存在的名字也不会触发包装的创建.
+  - `__proto__` 进 `Adapter.hides`: 宿主的 `NativeJavaObjectWithPrototype` 对它回答 `has` 为 true 并返回自己的原型, 不挡的话 `x['__proto__']` 得到宿主包装的原型.
+- P5 的缺陷 (修于 2228069c9): `super.m()` 以 super 对象为 start 查找, 中间隔着 JS 类时 start 是那个类的 prototype, `JavaPrototype.get` 只认 `start == this`, 所以 `class B extends A` (`A extends java.lang.Thread`) 里 `super.getName()` 报不是函数. 去掉这个条件; 副作用是 `X.prototype.getName` 从 undefined 变成延迟函数, 以非实例为 this 调用时报不是函数. 这是 P5 `subclassOfSubclass` 没覆盖到的 (它在 A 里定义了 `run`); 反向探测 (把条件加回去) `superThroughAJavaScriptClass` 失败.
+- 为什么不做 1.1 计时: 查找热路径 (`getJavaMember` 命中 Java 成员, JS 类成员命中在 `JavaPrototype` 之前) 只多一次比较; 新路径只在名字既不是 JS 成员也不是 Java 成员时走, 这类查找的结果本来就是 undefined. `NativeView` 上的未命中要走 `findViewByStringId` 遍历子树, 与普通 View 包装相同.
+- 没有新钩子行, 合计仍 698. 已知限制见 `HOOKS.md` 第 8 节 "P7.2a".
+
+- 全量对照 (P7.2a 之后): 五模块 149402 例 (149387 + 新增 15), 27 失败 21 跳过, 失败清单与 P6.19 逐条相同 (`full-tests-p7a.log`, `current-failures-p7a.txt`), 含 spotlessCheck 53 分 15 秒.
+
+提交: fork 2228069c9 / bfb23340b / 22c1f7251 (P7.2a), 6b5d40dae (changelog); 宿主 0b9474064 (jar 与表面基线), a19e56f01 (用例与脚本), f5f76f7ba (zh-Hans changelog), 都只在本地; 文档站, 离线文档与两个插件见 P7.4.
+
+### P7.1 jar 与换入
+
+- 构建 (fork 22c1f7251, 其后只有 changelog 与文档提交, jar 内容不变, 全程只有这一个 jar):
+
+```bash
+JAVA_HOME=E:/.java/jdk-25.0.4.1 ./gradlew.bat :rhino-all:shadowJar --console=plain --max-workers=4 -Dorg.gradle.jvmargs="--enable-native-access=ALL-UNNAMED -Daj6.session=rhino-p7"
+```
+
+- sha256 `220cbae076af13ab900aba7761cfcf2aca3d9d5967bf827d9394b604c456adb8`, 3393229 字节; 旧 jar `21749f1a543bc33cb1896a776022beff2a840e2be2e245a171cc2707a28b6775`. 条目 1381 -> 1476: 新增 95, 删除 0, 变化 290 (类 280), 差异清单 `jar-1-diff.txt` (由 `jar_diff.py` 生成).
+- 换入: 先在隔离克隆 (`git clone --depth 20 file:///D:/idea-projects/AutoJs6`, 跨盘 `--local` 报 Improper link) 替换 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 验证, 通过后复制到共享工作区, 再用 `--no-daemon` 验证一次.
+- 先验: 克隆里 `:app:testAppDebugUnitTest` 6014 例 0 失败 27 跳过, `:app:assembleAppDebug` `:app:assembleInrtDebug` `:app:assembleAppDebugAndroidTest` 都成功.
+- 唯一的单测差异是 `ScriptSurfaceGateTest`: `Function.prototype.caller` 受限访问器 (P2 加的, 只对 class 代码里的函数报错; 普通函数读 `f.caller` 新旧 jar 都是 undefined). 宿主基线 `tools/augment/baseline/surface-jvm.txt` 加这一行, 随 jar 同一提交. 这一行不在卡片列的 "jar, 新用例, 脚本, changelog" 之内, 但不改则宿主单测红.
+- 坑: 克隆里写了 `kotlin.compiler.execution.strategy=in-process`, Kotlin 就跑在 Gradle 进程里, 宿主的 `kotlin.daemon.jvmargs=-Xmx8g` 不起作用, 堆是 `org.gradle.jvmargs` 的 4g. 两个变体并行编译, GC 抖动 225 分钟后 OOM. 改成 14g 并用 `--max-workers=1` 先编 Kotlin: 四个变体 11 分钟, 其余任务 3 分钟.
+
+### P7.2 设备用例
+
+- 宿主新文件: `app/src/androidTest/java/org/autojs/autojs/engine/RhinoClassSyntaxDeviceTest.kt`, `app/src/androidTest/assets/rhino/class-syntax-cases.js` 与 `class-syntax-ui-case.js` (同一份用例在 app 与 inrt 里跑), `tools/rhino/build_class_fixtures.py` 与 `tools/rhino/fixtures/`. `tools/rhino/device_rhino_check.py` 的 DEFAULT_CLASSES 加了新类, 多一个 `--inrt`.
+- 用法:
+
+```bash
+py -3.12 -I -u tools/rhino/device_rhino_check.py -s SERIAL --install --class org.autojs.autojs.engine.RhinoClassSyntaxDeviceTest
+```
+
+```bash
+py -3.12 -I -u tools/rhino/device_rhino_check.py -s SERIAL --inrt
+```
+
+- 结果见附录 B: 三台都是 app 14 / 14, inrt 13 / 13, 默认 Rhino 集 30 通过 1 跳过 (跳过的是 `ImagesResizeRhinoInstrumentationTest#scalarWidthAndHeightAreCatchableAndArraySizeStillWorksInSameRhinoProcess`, 与本任务无关).
+- ui 用例没有天然 "返回 View 自身" 的宿主扩展: `on` 返回 EventEmitter, 真机上验证 `badge.on(...).on(...)` 的链式, `findViewById` 回到类实例, 以及 `box.label` 按 id 取子视图; 扩展函数 "返回包装自身时映射回实例" 由 JVM 单测 `JavaHostExtensionsTest` 覆盖.
+
+#### 每个签名首次构造的耗时
+
+`firstConstructionCost`: 每轮一个新脚本 (新的顶层作用域), 共 120 轮, 暖机后取最后 30 轮 (记忆: debug 包冷进程约需 100 次脚本暖机). 单位 ms.
+
+| 设备 | 调度组 | 首次构造, 第 1 轮 | 首次构造, 暖机后中位数 | 第二次构造 | 另一签名首次 | 首次 `new JavaAdapter` |
+|---|---|---:|---:|---:|---:|---:|
+| XQ-AT72 (API 31) | PCY fg, `/foreground`, importance 125 | 198.27 | 95.14 | 0.33 | 96.24 | 110.01 |
+| API 35 AVD | PCY fg, `/foreground` | 108.38 | 37.06 | 0.13 | 27.13 | 37.89 |
+| API 24 AVD (legacy dx) | 读不到 PCY 与 cpuset, importance 125 | 92.42 | 52.41 | 0.15 | 49.11 | 51.59 |
+
+class 与 `new JavaAdapter` 的首次开销相同, 第二次构造不再转 dex. 所以文档写 "手机上暖机后约 100 ms", 不再写 "相同量级".
+
+#### Q29 核对表
+
+每行都用 `for...of`, 数组展开, `Array.from`, 数组解构四种方式核对个数与首元素 (`hostCollections`), 三台设备与 inrt 全部通过:
+
+| 类型 | 用例里的来源 | 可迭代的原因 |
+|---|---|---|
+| UiObjectCollection | `UiObjectCollection.of(nodes)` | `AndroidContextFactory.WrapFactory.wrap` 按静态类型桥成 JS 数组 |
+| UiObjectCollection.EMPTY | `UiObjectCollection.Companion.getEMPTY()` | 同上 |
+| NativeArray | `engines.all()`, `colors.toRgb('#102030')` | JS 数组; 模块返回集合时最常见的形态 (静态盘点 96 处) |
+| Java `String[]` | `files.listDir(...)` | NativeJavaArray 经 `Array.prototype` 取 `Symbol.iterator` |
+| Java `int[]` | `java.lang.reflect.Array.newInstance` | 同上 |
+| Java `Object[]` | `List.toArray()` | 同上 |
+| `java.util.List` | `Arrays.asList` | NativeJavaList |
+| kotlin EmptyList | `CollectionsKt.emptyList()` | NativeJavaList |
+| `java.util.Set` | `LinkedHashSet` | Rhino 的 Java Iterable 包装 |
+| `java.util.Map` | `LinkedHashMap` | NativeJavaMap |
+| `MatchingResult.matches` / `.points` | `new MatchingResult(list)` | `java.util.List` |
+| `arguments`, `Set`, `Map`, `String`, `Uint8Array` | JS 内建 | 规范 |
+
+- 反例按预期: `var [a] = {0: 1, length: 1}` 与 `[...{0: 1, length: 1}]` 报 TypeError, `Array.from` 得 1 个元素.
+- 静态盘点: `assets/modules` 只剩 6 个文件, 没有数组解构; grep `"length"` 没有类数组的宿主对象; `RhinoUtils.wrap` 传静态类型, UiObjectCollection 都走桥接数组. `org.autojs.autojs.concurrent.ConcurrentArrayList` 不可迭代, 但只是 `StardustClassAliases` 里的兼容别名类, 没有模块把它返回给脚本.
+- 结论: 宿主侧不需要补 `Symbol.iterator`.
+
+#### 打包, 混淆, 加载的类
+
+- inrt: 同一组用例在 inrt 产物里跑, 适配器类经宿主 D8 (API 24 是 legacy dx) 转换, 13 个用例在三台设备上通过.
+- 混淆: 宿主 `isMinifyEnabled = false` (`app/build.gradle.kts`), 不混淆; `app/proguard-rules.pro` 的 `-keep class org.mozilla.javascript.** { *; }` 含 `autojs6` 包, slim jar 的排除项不变, `HostExtensions` 等都在 slim jar 里. 将来开混淆时这条规则够用, 不需要新规则.
+- loadDex / loadJar: `extendsClassFromLoadDex` 与 `extendsClassFromLoadJar` 继承加载的类, 含 protected 成员与 `super.m()`. API 24 / 25 的 `runtime.loadJar` 走 legacy dx 1.7.0, 不接受 52 版本类文件 (`Legacy dx failed (status 1)`), 这是宿主旧 API 的既有限制, 与继承无关; 夹具的类文件版本标成 51, 文档站写明了这一点.
+
+#### 坑
+
+- inrt 模板 (`assets/project` 不存在) 要自己写 `project.json`; 重新打包只能删签名文件, `META-INF/services` 要留 (删了 E4X 的 `XMLLoader` 找不到, 报 `"XML" is not defined`); 要用宿主的 key 签名 (`org.autojs.permission.PLUGIN` 是 signature 级, 否则 `INSTALL_FAILED_DUPLICATE_PERMISSION`).
+- debug 的 inrt 有两个 LAUNCHER (LeakCanary 的那个), `monkey` 会随机启动, 要 `am start -n` 显式启动.
+- `adb logcat` 自己会给参数加引号, `-T` 的时间不能再包一层引号, 否则静默得到空结果.
+- `ui.root` 在宿主里不是布局里 `id="root"` 的那个控件 (已有子视图), 用例和文档示例都改用 `id="holder"`.
+- 宿主默认不把 Java 的 `Double` 转成 JS 数字: `list.get(1)` 字符串化是 `6.0`, 用例写 `Number(...)`.
+
+### P7.3 changelog
+
+- 宿主 zh-Hans: feature 两条 (class 语法, 继承 Java 类), improvement 两条 (解构 / 展开 / Proxy 等的规范行为, P6.19 的 BigInt / DataView 行为变化). dependency 的 Rhino 行不变: 上游快照日期没有变, 本地模块不编造版本号. 其他语言由维护者同步, `generate_markdown.py --check` 在宿主上因此报 `ar/v6.8.0/dependency: expected 48 entries, found 47` (提交前就有), 不是这次的改动.
+- 共享工作区的 `.changelog/lang_zh-Hans.json` 与生成文件里有其他会话的在途改动: 暂存区用 `git apply --cached` 只放自己的补丁 (在克隆里按 HEAD 算出), 工作区用脚本加条目后重新生成, 在途改动保持未提交.
+- fork 10 语 changelog: 6b5d40dae (`2026-10-31` 16 条). 校验要求各语言有相同的反引号片段; 法语与西语带重音.
+
+### P7.4 文档
+
+- 文档站: `api/classSyntax.md` (语法范围, 内建子类化, Java 类继承与限制, 与 JavaAdapter 的关系, 版本要求, Q35 的 set trap), 登记 `sidebar` / `toc` / `progress`, `scriptingJava` 的 JavaAdapter 节加引用, zh-Hans changelog 一条. be067ed (源) + d0b43d9 (生成物); 离线文档插件 8b6871a. 页面上的说法都在 Rhino shell 与设备上核对过, 包括 `Promise` 子类.
+- 文档站 `generator\auto-generate-for-autojs6.bat --verify-offline` 过不了: 插件的 `verifyOfflineDocsStyle` 把 `javaRuntime.html` / `kotlinRuntime.html` 里的 `AutoJsJvmEntry` 判成裸 `AutoJs` 产品名 (两页来自 fee509b, 与本页无关), 这次用不带 `--verify-offline` 的 BAT 同步. 文档站的 `.python/generate_markdown.py` 同样要求 10 语一致, 按近期提交的做法只更新 zh-Hans.
+- TypeScript Engine: README 一句 (Rhino 项目目标 ES2018, `class` 原样输出, 需要 6.8.0), 13924e8. Ace Editor: README 一句, 5a530f8. Rhino 声明里没有 `java`, 所以 TypeScript Engine 这句不提继承 Java 类.
