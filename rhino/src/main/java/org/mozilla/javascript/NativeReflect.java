@@ -229,9 +229,8 @@ final class NativeReflect extends ScriptableObject {
          * 4. Return FromPropertyDescriptor(desc).
          */
         ScriptableObject target = checkTarget(args);
-        var desc =
-                target.getOwnPropertyDescriptor(
-                        cx, ReflectKey.of(args, 1)); // AutoJs6: class syntax
+        Object key = ReflectKey.of(args, 1); // AutoJs6: class syntax
+        var desc = target.getOwnPropertyDescriptor(cx, key); // AutoJs6: class syntax
         return desc == null ? Undefined.instance : desc.toObject(s); // AutoJs6: class syntax
     }
 
