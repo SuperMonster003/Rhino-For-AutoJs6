@@ -32,7 +32,8 @@
 | P6.19 | 完成 (2026-10-31) | ToBigInt 与 `getDefaultValue` 的规范偏差 (附录 C Q46 = A, 通用修复, 与 class 无关): 新文件 `ToBigInt` (规范的 ToBigInt, Number 报 TypeError), 用在 `BigInt.asIntN` / `asUintN`, DataView 的 `setBigInt64` / `setBigUint64` 与 BigInt 类型的 TypedArray; `ScriptableObject.getDefaultValue` 对方法返回的 JS null 直接返回 (OrdinaryToPrimitive, 影响一切 ToPrimitive) |
 | P7.2a | 完成 (2026-10-31) | 继承 Java 类的实例带宿主扩展 (附录 C Q15 = A, fork-only D3): 新文件 `HostExtensions`, 查找顺序 JS 类成员 > Java 成员 > 当前 Context 的 `WrapFactory.wrapAsJavaObject` 包装上的其他名字, 函数以包装为 this 调用, 返回 Java 对象自身时映射回实例; 另修 P5 的缺陷: 隔着 JS 类的 `super.m()` 取不到 Java 方法. 全部在 `autojs6` 包, 没有新钩子行 |
 | P7 | 完成 (2026-11-01) | 宿主集成与真机: jar 换入, 设备用例, changelog, 文档, 都不在 fork 的源码里, 没有新钩子行, 合计仍 698 |
-| P8, P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
+| P8 | 进行中 (2026-11-02) | 上游 5f98a38f2 合并 (P8.3): 对账结果 67 个文件起, 合计 699 (P8.1 修正 1 行标记后) -> 702 (class syntax 652, async 50, `tests/src` 13): `Context` 链重排, `NativeArrayBuffer` 退役 species 4 行与 import, 加 `toIndex` 与共享构造器的钩子, 序列化策略方法在 fork 新文件与 `NativeWith`, `SerializationCoverageTest` 1 行. P8.2 的上游分支不改 fork |
+| P9 | 未开始 | 见 `ROADMAP.md` 第 5 节 |
 
 ## 2. 开关与门控
 
