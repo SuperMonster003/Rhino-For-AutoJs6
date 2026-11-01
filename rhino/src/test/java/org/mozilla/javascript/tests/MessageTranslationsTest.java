@@ -42,6 +42,9 @@ class MessageTranslationsTest {
                     "msg.not.base64",
                     "msg.bad.hex");
 
+    private static final List<String> SHARED_ARRAY_BUFFER_KEYS =
+            List.of("msg.arraybuf.notarraybuf", "msg.arraybuf.notsharedarraybuf");
+
     /** AutoJs6 class syntax and async messages, see docs/autojs6/class-syntax/HOOKS.md. */
     private static final List<String> CLASS_SYNTAX_KEYS =
             List.of(
@@ -140,6 +143,12 @@ class MessageTranslationsTest {
     @MethodSource("languages")
     void classSyntaxMessagesAreTranslated(String language) throws IOException {
         assertTranslated(language, CLASS_SYNTAX_KEYS);
+    }
+
+    @ParameterizedTest
+    @MethodSource("languages")
+    void sharedArrayBufferMessagesAreTranslated(String language) throws IOException {
+        assertTranslated(language, SHARED_ARRAY_BUFFER_KEYS);
     }
 
     private static void assertTranslated(String language, List<String> keys) throws IOException {
