@@ -296,7 +296,8 @@
 
 ### P8 上游 PR 与同步规程 (fork)
 
-- [ ] P8.1 定制清单核对: `docs/autojs6/class-syntax/HOOKS.md` (P1.7 建立, 各阶段更新) 与源码逐条对账 (`rg -n "AutoJs6: (class syntax|async)" rhino/src/main/java` 的数量与文件一致, 新文件清单完整, 唯一性测试齐全); `AGENTS.md` (本地忽略文件, 不入库) 第七节已于 2026-10-24 写好保护与退役规程, 本阶段只按实际落地情况修订其中的测试类名, 模块名与命令, 并把第五节验收项与 HOOKS.md 对齐.
+- [x] P8.1 定制清单核对: `docs/autojs6/class-syntax/HOOKS.md` (P1.7 建立, 各阶段更新) 与源码逐条对账 (`rg -n "AutoJs6: (class syntax|async)" rhino/src/main/java` 的数量与文件一致, 新文件清单完整, 唯一性测试齐全); `AGENTS.md` (本地忽略文件, 不入库) 第七节已于 2026-10-24 写好保护与退役规程, 本阶段只按实际落地情况修订其中的测试类名, 模块名与命令, 并把第五节验收项与 HOOKS.md 对齐.
+  - 完成 (2026-11-01, 子会话 rhino-p8, 35128a051): 钩子 67 个文件, 合计 699 行 (class syntax 649, async 50; 修正前 698), 与 HOOKS.md 第 3 节逐文件一致, `HooksRegistryTest` 等门禁 44 例通过. 差异 1 处: `NativeReflect.getOwnPropertyDescriptor` 折行后有 2 行不带标记, 已改短语句. 第 4 节 59 个新文件齐全, 唯一性测试是 `TokenUniquenessTest` + `ClassChainUniquenessTest`. AGENTS.md 第三, 四, 五节与 7.1 / 7.2 / 7.5 按实际修订, 副本与 sha256 在 `build/upstream-sync/class-p8-20261101/`. 细节见 `NOTES.md` 的 P8.1.
 - [ ] P8.2 在 `E:/.cache` 导出干净的 `upstream/master` 克隆, 以 patch 方式移植通用部分 (不含 `autojs6/` 包与 docs/autojs6), 拆成 "语法 + AST", "降糖 + 运行时 + 后端", "字段与私有名", "内建精确化", "test262 解锁" 五个提交, 在该克隆上跑上游全量测试与 spotless; 开 draft PR 到 mozilla/rhino 引用 #835 (PR 文案由维护者确认后由维护者推送 / 开 PR, 子会话只准备好分支与文案); 评审反馈作为待决事项登记到看板.
 - [ ] P8.3 同步规程演练: 按 `AGENTS.md` 全流程对最新 upstream/master 做一次真实同步 (若有新提交), 验证 P6.5 的结论与新规程步骤.
 - 附记 (附录 C Q10 = A): P2 修好的生成器 `yield` 解析缺口 (未加括号的 `yield` 出现在逗号表达式 / 条件表达式分支 / 对象展开 / 计算属性名里) 不依赖 class, 作为通用修复单独提上游 PR.

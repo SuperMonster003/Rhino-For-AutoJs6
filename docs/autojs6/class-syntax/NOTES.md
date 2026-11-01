@@ -822,3 +822,13 @@ class 与 `new JavaAdapter` 的首次开销相同, 第二次构造不再转 dex.
 - 文档站: `api/classSyntax.md` (语法范围, 内建子类化, Java 类继承与限制, 与 JavaAdapter 的关系, 版本要求, Q35 的 set trap), 登记 `sidebar` / `toc` / `progress`, `scriptingJava` 的 JavaAdapter 节加引用, zh-Hans changelog 一条. be067ed (源) + d0b43d9 (生成物); 离线文档插件 8b6871a. 页面上的说法都在 Rhino shell 与设备上核对过, 包括 `Promise` 子类.
 - 文档站 `generator\auto-generate-for-autojs6.bat --verify-offline` 过不了: 插件的 `verifyOfflineDocsStyle` 把 `javaRuntime.html` / `kotlinRuntime.html` 里的 `AutoJsJvmEntry` 判成裸 `AutoJs` 产品名 (两页来自 fee509b, 与本页无关), 这次用不带 `--verify-offline` 的 BAT 同步. 文档站的 `.python/generate_markdown.py` 同样要求 10 语一致, 按近期提交的做法只更新 zh-Hans.
 - TypeScript Engine: README 一句 (Rhino 项目目标 ES2018, `class` 原样输出, 需要 6.8.0), 13924e8. Ace Editor: README 一句, 5a530f8. Rhino 声明里没有 `java`, 所以 TypeScript Engine 这句不提继承 Java 类.
+
+## P8 上游 PR 与同步规程 (2026-11-01, 子会话 rhino-p8)
+
+证据目录 `build/upstream-sync/class-p8-20261101/`, 预检 `build/upstream-sync/preflight-20261101.txt`.
+
+### P8.1 定制清单核对
+
+- 对账: `rg -n "AutoJs6: (class syntax|async)" rhino/src/main/java tests/src` 67 个文件, 修正前 698 行 (class syntax 648, async 50), 与 HOOKS.md 第 3 节逐文件一致; 第 3 节 67 个文件全部出现, 基线 24f8242cb 之后改过的上游文件没有不带钩子的. 第 4 节 59 个新文件全部存在, 基线之后新增的主源码文件全部登记, 新增的测试类全部在第 5 节. `HooksRegistryTest` 2 / `TokenUniquenessTest` 4 / `ClassChainUniquenessTest` 2 / `MessageTranslationsTest` 36 全部通过.
+- 差异 1 处: `NativeReflect.getOwnPropertyDescriptor` 的钩子被 spotless 折成 3 行, 只有末行带标记, 不符合 "每一行新增代码都带标记". 改成两条短语句 (35128a051), 合计 699 (class syntax 649). `HooksRegistryTest` 查不出这一类 (它只比行数), 这一项靠 `git diff -U0` 脚本; 修正后基线之后新增的非空行 695 行全部带标记 (另 4 行在 `ClassRuntime`, 是新文件里 fork-only 钩子的标记, 登记在第 3 节).
+- AGENTS.md (不入库) 修订: 第三节第 8 条与 7.1 的编号链改成实际的四条链与两个测试类 (没有 `IcodeUniquenessTest`, V2 没有编号注册表); 第四节写明 P7.1 的 JDK 25 命令; 第五节写明门禁四类, 五个模块与 P7 基线; 7.2 第 2 / 4-8 项写实际的命令, 模块, 全部测试类名 (async 的 3 个标 "P9 后补"), V2 现状 (`ClassInstructionsTest` 的指令类用例, test262 V2 模式 0 例), 重生成命令 (JDK 17, `RHINO_TEST_JAVA_VERSION=17`, `=all`); 7.5 第 6 项写明设备用例现状. 副本 `AGENTS.md` 与 `AGENTS.md.sha256` 在证据目录.
