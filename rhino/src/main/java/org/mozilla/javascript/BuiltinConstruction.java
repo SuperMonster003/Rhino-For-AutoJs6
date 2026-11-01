@@ -292,6 +292,19 @@ public final class BuiltinConstruction {
     }
 
     /**
+     * ToIndex without the limit of this implementation, which a constructor checks after it reads
+     * the prototype of new.target.
+     */
+    public static double toIndex(Object[] args, int position) {
+        Object value = position < args.length ? args[position] : Undefined.instance;
+        double index = Undefined.isUndefined(value) ? 0 : ScriptRuntime.toInteger(value);
+        if (index < 0 || index > NativeNumber.MAX_SAFE_INTEGER) {
+            throw ScriptRuntime.rangeErrorById("msg.out.of.range.index", index);
+        }
+        return index;
+    }
+
+    /**
      * DataView ( buffer, byteOffset, byteLength ) steps 11 to 14, after the prototype of new.target
      * is read: the buffer may have been detached or resized. {@code length} is -1 without a
      * byteLength argument.

@@ -121,7 +121,6 @@ public class Test262SuiteTest {
                             // AutoJs6: class syntax (P6.1): class features run; T10 exclusions
                             "decorators", // AutoJs6: class syntax
                             "nonextensible-applies-to-private", // AutoJs6: class syntax
-                            "SharedArrayBuffer",
                             "tail-call-optimization",
                             "Temporal",
                             "upsert",

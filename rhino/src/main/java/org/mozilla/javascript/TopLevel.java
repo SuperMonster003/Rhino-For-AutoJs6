@@ -72,6 +72,7 @@ public class TopLevel extends ScopeObject {
         WeakSet,
         Proxy,
         ArrayBuffer,
+        SharedArrayBuffer,
         Int8Array,
         Uint8Array,
         Uint8ClampedArray,
@@ -125,12 +126,14 @@ public class TopLevel extends ScopeObject {
 
     @Serial
     private void writeObject(ObjectOutputStream out) throws IOException {
+        Context.checkSerializationEnabled();
         out.defaultWriteObject();
         out.writeObject(globalThis);
     }
 
     @Serial
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        Context.checkDeserializationEnabled();
         in.defaultReadObject();
         globalThis = (ScriptableObject) in.readObject();
     }

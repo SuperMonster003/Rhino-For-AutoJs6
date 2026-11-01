@@ -12,6 +12,11 @@ import static org.mozilla.javascript.ScriptableObject.READONLY;
 import static org.mozilla.javascript.Symbol.Kind.REGULAR;
 import static org.mozilla.javascript.UniqueTag.NOT_FOUND;
 
+import java.io.IOException;
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -287,6 +292,8 @@ public class ScriptRuntime {
                         && cx.hasFeature(Context.FEATURE_V8_EXTENSIONS))
                 || (cx.getLanguageVersion() >= Context.VERSION_ES6)) {
             new LazilyLoadedCtor<>(scope, "ArrayBuffer", sealed, true, NativeArrayBuffer::init);
+            new LazilyLoadedCtor<>(
+                    scope, "SharedArrayBuffer", sealed, true, NativeArrayBuffer::initShared);
             new LazilyLoadedCtor<>(scope, "Int8Array", sealed, true, NativeInt8Array::init);
             new LazilyLoadedCtor<>(scope, "Uint8Array", sealed, true, NativeUint8Array::init);
             new LazilyLoadedCtor<>(
@@ -2786,6 +2793,24 @@ public class ScriptRuntime {
 
         Scriptable iterator;
         boolean done; // AutoJs6: class syntax (for-of: no IteratorClose once set)
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
+        }
     }
 
     public static Scriptable toIterator(Context cx, Scriptable obj, boolean keyOnly) {
@@ -6556,6 +6581,24 @@ public class ScriptRuntime {
          */
         public Object call(Context cx, VarScope scope, Object[] args) {
             return getCallable().call(cx, scope, thisObj, args);
+        }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
         }
     }
 

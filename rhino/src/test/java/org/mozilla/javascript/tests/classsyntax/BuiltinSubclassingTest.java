@@ -271,6 +271,13 @@ class BuiltinSubclassingTest {
                 [b.byteLength, b instanceof B, b.slice(0, 2) instanceof B, B[Symbol.species] === B].join();
                 """);
         assertWithAllModes_ES6(
+                "8,true,true,true",
+                """
+                class B extends SharedArrayBuffer {}
+                var b = new B(8);
+                [b.byteLength, b instanceof B, b.slice(0, 2) instanceof B, B[Symbol.species] === B].join();
+                """);
+        assertWithAllModes_ES6(
                 "7,true,3",
                 """
                 class V extends DataView {}

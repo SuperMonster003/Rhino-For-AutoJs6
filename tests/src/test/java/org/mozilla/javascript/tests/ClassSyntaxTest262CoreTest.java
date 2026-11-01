@@ -79,7 +79,6 @@ class ClassSyntaxTest262CoreTest {
                     "source-phase-imports",
                     "Atomics",
                     "IsHTMLDDA",
-                    "SharedArrayBuffer",
                     "tail-call-optimization",
                     "Temporal",
                     "upsert",

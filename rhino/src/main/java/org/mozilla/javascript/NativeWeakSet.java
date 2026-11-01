@@ -134,6 +134,7 @@ public class NativeWeakSet extends ScriptableObject {
     }
 
     private void readObject(ObjectInputStream stream) throws IOException, ClassNotFoundException {
+        Context.checkDeserializationEnabled();
         stream.defaultReadObject();
         map = new WeakHashMap<>();
     }
