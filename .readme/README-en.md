@@ -80,6 +80,7 @@ This history records maintenance changes to this fork by date. Official Rhino re
 * `Fix` In compiled mode, a `yield` or `await` nested in another one runs where it is written in generators and `async` functions: `yield [g(1), yield 'x']` calls `g(1)` first, and `await (u ? await g() : 2)` no longer calls `g()` when `u` is false. `[a, b] = [1, yield 2]` no longer fails with `$0` is not defined
 * `Fix` Function declarations in the `case` clauses of a `switch` are initialized on entering the `switch`, so a function declared in a `case` that does not run can be called; in sloppy mode an outer variable of the same name is assigned only when the declaration is reached
 * `Fix` In debug mode, scripts with `for-of`, destructuring, `class ... extends` or `for await` no longer fail to compile because their line numbers could not be read
+* `Fix` Function declarations in a block work like those of a `switch`: they are initialized on entering the block, and in sloppy mode an outer variable of the same name is assigned only when the declaration is reached, and not at all when a destructuring `catch` parameter binds that name. Labelled function declarations (`l: function f() {}`) are initialized early too
 
 ### 2026-10-31
 

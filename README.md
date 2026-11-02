@@ -80,6 +80,7 @@ AutoJs6 从 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 * `修复` 编译模式下生成器与 `async` 函数里嵌套的 `yield` / `await` 按书写的位置求值: `yield [g(1), yield 'x']` 先调用 `g(1)`, `await (u ? await g() : 2)` 在 `u` 为假时不再调用 `g()`; `[a, b] = [1, yield 2]` 不再报 `$0` 未定义
 * `修复` `switch` 各 `case` 里的函数声明在进入 `switch` 时就初始化, 没走到的 `case` 里声明的函数也能调用; 非严格模式下外层的同名变量要走到声明时才赋值
 * `修复` 调试模式下, 含 `for-of`, 解构, `class ... extends`, `for await` 的脚本不再因为读取行号失败而无法编译
+* `修复` 块内的函数声明与 `switch` 里的一样: 进入块时就初始化, 非严格模式下外层的同名变量要走到声明时才赋值, 解构的 `catch` 参数绑定了同一个名字时不赋值. 带标签的函数声明 (`l: function f() {}`) 也提前初始化
 
 ### 2026-10-31
 

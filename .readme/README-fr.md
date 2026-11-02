@@ -80,6 +80,7 @@ Cet historique consigne par date les changements de maintenance de cette variant
 * `Correction` En mode compilé, un `yield` ou `await` imbriqué dans un autre s'exécute là où il est écrit dans les générateurs et les fonctions `async`: `yield [g(1), yield 'x']` appelle d'abord `g(1)`, et `await (u ? await g() : 2)` n'appelle plus `g()` quand `u` est faux. `[a, b] = [1, yield 2]` n'échoue plus avec `$0` non défini
 * `Correction` Les déclarations de fonction dans les `case` d'un `switch` sont initialisées à l'entrée du `switch`: une fonction déclarée dans un `case` non exécuté peut être appelée; en mode non strict, une variable externe du même nom n'est affectée qu'en atteignant la déclaration
 * `Correction` En mode débogage, les scripts avec `for-of`, déstructuration, `class ... extends` ou `for await` ne refusent plus de compiler faute de pouvoir lire leurs numéros de ligne
+* `Correction` Les déclarations de fonction dans un bloc fonctionnent comme celles d'un `switch`: elles sont initialisées à l'entrée du bloc, et en mode non strict une variable externe du même nom n'est affectée qu'en atteignant la déclaration, et pas du tout si un paramètre `catch` déstructuré lie ce nom. Les déclarations de fonction étiquetées (`l: function f() {}`) sont elles aussi initialisées à l'avance
 
 ### 2026-10-31
 

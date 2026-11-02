@@ -57,6 +57,10 @@
         {
           "category": "fix",
           "text": "En mode débogage, les scripts avec `for-of`, déstructuration, `class ... extends` ou `for await` ne refusent plus de compiler faute de pouvoir lire leurs numéros de ligne"
+        },
+        {
+          "category": "fix",
+          "text": "Les déclarations de fonction dans un bloc fonctionnent comme celles d'un `switch`: elles sont initialisées à l'entrée du bloc, et en mode non strict une variable externe du même nom n'est affectée qu'en atteignant la déclaration, et pas du tout si un paramètre `catch` déstructuré lie ce nom. Les déclarations de fonction étiquetées (`l: function f() {}`) sont elles aussi initialisées à l'avance"
         }
       ]
     },

@@ -57,6 +57,10 @@
         {
           "category": "fix",
           "text": "In debug mode, scripts with `for-of`, destructuring, `class ... extends` or `for await` no longer fail to compile because their line numbers could not be read"
+        },
+        {
+          "category": "fix",
+          "text": "Function declarations in a block work like those of a `switch`: they are initialized on entering the block, and in sloppy mode an outer variable of the same name is assigned only when the declaration is reached, and not at all when a destructuring `catch` parameter binds that name. Labelled function declarations (`l: function f() {}`) are initialized early too"
         }
       ]
     },

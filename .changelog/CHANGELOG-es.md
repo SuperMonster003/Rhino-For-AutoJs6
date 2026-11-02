@@ -33,6 +33,7 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 * `Corrección` En modo compilado, un `yield` o `await` anidado en otro se ejecuta donde está escrito en generadores y funciones `async`: `yield [g(1), yield 'x']` llama primero a `g(1)`, y `await (u ? await g() : 2)` ya no llama a `g()` cuando `u` es falso. `[a, b] = [1, yield 2]` ya no falla con `$0` no definido
 * `Corrección` Las declaraciones de función en los `case` de un `switch` se inicializan al entrar en el `switch`, por lo que se puede llamar a una función declarada en un `case` que no se ejecuta; en modo no estricto, una variable externa del mismo nombre solo se asigna al llegar a la declaración
 * `Corrección` En modo de depuración, los scripts con `for-of`, desestructuración, `class ... extends` o `for await` ya no dejan de compilar por no poder leer sus números de línea
+* `Corrección` Las declaraciones de función en un bloque funcionan como las de un `switch`: se inicializan al entrar en el bloque, y en modo no estricto una variable externa del mismo nombre solo se asigna al llegar a la declaración, y no se asigna si un parámetro de `catch` con desestructuración enlaza ese nombre. Las declaraciones de función con etiqueta (`l: function f() {}`) también se inicializan por adelantado
 
 # 2026-10-31
 

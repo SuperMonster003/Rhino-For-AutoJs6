@@ -57,6 +57,10 @@
         {
           "category": "fix",
           "text": "En modo de depuración, los scripts con `for-of`, desestructuración, `class ... extends` o `for await` ya no dejan de compilar por no poder leer sus números de línea"
+        },
+        {
+          "category": "fix",
+          "text": "Las declaraciones de función en un bloque funcionan como las de un `switch`: se inicializan al entrar en el bloque, y en modo no estricto una variable externa del mismo nombre solo se asigna al llegar a la declaración, y no se asigna si un parámetro de `catch` con desestructuración enlaza ese nombre. Las declaraciones de función con etiqueta (`l: function f() {}`) también se inicializan por adelantado"
         }
       ]
     },
