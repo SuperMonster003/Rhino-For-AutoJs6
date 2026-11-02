@@ -1029,3 +1029,46 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 - 微基准: 钩子只在编译期多一个判断, 普通调用生成的代码不变, 但改动碰到 `transformFunctionCall`, `generateCallFunAndThis`, `generateLookupResult`, 按卡片要求交替 5 轮复测, 数字在附录 A. `x?.y` 本身比原来多一次 local 存取与清除, 基准没有覆盖这一项.
 - 用例里 `log.join` 把 undefined 变成空串, 断言写 `String(x)` 再 push; `o?.[u?.a].b` 确实该 TypeError (下标是 undefined, 属性读取得 undefined 再取 `.b`).
 - `yield o?.m(yield 'k')` 踩到 Q58, 用例写成 `var r = ...; yield r`.
+
+## Q58 / Q59 / Q60 (2026-11-02, 子会话 rhino-q58)
+
+提交: fc6801b77 (回填 Q57-Q60), 45068b14a (Q58), 1ab1b04a1 (Q59), 91aa261a5 (Q60), c5ce6d199 (10 语 changelog). 验收数字见 ROADMAP 附录 A "基线 Q58 - Q60" 与附录 C 各行的 "结果". 证据 `build/upstream-sync/class-q58-20261102/`.
+
+### Q58 的改法
+
+- 原来 yield 点先存操作数栈再求操作数. 存栈的数组一个生成器只有一份 (`stackState`), 操作数里的内层 yield 在栈不空时会覆盖外层存好的内容. 上游的绕法是把内层 yield 提到外层之前求值 (`findNestedYield`, 值存进名字 `__nested__yield__N`), 代价是顺序错, 短路失效.
+- 现在 `generateYieldPoint` 先调 `ClassBodyCodegen.yieldValue` 求操作数 (含 `yield*` 的包装), 再存栈. 栈不空时操作数暂存一个局部变量, 存完栈读回并释放, 之后才 `generateSaveLocals`, 所以它不进生成器状态. "存栈, 返回, 恢复" 在一个 yield 点内连续完成, 不再嵌套, 一份 `stackState` 够用. `top` 是栈顶减去操作数.
+- 操作数求值时 JVM 栈不再是空的, 这与 `f(1, yield 2)` 的情况相同, 类型由 `StackSpills` 负责.
+- 提前求值掩盖了一个上游缺陷, 这笔一起修: `visitEnterScope` 在初值表达式之后才给 `variableObjectLocal` 加引用, 初值里的 yield 不保存新作用域, 恢复后回到外层, `[a, b] = [1, yield 2]` 报 `$0 is not defined` (修前这个写法就错, 但 `yield ([a, b] = [1, yield 2])` 因内层被提前而碰巧正确, 不修会倒退). 引用改到存进局部变量之后立刻加.
+- 用例 `NestedYieldTest` 25 个, 临时换回修前的 `BodyCodegen` 跑一次, 19 个失败 (`q58-before-fix.log`), 修后 0 失败.
+
+### Q59 的改法
+
+- 只处理 ES6 起的 `FUNCTION_BLOCK_SCOPED`. `transformSwitch` 的每条语句经 `BindingLowering.inCase`: 块级函数进列表, `closeSwitch` 之后 `enterCases` 把它们放到 SWITCH 节点之前. 它们在 switch 的块里, 而 switch 表达式在块外的 `outer` 里先求值, 所以表达式看不到它们, case 的 selector 看得到.
+- 原位置留什么: 没有 Annex B 提升的 (严格模式, 生成器, async, let 冲突) 留 EMPTY; 有提升的留 `EXPR_VOID(CLASS[BLOCK_FUNCTION])`.
+- 入口不能复制到 var: 两个后端按 `isAnnexBHoisted` 决定 `CLOSURE_STMT` / `initFunction` 是否顺带复制, `inCase` 读完就 `setAnnexBHoisted(false)`, 入口只初始化块级绑定.
+- `ClassRuntime.hoistBlockFunction` 读块级绑定写到函数作用域, 走法与 `OptRuntime.initFunction` 的 hoist 相同. 读的是当时的值, 所以 `case 1: f = 1; case 2: function f() {}` 的外层 `f` 是 1 (B.3.3.1).
+- 三个后端: 解释 `CLASS_BLOCK_FUNCTION` (string op, 无操作数字节), 编译 `ClassBodyCodegen.generate` 的 case, V2 `ClassBlockFunction` 加 `ClassInstructionsTest` 一行 (附录 C Q11 的做法).
+- ES6 之前的 `FUNCTION_EXPRESSION_STATEMENT` 不动, 走到才初始化, 有用例守着.
+- 普通块没有修: `transformBlock` 把声明提到块首, Annex B 的复制也跟着提前, `{ f = 1; function f() {} }` 之后外层 `f` 是函数, 规范是 1. 不在本卡范围, 登记 Q61.
+
+### Q60 的改法
+
+- `bytecodeSpan` 加 8 个 case, 改包可见给门禁用. 同一个缺陷也让 `rhino.printICode` 打开时的转储对这些 icode 抛异常 (`dumpICode` 核对长度), 一并好了.
+- 门禁在 `ClassChainUniquenessTest`: `operandsOfForkIcodesAreInTheirSpan` 读 `ClassInterpreter.java` / `SpreadCall.java` 的源码, 取每个 fork icode 发射语句之后紧跟的 `gen.addUint8` 个数, 与 `bytecodeSpan` 对照; `forkIcodesDumpWithTheirSpan` 编译一段含全部 fork icode 的脚本走一遍转储, 转储逐条核对长度, 脚本没覆盖新 icode 时报错. 临时去掉 `CLASS_TDZ` 的登记, 两个都失败 (`q60-mutation.log`).
+- 没有用录制发射的办法: `generateNestedFunctions` 直接 `new CodeGenerator`, 子类只能看到顶层脚本, 而 `await`, `super()` 都在嵌套函数里, 要在上游文件再加接缝. 源码扫描的代价是操作数必须紧跟在 icode 之后写, 现有发射都是这样.
+- `DebuggerLineNumbersTest` 覆盖探针的 15 类写法, 另有一例在调试器下真正运行 (含 class, for-of, `for await`). `DimLineNumbersTest` 在 `rhino-tools`, 那个测试模块有 module-info, 类与方法要 public, `Dim` 要先 `setGuiCallback`, 否则 `registerTopScript` 空指针.
+
+### 给宿主卡 (P9.5 - P9.7) 的注意点
+
+- jar 从本卡最终提交重建, Q61 若选修就要等那张卡.
+- 设备上补调试模式用例: 宿主 `rhino/debug/Dim.java` 的 `onEngineCreate` 在引擎创建时 `setGeneratingDebug(true)` 并设 `Debugger`, 条件是 `Debugger.attach(execution)` 记下的执行 id 与引擎相同 (`shouldAttachDebugger`). 入口是 `DebuggerSingleton.get()`, 编辑器走 `EditorView` 的调试菜单到 `DebugToolbarFragment` 的 `mDebugger.attach(execution)`. 插桩用例照这条路径运行一个含 for-of, `class B extends A`, `for await` 的脚本即可, 修前在编译完成的 `handleCompilationDone` -> `Dim.SourceInfo` -> `getLineNumbers` 抛 `IllegalStateException`. 宿主调试模式走解释模式 (`setOptimizationLevel(-1)`).
+- 行为变化, 进宿主 changelog: `switch` 里没走到的 case 中的函数在进入时就有值 (原来 undefined), 外层 var 仍要走到声明才赋值, 与之前相同; 嵌套 yield / await 的两项只影响编译模式, 宿主走解释模式, 设备上行为不变.
+
+### 跑验收时的几点
+
+- 全量 18 分 56 秒; 重生成 16 分 27 秒, `BUILD SUCCESSFUL`, properties 没有变化, 用 `propdiff.py` 核对过 (解锁 0, 新增失败 0, 标签变化 0). 编译模式单独登记的失败只有 `completion-values-fn-finally-abrupt.js`, 所以 Q58 没有解锁.
+- 卡片提到的 `ES6GeneratorTest` 仓库里没有这个类, 生成器用例是 `tests` 模块的 `Generator*` 与 `es6/GeneratorFunctionTest`, 都在全量里.
+- `assertWithAllModes_ES6` 连类型一起比较, 数字与布尔的结果要包 `String(...)`.
+- 门禁脚本 `ALL_FORK_ICODES` 里几个不直观的触发条件: `CLASS_PARAM_SCOPE` 要默认值用到函数体声明的名字, `CLASS_INIT_FIELDS` 在基类构造器, `CLASS_ITER_REST` 只在参数解构, `CLASS_THIS` 在派生类构造器, `SPREAD_CALL_ON_SUPER` 是 `super.m(...x)`.
+- 微基准没有跑, 理由在附录 A "基线 Q58 - Q60".

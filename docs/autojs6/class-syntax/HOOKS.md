@@ -536,6 +536,9 @@ P6.6 / P6.7 起依赖 (通用修复; 上游实现实参展开或逻辑赋值短�
 
 - P9: `JSFunction.resumeGenerator` 与 `JSCode.resume` (三个后端的恢复入口, `AsyncFunctionDriver` 与 `NativeAsyncGenerator` 都经它); 生成器的 `GeneratorState` 与 `OptRuntime.createNativeGenerator`, `Interpreter.generatorCreate` / `captureFrameForGenerator` (创建点被 `AsyncRuntime.start` 取代); `NativeGenerator.GeneratorClosedException`, `NativeIterator.StopIteration` 与 `GENERATOR_SEND` / `GENERATOR_THROW` / `GENERATOR_CLOSE` 的语义; `Token.YIELD` 的 IR 与 BodyCodegen 的生成器局部变量保存 (`generateSaveLocals`); `NativePromise` 的状态与反应列表, `Context.enqueueMicrotask` / `processMicrotasks`, `UnhandledRejectionTracker`; `ScriptRuntime.doTopCall`.
 - Q55: `Parser.memberExprTail` 的尾部循环与 `isOptionalChain` 的含义 (`?.` 之后的 `.x` / `(...)` 都带它), `Parser.isNotValidSimpleAssignmentTarget` 看 QUESTION_DOT 类型; `IRFactory.transformParenExpr` 剥掉括号但不改节点; `CodeGenerator.generateCallFunAndThis` 与 `BodyCodegen.generateLookupResult` 留下 `ScriptRuntime.LookupResult` (解释器按 1 个栈槽放, 记账按 2 个), 非可调用要到 `getCallable` 才报错 (实参之后); `generateSaveLocals` 保存占用中的 local (所以 local 在 head 求值之后才分配, 之前可能 yield). 上游测试 `rhino/src/test/.../InterpreterBytecodeDumpTest.optionalChainingBranchIsPrinted` 的期望是 Q55 之后的 icode (带注释, 不在第 3 节的 rg 范围), 上游改这个用例时按新 icode 合并.
+- Q58: 一个生成器只有一份 `stackState` (`generateGetGeneratorStackState`), yield 点把 "存栈, 返回, 恢复" 连续做完才安全; `generateSaveLocals` 只存 `locals[]` 有引用的局部变量, 作用域局部变量的引用要在作用域进入时就加.
+- Q59: 后端只在生成 `Token.FUNCTION` 时读 `FunctionNode.isAnnexBHoisted` (`CodeGenerator` 的 `CLOSURE_STMT` 操作数, `BodyCodegen.visitFunction`), `BindingLowering.inCase` 在 IR 阶段关掉它; `doAnnexBHoisting` 在 Parser 结束时已跑完. SWITCH 节点只有 `addSwitchCase` / `closeSwitch` 要求是块的第一个子节点, `enterCases` 在它们之后.
+- Q60: `InstructionClass.dumpICode` 与 `bytecodeSpan` 对同一 icode 的长度要一致 (`Interpreter.dumpICode` 逐条核对), 带操作数的 icode 两边都要写.
 - P9 给宿主的接口形态: `AsyncTracker.of(cx)` + `pendingCount()` + `firstPending()` (`sourceName()`, `lineNumber()`), `cx.getUnhandledPromiseTracker()` 的 `process` / `enumerate` (每 Context 一张表), `NativePromise.prototype` 可扩展 (`await` / `wait` 由宿主 Kotlin 侧挂接). ROADMAP T7 / T12 写了时序约定.
 
 ## 7. 编号链
@@ -693,7 +696,7 @@ P9 (async, 记录与理由见 NOTES.md "P9 fork"):
 - ~~可选链只短路当前一节~~: Q55 修复 (`OptionalChain`). 上游留下的 `Node.OPTIONAL_CHAINING` IR 分支, `*_OPTIONAL` icode 与 `*Optional` 运行时方法不再被 IR 用到, 为减少合并冲突保留. E4X 的 `..` 与 `.()` 不属于规范的可选链, 是链的终点: `u?.b..c` 对 undefined 报 TypeError.
 - ~~编译模式的嵌套 yield / await 被提前无条件求值~~: Q58 修复, yield 点先求操作数再保存操作数栈. 同一处修掉 `[a, b] = [1, yield 2]` 在编译模式的 `$0 is not defined` (`visitEnterScope` 太晚登记作用域局部变量).
 - ~~`switch` 里没走到的 case 中的函数声明, 进入 switch 时没有初始化~~: Q59 修复. ES6 之前的版本 (`FUNCTION_EXPRESSION_STATEMENT`) 保持原样, 走到才初始化.
-- 普通块的函数声明把 Annex B 的 var 复制也提到块首 (上游 `IRFactory.transformBlock`, 附录 C Q61): `{ f = 1; function f() {} }` 之后外层 `f` 是函数, 规范是 1. `switch` 已按规范.
+- 普通块的函数声明把 Annex B 的 var 复制也提到块首 (上游 `IRFactory.transformBlock`, 附录 C Q61): `{ f = 1; function f() {} }` 之后外层 `f` 是函数, 规范是 1. `switch` 已按规范. 带标签的函数声明 (`l: function f() {}`) 在块与 `switch` 里都不提前初始化 (同一条待决).
 - ~~`getLineNumbers` 不认识 fork 带操作数字节的 8 个 icode~~: Q60 修复. `ClassChainUniquenessTest` 两个门禁: `operandsOfForkIcodesAreInTheirSpan` 从 `ClassInterpreter` / `SpreadCall` 的源码读出每个 fork icode 之后的 `gen.addUint8`, 与 `bytecodeSpan` 对照 (所以 fork 的操作数要紧跟在 icode 之后写, 新的发射文件加进 `FORK_EMITTERS`); `forkIcodesDumpWithTheirSpan` 编译一段含全部 fork icode 的脚本走一遍 icode 转储, 转储逐条核对长度, 新 icode 没被脚本覆盖时报错.
 - 严格函数拿到的是包装后的 this (上游, `language/function-code` 的已知失败), 只有 `%AsyncIteratorPrototype%[@@asyncIterator]` 经 call / apply 保留原始值 (`AsyncRuntime.returnsThis`).
 - `yield*` 的驱动器层 await 不计入 `AsyncTracker`. Java 错误 (`StackOverflowError` 等) 不转 rejection.
