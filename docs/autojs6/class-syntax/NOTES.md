@@ -967,4 +967,13 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 
 ### 进度
 
-- 2026-11-02: 实现在工作区, test262 async 范围从 2854 失败迭代到剩余清单阶段 (下一节记录结果).
+- 2026-11-02 实现: test262 async 相关 7278 个文件 (两模式) 的失败 2854 -> 1140 -> 686 -> 589 -> 544 -> 510 -> 465, 其中范围内 (ROADMAP 1.4) 清零, 剩下的是 dynamic-import, ShadowRealm, Keyed 提案与 P9 之前就失败的普通函数用例.
+- 2026-11-02 验收: 数字见 ROADMAP P9.4. 提交: 7532077bf (实现, 测试, HOOKS), 5e200bd4e (10 语 changelog), f8156b5c3 (properties), b753ea90b (上游用例改严格模式, 基准).
+
+### 跑验收时的几点
+
+- 重生成 properties 时 `built-ins/AsyncIteratorPrototype/Symbol.asyncDispose` 9 个文件报 FAILED, `BUILD FAILED`: 这是更新模式的正常结果, 这些文件原来在 `~` 目录下, 属于 T10, 新 properties 已按目录汇总登记.
+- `~` 目录: 重生成不跑整目录排除的目录, 先去掉 11 个 async 目录的 `~` 才有结果 (列表见 ROADMAP 附录 E, `AGENTS.md` 7.2 第 6 项已改).
+- 暂存脚本跑全库 (不是 `Test262SuiteTest`) 会卡在没有超时保护的慢用例上, 回归判据用官方的重生成加 `propdiff.py`.
+- `new Function` 的源码改为规范形式之后, 动态函数体里的行号比原来多 2, 与 V8 相同; 全量回归没有用例依赖旧行号.
+- 宽松模式的 `for ({ eval = 0 } of [{}])` 是合法写法, 严格模式才是 SyntaxError; 上游 `ObjIdInitSimpleStrictForOf` 没开严格模式, 见 ROADMAP P9.4.

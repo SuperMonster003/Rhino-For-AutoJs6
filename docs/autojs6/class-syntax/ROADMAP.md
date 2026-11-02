@@ -324,13 +324,23 @@
 拆卡 (维护者 2026-11-02 14:3x): fork 卡 rhino-p9a 做 P9.0-P9.4 与附录 C Q53, 之后另发宿主卡做 P9.5-P9.7 (jar 重建换入, 设备用例, 文案); fork 10 语 changelog 由 fork 卡顺带完成.
 
 - [x] P9.0 进入前拍板附录 C Q5 (promise.js 保留项), Q6 (未捕获 rejection), Q7 (脚本结束判定); 结果回填 T7 / T12. 证据: Q5 = A / Q6 = A / Q7 = B (2026-11-02 11:5x), T7 / T12 已回填 fork 侧接口.
-- [ ] P9.1 fork: async 函数 / 方法 / 箭头函数与 await 的降糖与驱动器 (T7), 返回 NativePromise, 微任务排队, `await` 的 thenable 解析 (对宿主 Promise 与 Java Future 的包装行为登记), 栈与错误位置 (await 之后的异常栈), 三个后端; V2 同 P2.3 (附录 C Q2 = C), async 降糖依赖的生成器状态机在 V2 上缺失时一并补齐.
-- [ ] P9.2 fork: for await (同步迭代器经 AsyncFromSyncIterator, 异步迭代器协议, 解构变体), Symbol.asyncIterator, AsyncIteratorPrototype.
-- [ ] P9.3 fork: async 生成器 (请求队列, yield / yield* 对异步迭代器的委托, return / throw, AsyncGeneratorFunction / AsyncGeneratorPrototype), class 与对象字面量中的 async 方法 / async 生成器方法, 以及 P1.5 留下的 "尚不支持" 错误的移除.
-- [ ] P9.4 fork 测试: `AsyncFunctionTest`, `AsyncGeneratorTest`, `ForAwaitTest`; test262 async 范围 3991 例 100% (T10 排除登记); 全量回归无新增失败; 微基准 (await 一个已落定 Promise 的往返开销) 登记, class 方法调用对照复测仍须满足 10% 硬门槛 (附录 C Q8 = B).
+- [x] P9.1 fork: async 函数 / 方法 / 箭头函数与 await 的降糖与驱动器 (T7), 返回 NativePromise, 微任务排队, `await` 的 thenable 解析 (对宿主 Promise 与 Java Future 的包装行为登记), 栈与错误位置 (await 之后的异常栈), 三个后端; V2 同 P2.3 (附录 C Q2 = C), async 降糖依赖的生成器状态机在 V2 上缺失时一并补齐.
+  - 完成 (2026-11-02, 子会话 rhino-p9a, 提交 7532077bf): 设计见 NOTES.md "P9 fork". `await x` 的 IR 是 `YIELD(CLASS[AWAIT](x))`, `AsyncFunctionDriver` 在 `NativePromise.react` 的微任务里恢复生成器体, 解释 / 编译两个后端共用运行时; V2 只有指令类 `ClassAwait` (附录 C Q11). 宿主 Promise 按 thenable 走, Java Future 没有 `then`, await 得到对象本身; await 之后的异常位置与栈有用例 (`AsyncFunctionTest.stackAndPositionOfAnErrorAfterAnAwait`). 新待决 Q54 (按推荐先行), Q55, Q56 (按推荐先行).
+- [x] P9.2 fork: for await (同步迭代器经 AsyncFromSyncIterator, 异步迭代器协议, 解构变体), Symbol.asyncIterator, AsyncIteratorPrototype.
+  - 完成 (2026-11-02, 提交 7532077bf): `ForAwait` 的步骤表三个后端共用, AsyncIteratorClose 走 `BindingLowering.closing`, 值被 reject 时 `AsyncFromSyncIterator` 关闭同步迭代器. 用例 `ForAwaitTest` 16 例.
+- [x] P9.3 fork: async 生成器 (请求队列, yield / yield* 对异步迭代器的委托, return / throw, AsyncGeneratorFunction / AsyncGeneratorPrototype), class 与对象字面量中的 async 方法 / async 生成器方法, 以及 P1.5 留下的 "尚不支持" 错误的移除.
+  - 完成 (2026-11-02, 提交 7532077bf): `NativeAsyncGenerator` 按 ES2024 的请求队列, `yield*` 的委托状态机在 Java 里; `msg.async.not.supported` 从 10 个 bundle 删除, `AsyncLowering.check` 改为 `prepare`. 用例 `AsyncGeneratorTest` 15 例.
+- [x] P9.4 fork 测试: `AsyncFunctionTest`, `AsyncGeneratorTest`, `ForAwaitTest`; test262 async 范围 3991 例 100% (T10 排除登记); 全量回归无新增失败; 微基准 (await 一个已落定 Promise 的往返开销) 登记, class 方法调用对照复测仍须满足 10% 硬门槛 (附录 C Q8 = B).
+  - 完成 (2026-11-02, 子会话 rhino-p9a, 提交 7532077bf + f8156b5c3 + b753ea90b + 本条勾选提交; fork changelog 5e200bd4e):
+  - 自带测试: `AsyncFunctionTest` 27, `AsyncGeneratorTest` 15, `ForAwaitTest` 16; `classsyntax.*` 等 HOOKS.md "运行" 行的 33 个类 494 例 0 失败.
+  - test262 async 范围 (`AsyncTest262Test`, tests, 新): 解释与编译模式各运行 5371, 通过 5371, 跳过 19 (T10: explicit-resource-management 11, module 8). 运行数比 3991 多, 因为按 `flags: [async]` 与特性标签选用例时含了 class 目录里全部 async 用例 (1.4 的 1299 只算方法目录, 私有 async 1354 与字段 async 56 记在 class 的 4016 / 673 里). class 两目录 (`ClassSyntaxTest262CoreTest`) 8387 / 8387, 只跳 T10; `KNOWN_FAILURES` 与 `LATER_PHASES` 删除. 附录 E 留给 P9 的用例清零.
+  - properties 由工具重生成 (JDK 17, 17 分 11 秒, f8156b5c3): 解锁 6300, 新增失败 0, 标签变化 37 (async 标签换成 strict / non-strict 登记或所在目录汇总), 失败登记 19547 -> 13247. `propdiff.py` 输出在证据目录.
+  - 全量 (JDK 21 五模块, `--rerun-tasks`, 18 分 55 秒): 174974 例 28 失败 21 跳过; 对基线 150348 / 27 / 21 按名字对照, 多出的只有 `DefaultParametersTest.ObjIdInitSimpleStrictForOf`: 名字写 Strict 但脚本没开严格模式, 上游靠 for 头部 cover grammar 的缺口才报错, 宽松模式下这段是合法写法; 改成严格模式, 断言不变 (b753ea90b, 单跑通过), 宽松形态进 `ForAwaitTest`. 其余 27 项与基线逐条同名, 新增失败 0. 新增 24626 例主要是解锁的 test262 与两个新的 async 测试类.
+  - 微基准 (附录 A, `ClassBenchmark`, `.python/jmh_alternate.py` 交替 5 轮, 负载中位数 25 - 66%): class 方法调用对 function + prototype 编译 -5.0% (中位数 30.94 对 32.56, 每轮比值 -3.6%), 解释 +7.6% (376.31 对 349.76, 每轮比值 +4.9%), 过 10% 硬门槛 (Q8 = B). await 一个已落定 Promise 的往返: 编译 94 ns, 解释 217 ns; 同样次数的 `then` 链 931 ns, 1165 ns.
+  - 门禁: `HooksRegistryTest` (921 行, class syntax 653, async 268, `tests/src` 26), `TokenUniquenessTest`, `ClassChainUniquenessTest` (加 `CLASS_AWAIT`, `CLASS_FOR_AWAIT`), `MessageTranslationsTest`, `spotlessCheck` (全部模块), `git diff --check`, `generate_markdown.py --check` 通过. 证据 `build/upstream-sync/class-p9-20261102/` (约 9 MB: properties 前后, propdiff, 全量与重生成日志, 失败清单, 微基准原始输出, `jmh-p9.jar`).
 - [ ] P9.5 宿主 (T12): promise.js 定制点清单与对应实现 (NativePromise.prototype 的宿主扩展 `await` / `wait`, Q5 结论), Loopers 逐宏任务 `processMicrotasks` 与空转判定, 全局 Promise 换回 NativePromise 并删除 promise.js, 未捕获 rejection 的宿主处理 (Q6), 脚本结束判定 (Q7); 宿主 promise 相关单测与 `tools/augment/device_promise_check.py` 回归; Augment 路线图 P4.2 条目回写为 "由 rhino-class P9 完成".
 - [ ] P9.6 宿主设备用例 `RhinoAsyncDeviceTest`: await 计时器 / 宿主 API Promise 的时序, 与 continuation.await 的互操作 (D15), 线程模块中的 async 函数, 脚本结束与退出码, 未捕获 rejection 的控制台输出; 三台设备同 P7.2.
-- [ ] P9.7 jar 重建与宿主换入 (同 P7.1), 宿主 changelog zh-Hans (feature: async/await; improvement: Promise 统一; 行为变化提示), fork 10 语 changelog, 文档站 "async/await 与 continuation" 章节, 插件 README 补 async.
+- [ ] P9.7 (fork changelog 已由 P9 fork 卡完成: 5e200bd4e, `2026-11-02` 一组 7 条) jar 重建与宿主换入 (同 P7.1), 宿主 changelog zh-Hans (feature: async/await; improvement: Promise 统一; 行为变化提示), fork 10 语 changelog, 文档站 "async/await 与 continuation" 章节, 插件 README 补 async.
 - [x] P9.8 取消 (2026-11-02, D6 改定, 不向上游提交 PR). 原文: 上游 PR 补一批 (async/await 通用部分), 方式同 P8.2.
 - 证据: 提交 hash, 通过数, 设备结果, 文档位置.
 
@@ -342,6 +352,7 @@
 - 2026-10-24 同步记录 (jar 前后 sha256, 测试日志, 失败对照, 临时 AVD 配方): `build/upstream-sync/const-sync-20261024/` (git 忽略目录).
 - test262 范围统计见 1.4; `test262.properties` 中 class 两目录当前为 `~` 整目录排除 (4367 + 4059 全失败), async 相关目录亦为整目录排除 (async-arrow-function 42/60 失败). (P6.1 起 class 两目录逐文件登记, 失败登记 27349 -> 20413 个文件; P6.6 / P6.7 后 20291 个.)
 - 冲突面 (P6.5 干跑, 2026-10-25, HEAD 3d454cdd0 对 `upstream/master` 155aaaf47, 上游新增 5 个提交): 冲突文件 1 个 (`tests/testsrc/test262.properties`), 冲突 2 处 10 行, 涉及钩子行 0 (HOOKS.md 第 3 节 49 个文件里上游改了 3 个, 都自动合并, 合并后标记行仍为 460); 审计 A 2 / B 1 (#2477 NativePromise) / C 0. 已 `git merge --abort`. 记录 `build/upstream-sync/class-p6-20261025/p6.5-dryrun.txt`.
+- 微基准 P9.4 (2026-11-02, 7532077bf 之后的构建, `jmh-p9.jar`, JDK 21, 交替 5 轮, 每项每轮一个 fork, us/op 每次调用 1000 次操作): class 方法调用 编译 30.94 / function 32.56, 解释 376.31 / 349.76; `awaitSettled` 编译 93.53, 解释 217.49, 每次 127.4 / 320.4 B; `thenSettled` 编译 930.78, 解释 1165.05, 每次 3020.6 / 3308.9 B.
 - 微基准 (P2.5 填写; P6.4 / P9.4 复测): `benchmarks` 模块 `ClassBenchmark` + `testsrc/benchmarks/micro/class-benchmarks.js`, JMH avgt, 每次调用 1000 次操作, 单位 us/op, class 对 function + prototype 写法 (2026-10-25, JDK 21, 本机):
   - 方法调用: 解释 301.5 ± 25.0 对 306.0 ± 11.1 (-1.5%), 编译 28.60 ± 2.32 对 28.21 ± 1.08 (+1.4%); 10% 硬门槛通过 (附录 C Q8 = B).
   - super 方法调用 (`super.sum()` 对 `PointF.prototype.sum.call(this)`): 解释 490.5 ± 53.2 对 607.4 ± 99.7 (-19%), 编译 55.45 ± 3.40 对 74.08 ± 6.65 (-25%).
@@ -512,7 +523,15 @@ P2 登记的 4 例 P4 已知失败 (subclass-WeakRef 两例, `subclass/builtin-o
 `BuiltinSubclassingTest262Test` (P4 起, 执行 `subclass-builtins`, `subclass/builtin-objects` 与 `built-ins` 下含 `newTarget` 的文件, 附录 C Q9):
 
 - 跳过规则同 `ClassSyntaxTest262CoreTest` (`UNSUPPORTED`, P9.4 起 `LATER_PHASES` 删除; 下面的数字是盘点时的): 盘点时跳过 SharedArrayBuffer 22 例 (其中 `subclass-builtins/subclass-SharedArrayBuffer.js` 两例), explicit-resource-management 13, Temporal 9, iterator-helpers 1 (T10), async-iteration 4, async-functions 1 (P9) | P4
+- P9.4 (2026-11-02): 跳过规则里的 P9 全部解除, `BuiltinSubclassingTest262Test` 只看 T10.
 - `KNOWN_FAILURES`: 已清零 (P9.4). 原有的 `built-ins/AsyncFunction/instance-construct-throws.js` 已通过, 列表删除.
+
+P9.4 (2026-11-02, properties 由工具重生成, 证据 `build/upstream-sync/class-p9-20261102/propdiff/`):
+
+- 11 个 async 目录不再整目录排除: `built-ins/{AsyncFromSyncIteratorPrototype,AsyncFunction,AsyncGeneratorFunction,AsyncGeneratorPrototype,AsyncIteratorPrototype}`, `language/expressions/{async-function,async-generator,await}`, `language/statements/{async-function,async-generator,for-await-of}`. 上游同步时这些目录行首的 `~` 同样要去掉 (`AGENTS.md` 7.2 第 6 项). `~built-ins/AsyncDisposableStack`, `~language/statements/await-using` 属于 T10, 保留.
+- 上表 "P9 2704 个" 全部解锁, class 两目录只剩 T10 39 个. 全库解锁 6300 个文件 (class 两目录 2704, `language/statements` 1696, `language/expressions` 1155, `built-ins/Promise` 358, `language/eval-code` 96 等), 新增失败 0.
+- async 范围的 T10 排除 19 个 (`AsyncTest262Test` 跳过): explicit-resource-management 11 (含 `built-ins/AsyncIteratorPrototype/Symbol.asyncDispose` 9 个), `flags: [module]` 8. 附录 E 里留给 P9 的用例清零.
+- 范围之外带 async 字样而未通过的, 不算 3991 例, 也不是 T10: `dynamic-import` (Rhino 不支持 `import`), `ShadowRealm`, `Promise.allKeyed` / `allSettledKeyed` (未实现的提案), `language/statements/switch/scope-lex-async-{function,generator}.js` 2 例 (附录 C Q56), `language/expressions/optional-chaining/optional-chain-async-optional-chain-square-brackets.js` 1 例 (附录 C Q55).
 
 ## 附录 F 工具用法
 

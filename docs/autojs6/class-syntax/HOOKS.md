@@ -415,7 +415,7 @@
 | `org.mozilla.javascript.tests.classsyntax.ClassSyntaxTest` | rhino | ES2015 class 语义, 每条规则一组, 解释 / 编译两模式 | P2 |
 | `org.mozilla.javascript.interpreterv2.ClassInstructionsTest` | rhino | V2 class 指令的栈变化与调试串 (附录 C Q11); P3 加 `ClassPrivateName` / `ClassInitFields` / `ClassStaticInit` 与无函数的 `ClassElement` | P2 / P3 |
 | `org.mozilla.javascript.ClassChainUniquenessTest` | rhino | `Icode` 链与 `Node` 属性 id 的唯一性 (第 7 节) | P2 / P3 |
-| `org.mozilla.javascript.tests.ClassSyntaxTest262CoreTest` | tests | test262 class 两目录 (P3 起只排除 async 与 T10 特性) 解释 / 编译两模式执行, 按核心 / 字段 / 私有名分组计数 (ROADMAP 1.4), 已知失败按阶段登记 (附录 E) | P2 / P3 |
+| `org.mozilla.javascript.tests.ClassSyntaxTest262CoreTest` | tests | test262 class 两目录 (P9 起只排除 T10 特性) 解释 / 编译两模式执行, 按核心 / 字段 / 私有名分组计数 (ROADMAP 1.4), 已知失败按阶段登记 (附录 E) | P2 / P3 |
 | `org.mozilla.javascript.tests.classsyntax.ClassFieldsTest` | rhino | 公共字段与 static block 的语义 (初始化时机, 作用域, 计算键顺序, [[Define]], 命名, static block 的顺序与限制, eval), 解释 / 编译两模式 | P3 |
 | `org.mozilla.javascript.tests.classsyntax.PrivateNamesTest` | rhino | 私有字段 / 方法 / 访问器 / 静态私有成员, 每次类求值的唯一性, 品牌检查与重复安装的 TypeError, 反射与 Proxy 不可见, freeze 之后仍可写, 嵌套作用域, 运算符, 直接 eval, Java 对象, 解释 / 编译两模式 | P3 |
 | `org.mozilla.javascript.tests.classsyntax.BuiltinSubclassingTest` | rhino | 附录 D 的每个构造器至少一个子类用例 (instanceof, 原型方法, species, 自定义成员, 覆盖的 `set` / `add` / `exec`), Proxy / 绑定函数 / 另一 realm 的函数作 new.target, 宿主 LambdaConstructor 被继承, 解释 / 编译两模式 | P4 |
