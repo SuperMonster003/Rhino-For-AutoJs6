@@ -1439,6 +1439,14 @@ public class Context implements Closeable {
                 continuation, ScriptableObject.getVarScope(scope), functionResult);
     }
 
+    /** AutoJs6: async. As resumeContinuation, but the suspended call throws {@code error}. */
+    public Object resumeContinuationWithError( // AutoJs6: async
+            Object continuation, VarScope scope, Object error) // AutoJs6: async
+            throws ContinuationPending { // AutoJs6: async
+        return Interpreter.restartContinuationWithError( // AutoJs6: async
+                (NativeContinuation) continuation, this, scope, error); // AutoJs6: async
+    } // AutoJs6: async
+
     /**
      * Check whether a string is ready to be compiled.
      *

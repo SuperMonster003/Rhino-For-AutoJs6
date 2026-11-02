@@ -526,6 +526,21 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         return interpretLoop(cx, null, cjump);
     }
 
+    // AutoJs6: async. Context.resumeContinuationWithError
+    static Object restartContinuationWithError( // AutoJs6: async
+            NativeContinuation c, Context cx, VarScope scope, Object error) { // AutoJs6: async
+        if (!ScriptRuntime.hasTopCall(cx)) { // AutoJs6: async
+            return ContinuationError.topCall(c, cx, scope, error); // AutoJs6: async
+        } // AutoJs6: async
+        if (c.getImplementation() == null) { // AutoJs6: async
+            throw ContinuationError.detached(error); // AutoJs6: async
+        } // AutoJs6: async
+        var cjump = new ContinuationJump<CallFrame, InterpreterData<?>>(c, null); // AutoJs6: async
+        cjump.result = error; // AutoJs6: async
+        cjump.throwResult = true; // AutoJs6: async
+        return interpretLoop(cx, null, cjump); // AutoJs6: async
+    } // AutoJs6: async
+
     // arbitrary number to add to instructionCount when calling
     // other functions
     private static final int INVOCATION_COST = 100;
@@ -878,6 +893,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
                                         cx, throwable, frame, indexReg, instructionCounting);
                         throwable = frame.throwable;
                         frame.throwable = null;
+                        if (throwable != null) break Withoutexceptions; // AutoJs6: async
                     } else {
                         if (generatorState == null && frame.frozen) Kit.codeBug();
                     }
@@ -4362,6 +4378,9 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             // continuation, so clone capturedFrame and
             // emulate return that function with the suplied result
             frame = (CallFrame) cjump.capturedFrame.cloneFrozen();
+            if (cjump.throwResult) { // AutoJs6: async
+                throwable = ContinuationError.thrown(cx, frame, cjump.result); // AutoJs6: async
+            } else // AutoJs6: async
             setCallResult(frame, cjump.result, cjump.resultDbl);
             // restart the execution
         }

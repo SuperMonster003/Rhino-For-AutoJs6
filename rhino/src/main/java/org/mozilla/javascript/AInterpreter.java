@@ -29,6 +29,7 @@ public abstract class AInterpreter<T extends ACallFrame<T, U>, U extends ACompil
         T branchFrame;
         Object result;
         double resultDbl;
+        boolean throwResult; // AutoJs6: async
 
         ContinuationJump(NativeContinuation c, T current) {
             @SuppressWarnings("unchecked")
