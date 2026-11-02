@@ -325,6 +325,59 @@ class AsyncFunctionTest {
     }
 
     @Test
+    void anErrorOfTheEngineInAPromiseIsWhatACatchClauseGets() {
+        // Appendix C Q66: the text of the exception became the message of a new error, without a
+        // stack.
+        Utils.runWithAllModes(
+                cx -> {
+                    String log =
+                            AsyncScripts.runLog(
+                                    cx,
+                                    """
+                                    function seen(e) {
+                                      log.push(e.name, e.message, e.lineNumber);
+                                      log.push(e.stack.indexOf('test.js:' + e.lineNumber) >= 0);
+                                    }
+                                    new Promise(function () {
+                                      undefinedName;
+                                    }).catch(seen);
+                                    Promise.resolve().then(function () {
+                                      null.x;
+                                    }).catch(seen);
+                                    Promise.resolve().then(function () {
+                                      java.lang.Integer.parseInt('x');
+                                    }).catch(function (e) {
+                                      log.push(e.name, String(e.message).indexOf('NumberFormat') >= 0);
+                                    });
+                                    """);
+                    assertEquals(
+                            "ReferenceError|\"undefinedName\" is not defined.|6|true"
+                                    + "|TypeError|Cannot read property \"x\" from null|9|true"
+                                    + "|JavaException|true",
+                            log);
+                    return null;
+                });
+    }
+
+    @Test
+    void unhandledRejectionsComeInTheirOrder() {
+        Utils.runWithAllModes(
+                cx -> {
+                    cx.setTrackUnhandledPromiseRejections(true);
+                    AsyncScripts.runLog(
+                            cx, "for (var i = 0; i < 40; i++) Promise.reject('r' + i);");
+                    StringBuilder expected = new StringBuilder();
+                    StringBuilder reported = new StringBuilder();
+                    for (int i = 0; i < 40; i++) {
+                        expected.append('r').append(i).append(' ');
+                    }
+                    cx.getUnhandledPromiseTracker().process(v -> reported.append(v).append(' '));
+                    assertEquals(expected.toString(), reported.toString());
+                    return null;
+                });
+    }
+
+    @Test
     void theTrackerNamesTheFirstPendingAwait() {
         Utils.runWithAllModes(
                 cx -> {

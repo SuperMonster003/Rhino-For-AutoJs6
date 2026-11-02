@@ -744,43 +744,7 @@ public class NativePromise extends ScriptableObject {
     }
 
     private static Object getErrorObject(Context cx, VarScope scope, RhinoException re) {
-        if (re instanceof JavaScriptException) {
-            return ((JavaScriptException) re).getValue();
-        }
-
-        TopLevel.NativeErrors constructor = NativeErrors.Error;
-        if (re instanceof EcmaError) {
-            EcmaError ee = (EcmaError) re;
-            switch (ee.getName()) {
-                case "EvalError":
-                    constructor = NativeErrors.EvalError;
-                    break;
-                case "RangeError":
-                    constructor = NativeErrors.RangeError;
-                    break;
-                case "ReferenceError":
-                    constructor = NativeErrors.ReferenceError;
-                    break;
-                case "SyntaxError":
-                    constructor = NativeErrors.SyntaxError;
-                    break;
-                case "TypeError":
-                    constructor = NativeErrors.TypeError;
-                    break;
-                case "URIError":
-                    constructor = NativeErrors.URIError;
-                    break;
-                case "InternalError":
-                    constructor = NativeErrors.InternalError;
-                    break;
-                case "JavaException":
-                    constructor = NativeErrors.JavaException;
-                    break;
-                default:
-                    break;
-            }
-        }
-        return ScriptRuntime.newNativeError(cx, scope, constructor, new Object[] {re.getMessage()});
+        return AsyncRuntime.thrown(re, scope, cx); // AutoJs6: async
     }
 
     // Output of "CreateResolvingFunctions." Carries with it an "alreadyResolved" state,

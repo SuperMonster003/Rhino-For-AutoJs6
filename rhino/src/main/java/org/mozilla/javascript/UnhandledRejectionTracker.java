@@ -1,7 +1,6 @@
 package org.mozilla.javascript;
 
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -24,8 +23,8 @@ import java.util.function.Consumer;
  */
 public class UnhandledRejectionTracker {
     private boolean enabled = false;
-    private final IdentityHashMap<NativePromise, NativePromise> unhandled = // AutoJs6: async
-            new IdentityHashMap<>(0);
+    private final java.util.Map<NativePromise, NativePromise> unhandled = // AutoJs6: async
+            new java.util.LinkedHashMap<>(0); // AutoJs6: async
 
     /**
      * Iterate through all the rejected promises that have not yet been handled. As each promise is

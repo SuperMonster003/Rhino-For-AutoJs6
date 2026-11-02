@@ -69,6 +69,7 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 ###### 2026/11/03
 
 * `修復` 多執行緒下的 Promise: 其他執行緒敲定 `NativePromise` 時同時新增的反應不再遺失, 嵌入方可覆寫 `Context.forwardTask`, 把敲定交給有事件迴圈的執行緒, 並讓 `await` 回到 async 函式所在的執行緒恢復
+* `修復` Promise 裡的錯誤保持原樣: 執行器或反應因引擎錯誤失敗時, 拒絕原因與 `catch` 捕獲到的錯誤物件相同, 保留訊息, 位置與呼叫堆疊. 未處理的拒絕按發生順序報告
 
 ### 2026-11-02
 
