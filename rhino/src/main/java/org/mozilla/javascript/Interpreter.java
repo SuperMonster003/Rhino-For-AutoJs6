@@ -220,7 +220,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         out.flush();
     }
 
-    private static int bytecodeSpan(int bytecode) {
+    static int bytecodeSpan(int bytecode) { // AutoJs6: class syntax
         switch (bytecode) {
             case Token.THROW:
             case Token.YIELD:
@@ -333,6 +333,16 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             case Icode.CLOSURE_STMT:
                 // hoisted indicator byte
                 return 1 + 1;
+
+            case Icode.CLASS_DEFINE: // AutoJs6: class syntax
+            case Icode.CLASS_ELEMENT: // AutoJs6: class syntax
+            case Icode.CLASS_SUPER_CALL: // AutoJs6: class syntax
+            case Icode.CLASS_TDZ: // AutoJs6: class syntax
+            case Icode.CLASS_ITER_CLOSE: // AutoJs6: class syntax
+            case Icode.CLASS_DESTRUCTURE: // AutoJs6: class syntax
+            case Icode.CLASS_FOR_AWAIT: // AutoJs6: class syntax
+            case Icode.CLASS_LOGICAL_BIND: // AutoJs6: class syntax
+                return 1 + 1; // AutoJs6: class syntax
         }
         if (!Icode.validBytecode(bytecode)) throw Kit.codeBug();
         return 1;
