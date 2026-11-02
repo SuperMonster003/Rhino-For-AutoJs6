@@ -64,6 +64,18 @@ AutoJs6 references the complete JAR at `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.ja
 
 This history records maintenance changes to this fork by date. Official Rhino release history remains in the upstream release notes and is not presented as new releases of this fork.
 
+### 2026-11-02
+
+###### 2026/11/02
+
+* `Feature` `async` / `await`: async functions, methods and arrow functions return a native `Promise`, and the code after `await` continues in a microtask; both interpreted and compiled modes
+* `Feature` `for await` and async generators (`async function*`), `Symbol.asyncIterator`, `yield*` delegating to async and sync iterators, and async methods in classes and object literals
+* `Improvement` Embedding: `AsyncTracker` reports the number of suspended async functions and the first suspension point, and `UnhandledRejectionTracker` is now per `Context`, so script threads no longer see each other's rejections
+* `Fix` Nested `try` in generators in compiled mode: the outer `catch` missed the exception when the inner block rethrew it or had a `yield` in its `finally`
+* `Fix` A strict function body resumed in a generator took the strictness of its caller; it now always runs with its own
+* `Fix` `Promise.all` / `Promise.race` / `Promise.any` read `resolve` before the iterator and reject when that throws; a throwing `then` getter now rejects instead of propagating
+* `Fix` `new Function` builds its source as the specification says: a parameter ending in a `//` comment no longer fails and generators read `function*`; `Function.prototype.toString` works on a callable `Proxy`
+
 ### 2026-10-31
 
 ###### 2026/10/31
@@ -94,12 +106,6 @@ This history records maintenance changes to this fork by date. Official Rhino re
 * `Fix` The discriminant expression of a `switch` statement seeing `let` / `const` declarations of the same name inside the case block
 * `Improvement` Assigning to a `const` under the ES6 language version now throws TypeError in non-strict mode too (previously ignored silently), as the ECMAScript specification requires; language versions 180 and below keep the old behavior
 * `Dependency` Sync upstream mozilla/rhino to commit `34abaca89` (2026/10/23)
-
-### 2026-10-20
-
-###### 2026/10/20
-
-* `Fix` `Object.defineProperty` wrongly throwing TypeError for an enumerable property whose configurable is false when the descriptor omits `enumerable` (such as `{ value: 5 }`)
 
 [Full fork maintenance history](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-en.md)
 

@@ -7,6 +7,39 @@
     "dependency": "Dependencia"
   },
   "$data": {
+    "2026-11-02": {
+      "released_date": "2026/11/02",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`async` / `await`: funciones, métodos y funciones flecha async que devuelven una `Promise` nativa, el código tras `await` continúa en una microtarea; modos interpretado y compilado"
+        },
+        {
+          "category": "feature",
+          "text": "`for await` y generadores async (`async function*`), `Symbol.asyncIterator`, `yield*` que delega en iteradores asíncronos y síncronos, métodos async en clases y literales de objeto"
+        },
+        {
+          "category": "improvement",
+          "text": "Integración: `AsyncTracker` indica cuántas funciones async están suspendidas y el primer punto de suspensión, `UnhandledRejectionTracker` ahora es por `Context`, los hilos de script ya no se mezclan"
+        },
+        {
+          "category": "fix",
+          "text": "`try` anidados en generadores en modo compilado: el `catch` exterior perdía la excepción cuando el bloque interior la relanzaba o tenía un `yield` en su `finally`"
+        },
+        {
+          "category": "fix",
+          "text": "El cuerpo de una función estricta reanudado en un generador tomaba el modo de quien lo llamaba; ahora siempre se ejecuta con el suyo"
+        },
+        {
+          "category": "fix",
+          "text": "`Promise.all` / `Promise.race` / `Promise.any` leen `resolve` antes del iterador y rechazan si la lectura falla; un accesor `then` que lanza una excepción rechaza en lugar de propagarla"
+        },
+        {
+          "category": "fix",
+          "text": "`new Function` construye su fuente según la especificación: un parámetro terminado en un comentario `//` ya no falla y los generadores se escriben `function*`; `Function.prototype.toString` funciona con un `Proxy` invocable"
+        }
+      ]
+    },
     "2026-10-31": {
       "released_date": "2026/10/31",
       "entries": [

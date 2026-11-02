@@ -64,6 +64,18 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 
 ここでは本派生版の保守変更を日付ごとに記録します. Rhino 公式のリリース履歴は上流のリリースノートに保持し, 本派生版の新しいバージョンとして記録しません.
 
+### 2026-11-02
+
+###### 2026/11/02
+
+* `新機能` `async` / `await`: async 関数, メソッド, アロー関数はネイティブの `Promise` を返し, `await` の後のコードはマイクロタスクで再開します. インタープリタとコンパイルの両モードに対応
+* `新機能` `for await` と async ジェネレーター (`async function*`), `Symbol.asyncIterator`, 非同期と同期のイテレーターに委譲する `yield*`, クラスとオブジェクトリテラルの async メソッド
+* `改善` 組み込み向け: `AsyncTracker` で中断中の async 関数の数と最初の中断位置を取得できます. `UnhandledRejectionTracker` は `Context` ごとになり, スクリプトスレッド間で混ざらなくなりました
+* `修正` コンパイルモードのジェネレーター内でネストした `try`: 内側で再スローした場合や内側の `finally` に `yield` がある場合に, 外側の `catch` が例外を受け取れませんでした
+* `修正` ジェネレーターで再開された strict 関数の本体が呼び出し元の strict モードを引き継いでいました. 常に関数自身のモードで実行するようになりました
+* `修正` `Promise.all` / `Promise.race` / `Promise.any` はイテレーターの前に `resolve` を読み取り, 失敗すると拒否します. `then` のゲッターが例外を投げた場合は外へ投げずに拒否します
+* `修正` `new Function` のソースが仕様どおりになりました: `//` コメントで終わる引数でエラーにならず, ジェネレーターは `function*` と書かれます. `Function.prototype.toString` は呼び出し可能な `Proxy` にも使えます
+
 ### 2026-10-31
 
 ###### 2026/10/31
@@ -94,12 +106,6 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 * `修正` `switch` 文の判別式から case ブロック内の同名の `let` / `const` 宣言が見えてしまう問題を修正
 * `改善` ES6 の言語バージョンで `const` に再代入すると, 非 strict モードでも TypeError をスローするよう変更 (以前は黙って無視), ECMAScript 仕様に準拠; 言語バージョン 180 以下は従来の動作を維持
 * `依存関係` 上流の mozilla/rhino をコミット `34abaca89` (2026/10/23) まで同期
-
-### 2026-10-20
-
-###### 2026/10/20
-
-* `修正` configurable が false の列挙可能なプロパティに対し, `enumerable` を省略した記述子 (`{ value: 5 }` など) で `Object.defineProperty` を呼ぶと誤って TypeError をスローする問題を修正
 
 [派生版の全保守履歴](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-ja.md)
 

@@ -17,6 +17,18 @@
 
 [阅读原始 Rhino 官方 README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 该入口固定到提交 `d878324a6f515c09d8ca49005fdd22b944b4df89`, 保留上游原有语言与相对链接的上下文. 这份原始文档仅作留存, 不参与翻译; 本页及其其他语言版本介绍本分支.
 
+# 2026-11-02
+
+###### 2026/11/02
+
+* `新增` `async` / `await`: async 函数, 方法与箭头函数, 返回原生 `Promise`, `await` 之后的代码在微任务里继续; 解释与编译模式均可用
+* `新增` `for await` 与 async 生成器 (`async function*`), `Symbol.asyncIterator`, `yield*` 可委托异步与同步迭代器, class 与对象字面量里都能写 async 方法
+* `优化` 嵌入方接口: `AsyncTracker` 可查询挂起的 async 函数数量与首个挂起位置, `UnhandledRejectionTracker` 改为每个 `Context` 一份, 多个脚本线程不再互相串扰
+* `修复` 编译模式下生成器里嵌套的 `try`: 内层重新抛出或内层 `finally` 里有 `yield` 时, 外层 `catch` 接不到异常
+* `修复` 严格模式函数体在生成器里恢复执行时沿用了调用方的严格性, 现在总是按函数自身的严格性执行
+* `修复` `Promise.all` / `Promise.race` / `Promise.any` 在取迭代器之前先读取 `resolve`, 取值抛错时返回被拒绝的 Promise; `then` 访问器抛错时拒绝而不是向外抛出
+* `修复` `new Function` 生成的源码符合规范: 参数以 `//` 注释结尾时不再报错, 生成器写作 `function*`; `Function.prototype.toString` 可用于可调用的 `Proxy`
+
 # 2026-10-31
 
 ###### 2026/10/31

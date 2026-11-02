@@ -64,6 +64,18 @@ AutoJs6 référence le JAR complet à l'emplacement `libs/org-mozilla-rhino-2_0_
 
 Cet historique consigne par date les changements de maintenance de cette variante. L'historique des versions officielles de Rhino reste dans les notes de version amont et n'est pas présenté comme de nouvelles versions de cette variante.
 
+### 2026-11-02
+
+###### 2026/11/02
+
+* `Fonctionnalité` `async` / `await` : fonctions, méthodes et fonctions fléchées async qui renvoient une `Promise` native, le code après `await` reprend dans une microtâche ; modes interprété et compilé
+* `Fonctionnalité` `for await` et générateurs async (`async function*`), `Symbol.asyncIterator`, `yield*` qui délègue aux itérateurs asynchrones et synchrones, méthodes async dans les classes et les littéraux d'objet
+* `Amélioration` Intégration : `AsyncTracker` donne le nombre de fonctions async suspendues et le premier point de suspension, `UnhandledRejectionTracker` existe désormais par `Context`, les threads de script ne se mélangent plus
+* `Correction` `try` imbriqués dans les générateurs en mode compilé : le `catch` extérieur manquait l'exception quand le bloc intérieur la relançait ou avait un `yield` dans son `finally`
+* `Correction` Le corps d'une fonction stricte repris dans un générateur prenait le mode de son appelant ; il s'exécute maintenant toujours avec le sien
+* `Correction` `Promise.all` / `Promise.race` / `Promise.any` lisent `resolve` avant l'itérateur et rejettent si cette lecture échoue ; un accesseur `then` qui lève une exception rejette au lieu de la propager
+* `Correction` `new Function` construit sa source selon la spécification : un paramètre terminé par un commentaire `//` n'échoue plus et les générateurs s'écrivent `function*` ; `Function.prototype.toString` fonctionne sur un `Proxy` appelable
+
 ### 2026-10-31
 
 ###### 2026/10/31
@@ -94,12 +106,6 @@ Cet historique consigne par date les changements de maintenance de cette variant
 * `Correction` L'expression discriminante d'une instruction `switch` qui voyait les déclarations `let` / `const` de même nom dans le bloc des case
 * `Amélioration` Une affectation à un `const` avec la version de langage ES6 lève désormais une TypeError aussi en mode non strict (auparavant ignorée silencieusement), conformément à la spécification ECMAScript; les versions de langage 180 et inférieures gardent l'ancien comportement
 * `Dépendance` Synchronisation de mozilla/rhino en amont jusqu'au commit `34abaca89` (2026/10/23)
-
-### 2026-10-20
-
-###### 2026/10/20
-
-* `Correction` `Object.defineProperty` qui levait à tort une TypeError sur une propriété énumérable dont configurable vaut false lorsque le descripteur omet `enumerable` (comme `{ value: 5 }`)
 
 [Historique complet de maintenance de la variante](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-fr.md)
 

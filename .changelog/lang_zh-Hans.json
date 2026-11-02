@@ -7,6 +7,39 @@
     "dependency": "依赖"
   },
   "$data": {
+    "2026-11-02": {
+      "released_date": "2026/11/02",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`async` / `await`: async 函数, 方法与箭头函数, 返回原生 `Promise`, `await` 之后的代码在微任务里继续; 解释与编译模式均可用"
+        },
+        {
+          "category": "feature",
+          "text": "`for await` 与 async 生成器 (`async function*`), `Symbol.asyncIterator`, `yield*` 可委托异步与同步迭代器, class 与对象字面量里都能写 async 方法"
+        },
+        {
+          "category": "improvement",
+          "text": "嵌入方接口: `AsyncTracker` 可查询挂起的 async 函数数量与首个挂起位置, `UnhandledRejectionTracker` 改为每个 `Context` 一份, 多个脚本线程不再互相串扰"
+        },
+        {
+          "category": "fix",
+          "text": "编译模式下生成器里嵌套的 `try`: 内层重新抛出或内层 `finally` 里有 `yield` 时, 外层 `catch` 接不到异常"
+        },
+        {
+          "category": "fix",
+          "text": "严格模式函数体在生成器里恢复执行时沿用了调用方的严格性, 现在总是按函数自身的严格性执行"
+        },
+        {
+          "category": "fix",
+          "text": "`Promise.all` / `Promise.race` / `Promise.any` 在取迭代器之前先读取 `resolve`, 取值抛错时返回被拒绝的 Promise; `then` 访问器抛错时拒绝而不是向外抛出"
+        },
+        {
+          "category": "fix",
+          "text": "`new Function` 生成的源码符合规范: 参数以 `//` 注释结尾时不再报错, 生成器写作 `function*`; `Function.prototype.toString` 可用于可调用的 `Proxy`"
+        }
+      ]
+    },
     "2026-10-31": {
       "released_date": "2026/10/31",
       "entries": [

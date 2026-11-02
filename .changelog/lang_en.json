@@ -7,6 +7,39 @@
     "dependency": "Dependency"
   },
   "$data": {
+    "2026-11-02": {
+      "released_date": "2026/11/02",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`async` / `await`: async functions, methods and arrow functions return a native `Promise`, and the code after `await` continues in a microtask; both interpreted and compiled modes"
+        },
+        {
+          "category": "feature",
+          "text": "`for await` and async generators (`async function*`), `Symbol.asyncIterator`, `yield*` delegating to async and sync iterators, and async methods in classes and object literals"
+        },
+        {
+          "category": "improvement",
+          "text": "Embedding: `AsyncTracker` reports the number of suspended async functions and the first suspension point, and `UnhandledRejectionTracker` is now per `Context`, so script threads no longer see each other's rejections"
+        },
+        {
+          "category": "fix",
+          "text": "Nested `try` in generators in compiled mode: the outer `catch` missed the exception when the inner block rethrew it or had a `yield` in its `finally`"
+        },
+        {
+          "category": "fix",
+          "text": "A strict function body resumed in a generator took the strictness of its caller; it now always runs with its own"
+        },
+        {
+          "category": "fix",
+          "text": "`Promise.all` / `Promise.race` / `Promise.any` read `resolve` before the iterator and reject when that throws; a throwing `then` getter now rejects instead of propagating"
+        },
+        {
+          "category": "fix",
+          "text": "`new Function` builds its source as the specification says: a parameter ending in a `//` comment no longer fails and generators read `function*`; `Function.prototype.toString` works on a callable `Proxy`"
+        }
+      ]
+    },
     "2026-10-31": {
       "released_date": "2026/10/31",
       "entries": [

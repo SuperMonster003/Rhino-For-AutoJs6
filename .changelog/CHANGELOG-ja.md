@@ -17,6 +17,18 @@
 
 [Rhino 公式 README の原文を読む](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). このリンクはコミット `d878324a6f515c09d8ca49005fdd22b944b4df89` に固定され, 上流の言語と相対リンクの参照先を保持します. 原文は保存用として翻訳せずに残し, このページと各言語版では本派生版を紹介します.
 
+# 2026-11-02
+
+###### 2026/11/02
+
+* `新機能` `async` / `await`: async 関数, メソッド, アロー関数はネイティブの `Promise` を返し, `await` の後のコードはマイクロタスクで再開します. インタープリタとコンパイルの両モードに対応
+* `新機能` `for await` と async ジェネレーター (`async function*`), `Symbol.asyncIterator`, 非同期と同期のイテレーターに委譲する `yield*`, クラスとオブジェクトリテラルの async メソッド
+* `改善` 組み込み向け: `AsyncTracker` で中断中の async 関数の数と最初の中断位置を取得できます. `UnhandledRejectionTracker` は `Context` ごとになり, スクリプトスレッド間で混ざらなくなりました
+* `修正` コンパイルモードのジェネレーター内でネストした `try`: 内側で再スローした場合や内側の `finally` に `yield` がある場合に, 外側の `catch` が例外を受け取れませんでした
+* `修正` ジェネレーターで再開された strict 関数の本体が呼び出し元の strict モードを引き継いでいました. 常に関数自身のモードで実行するようになりました
+* `修正` `Promise.all` / `Promise.race` / `Promise.any` はイテレーターの前に `resolve` を読み取り, 失敗すると拒否します. `then` のゲッターが例外を投げた場合は外へ投げずに拒否します
+* `修正` `new Function` のソースが仕様どおりになりました: `//` コメントで終わる引数でエラーにならず, ジェネレーターは `function*` と書かれます. `Function.prototype.toString` は呼び出し可能な `Proxy` にも使えます
+
 # 2026-10-31
 
 ###### 2026/10/31

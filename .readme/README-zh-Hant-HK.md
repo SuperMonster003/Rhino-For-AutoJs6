@@ -64,6 +64,18 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 
 此處按日期記錄本分支的維護變更. Rhino 官方發行歷史繼續保留於上游發行說明中, 不作為本分支的新版本記錄.
 
+### 2026-11-02
+
+###### 2026/11/02
+
+* `新增` `async` / `await`: async 函數, 方法與箭頭函數, 返回原生 `Promise`, `await` 之後的代碼在微任務裡繼續; 解釋與編譯模式均可用
+* `新增` `for await` 與 async 生成器 (`async function*`), `Symbol.asyncIterator`, `yield*` 可委託異步與同步疊代器, class 與對象字面量裡都能寫 async 方法
+* `優化` 嵌入方接口: `AsyncTracker` 可查詢掛起的 async 函數數量與首個掛起位置, `UnhandledRejectionTracker` 改為每個 `Context` 一份, 多個腳本線程不再互相干擾
+* `修復` 編譯模式下生成器裡嵌套的 `try`: 內層重新拋出或內層 `finally` 裡有 `yield` 時, 外層 `catch` 接不到異常
+* `修復` 嚴格模式函數體在生成器裡恢復執行時沿用了調用方的嚴格性, 現在總是按函數自身的嚴格性執行
+* `修復` `Promise.all` / `Promise.race` / `Promise.any` 在取疊代器之前先讀取 `resolve`, 取值拋錯時返回被拒絕的 Promise; `then` 訪問器拋錯時拒絕而不是向外拋出
+* `修復` `new Function` 生成的源碼符合規範: 參數以 `//` 註釋結尾時不再報錯, 生成器寫作 `function*`; `Function.prototype.toString` 可用於可調用的 `Proxy`
+
 ### 2026-10-31
 
 ###### 2026/10/31
@@ -94,12 +106,6 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 * `修復` `switch` 語句的判別表達式能看到 case 區塊內同名 `let` / `const` 聲明的問題
 * `優化` ES6 語言版本下為 `const` 重新賦值時, 非嚴格模式同樣拋出 TypeError (此前靜默忽略), 與 ECMAScript 規範一致; 語言版本 180 及以下保持原行為
 * `依賴` 同步上游 mozilla/rhino 至提交 `34abaca89` (2026/10/23)
-
-### 2026-10-20
-
-###### 2026/10/20
-
-* `修復` 對 configurable 為 false 的可枚舉屬性調用 `Object.defineProperty` 時, 若描述符未寫 `enumerable` (如只傳 `{ value: 5 }`) 會誤拋 TypeError 的問題
 
 [完整分支維護記錄](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-zh-Hant-HK.md)
 

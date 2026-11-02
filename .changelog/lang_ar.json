@@ -7,6 +7,39 @@
     "dependency": "التبعيات"
   },
   "$data": {
+    "2026-11-02": {
+      "released_date": "2026/11/02",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`async` / `await`: الدوال والطرق والدوال السهمية من نوع async تعيد `Promise` أصليا, ويتابع الكود بعد `await` في مهمة صغرى, في وضعي التفسير والترجمة"
+        },
+        {
+          "category": "feature",
+          "text": "`for await` ومولدات async (`async function*`) و`Symbol.asyncIterator` و`yield*` الذي يفوض إلى المكررات غير المتزامنة والمتزامنة, وطرق async في الأصناف والكائنات الحرفية"
+        },
+        {
+          "category": "improvement",
+          "text": "التضمين: يعرض `AsyncTracker` عدد دوال async المعلقة وأول موضع تعليق, وأصبح `UnhandledRejectionTracker` خاصا بكل `Context` فلا تختلط خيوط السكربت"
+        },
+        {
+          "category": "fix",
+          "text": "`try` المتداخل في المولدات في وضع الترجمة: كان `catch` الخارجي يفقد الاستثناء عندما يعيد الكتلة الداخلية رميه أو عند وجود `yield` في `finally` الداخلي"
+        },
+        {
+          "category": "fix",
+          "text": "كان جسم الدالة الصارمة عند استئنافه في مولد يأخذ وضع المستدعي, وهو الآن ينفذ دائما بوضعه الخاص"
+        },
+        {
+          "category": "fix",
+          "text": "تقرأ `Promise.all` / `Promise.race` / `Promise.any` قيمة `resolve` قبل المكرر وترفض عند الفشل, ويؤدي `then` الذي يرمي استثناء إلى الرفض بدل تمريره إلى الخارج"
+        },
+        {
+          "category": "fix",
+          "text": "ينشئ `new Function` المصدر وفق المواصفة: لم يعد المعامل المنتهي بتعليق `//` يفشل وتكتب المولدات `function*`, ويعمل `Function.prototype.toString` مع `Proxy` القابل للاستدعاء"
+        }
+      ]
+    },
     "2026-10-31": {
       "released_date": "2026/10/31",
       "entries": [

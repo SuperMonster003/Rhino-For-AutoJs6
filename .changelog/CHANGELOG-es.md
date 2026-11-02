@@ -17,6 +17,18 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 
 [Leer el README oficial original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Este enlace está fijado al commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservando el idioma original y el contexto de los enlaces relativos. El documento original se conserva sin traducir; esta página y sus versiones en otros idiomas describen esta bifurcación.
 
+# 2026-11-02
+
+###### 2026/11/02
+
+* `Nuevo` `async` / `await`: funciones, métodos y funciones flecha async que devuelven una `Promise` nativa, el código tras `await` continúa en una microtarea; modos interpretado y compilado
+* `Nuevo` `for await` y generadores async (`async function*`), `Symbol.asyncIterator`, `yield*` que delega en iteradores asíncronos y síncronos, métodos async en clases y literales de objeto
+* `Mejora` Integración: `AsyncTracker` indica cuántas funciones async están suspendidas y el primer punto de suspensión, `UnhandledRejectionTracker` ahora es por `Context`, los hilos de script ya no se mezclan
+* `Corrección` `try` anidados en generadores en modo compilado: el `catch` exterior perdía la excepción cuando el bloque interior la relanzaba o tenía un `yield` en su `finally`
+* `Corrección` El cuerpo de una función estricta reanudado en un generador tomaba el modo de quien lo llamaba; ahora siempre se ejecuta con el suyo
+* `Corrección` `Promise.all` / `Promise.race` / `Promise.any` leen `resolve` antes del iterador y rechazan si la lectura falla; un accesor `then` que lanza una excepción rechaza en lugar de propagarla
+* `Corrección` `new Function` construye su fuente según la especificación: un parámetro terminado en un comentario `//` ya no falla y los generadores se escriben `function*`; `Function.prototype.toString` funciona con un `Proxy` invocable
+
 # 2026-10-31
 
 ###### 2026/10/31

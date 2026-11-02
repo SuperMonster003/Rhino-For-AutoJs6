@@ -7,6 +7,39 @@
     "dependency": "依賴"
   },
   "$data": {
+    "2026-11-02": {
+      "released_date": "2026/11/02",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`async` / `await`: async 函式, 方法與箭頭函式, 傳回原生 `Promise`, `await` 之後的程式碼在微任務裡繼續; 解譯與編譯模式均可用"
+        },
+        {
+          "category": "feature",
+          "text": "`for await` 與 async 產生器 (`async function*`), `Symbol.asyncIterator`, `yield*` 可委派非同步與同步迭代器, class 與物件字面值裡都能寫 async 方法"
+        },
+        {
+          "category": "improvement",
+          "text": "嵌入方介面: `AsyncTracker` 可查詢暫停的 async 函式數量與首個暫停位置, `UnhandledRejectionTracker` 改為每個 `Context` 一份, 多個指令碼執行緒不再互相干擾"
+        },
+        {
+          "category": "fix",
+          "text": "編譯模式下產生器裡巢狀的 `try`: 內層重新拋出或內層 `finally` 裡有 `yield` 時, 外層 `catch` 接不到例外"
+        },
+        {
+          "category": "fix",
+          "text": "嚴格模式函式主體在產生器裡恢復執行時沿用了呼叫方的嚴格性, 現在總是按函式自身的嚴格性執行"
+        },
+        {
+          "category": "fix",
+          "text": "`Promise.all` / `Promise.race` / `Promise.any` 在取迭代器之前先讀取 `resolve`, 取值拋錯時傳回被拒絕的 Promise; `then` 存取子拋錯時拒絕而不是向外拋出"
+        },
+        {
+          "category": "fix",
+          "text": "`new Function` 產生的原始碼符合規範: 參數以 `//` 註解結尾時不再報錯, 產生器寫作 `function*`; `Function.prototype.toString` 可用於可呼叫的 `Proxy`"
+        }
+      ]
+    },
     "2026-10-31": {
       "released_date": "2026/10/31",
       "entries": [

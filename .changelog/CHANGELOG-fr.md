@@ -17,6 +17,18 @@ Cet historique consigne par date les changements de maintenance de cette variant
 
 [Lire le README officiel original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Ce lien cible le commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservant la langue d'origine et le contexte des liens relatifs. Le document original est conservé sans traduction; cette page et ses autres versions linguistiques présentent cette variante.
 
+# 2026-11-02
+
+###### 2026/11/02
+
+* `Fonctionnalité` `async` / `await` : fonctions, méthodes et fonctions fléchées async qui renvoient une `Promise` native, le code après `await` reprend dans une microtâche ; modes interprété et compilé
+* `Fonctionnalité` `for await` et générateurs async (`async function*`), `Symbol.asyncIterator`, `yield*` qui délègue aux itérateurs asynchrones et synchrones, méthodes async dans les classes et les littéraux d'objet
+* `Amélioration` Intégration : `AsyncTracker` donne le nombre de fonctions async suspendues et le premier point de suspension, `UnhandledRejectionTracker` existe désormais par `Context`, les threads de script ne se mélangent plus
+* `Correction` `try` imbriqués dans les générateurs en mode compilé : le `catch` extérieur manquait l'exception quand le bloc intérieur la relançait ou avait un `yield` dans son `finally`
+* `Correction` Le corps d'une fonction stricte repris dans un générateur prenait le mode de son appelant ; il s'exécute maintenant toujours avec le sien
+* `Correction` `Promise.all` / `Promise.race` / `Promise.any` lisent `resolve` avant l'itérateur et rejettent si cette lecture échoue ; un accesseur `then` qui lève une exception rejette au lieu de la propager
+* `Correction` `new Function` construit sa source selon la spécification : un paramètre terminé par un commentaire `//` n'échoue plus et les générateurs s'écrivent `function*` ; `Function.prototype.toString` fonctionne sur un `Proxy` appelable
+
 # 2026-10-31
 
 ###### 2026/10/31

@@ -7,6 +7,39 @@
     "dependency": "依存関係"
   },
   "$data": {
+    "2026-11-02": {
+      "released_date": "2026/11/02",
+      "entries": [
+        {
+          "category": "feature",
+          "text": "`async` / `await`: async 関数, メソッド, アロー関数はネイティブの `Promise` を返し, `await` の後のコードはマイクロタスクで再開します. インタープリタとコンパイルの両モードに対応"
+        },
+        {
+          "category": "feature",
+          "text": "`for await` と async ジェネレーター (`async function*`), `Symbol.asyncIterator`, 非同期と同期のイテレーターに委譲する `yield*`, クラスとオブジェクトリテラルの async メソッド"
+        },
+        {
+          "category": "improvement",
+          "text": "組み込み向け: `AsyncTracker` で中断中の async 関数の数と最初の中断位置を取得できます. `UnhandledRejectionTracker` は `Context` ごとになり, スクリプトスレッド間で混ざらなくなりました"
+        },
+        {
+          "category": "fix",
+          "text": "コンパイルモードのジェネレーター内でネストした `try`: 内側で再スローした場合や内側の `finally` に `yield` がある場合に, 外側の `catch` が例外を受け取れませんでした"
+        },
+        {
+          "category": "fix",
+          "text": "ジェネレーターで再開された strict 関数の本体が呼び出し元の strict モードを引き継いでいました. 常に関数自身のモードで実行するようになりました"
+        },
+        {
+          "category": "fix",
+          "text": "`Promise.all` / `Promise.race` / `Promise.any` はイテレーターの前に `resolve` を読み取り, 失敗すると拒否します. `then` のゲッターが例外を投げた場合は外へ投げずに拒否します"
+        },
+        {
+          "category": "fix",
+          "text": "`new Function` のソースが仕様どおりになりました: `//` コメントで終わる引数でエラーにならず, ジェネレーターは `function*` と書かれます. `Function.prototype.toString` は呼び出し可能な `Proxy` にも使えます"
+        }
+      ]
+    },
     "2026-10-31": {
       "released_date": "2026/10/31",
       "entries": [

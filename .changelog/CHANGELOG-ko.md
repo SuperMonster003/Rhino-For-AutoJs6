@@ -17,6 +17,18 @@
 
 [Rhino 공식 README 원본 읽기](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 이 링크는 커밋 `d878324a6f515c09d8ca49005fdd22b944b4df89`에 고정되어 원래 언어와 상대 링크의 참조 맥락을 보존합니다. 원본 문서는 번역 없이 보관하며, 이 페이지와 다른 언어 버전에서는 이 포크를 소개합니다.
 
+# 2026-11-02
+
+###### 2026/11/02
+
+* `추가` `async` / `await`: async 함수, 메서드, 화살표 함수가 네이티브 `Promise`를 반환하고 `await` 뒤의 코드는 마이크로태스크에서 이어집니다. 인터프리터와 컴파일 모드 모두 지원
+* `추가` `for await`와 async 제너레이터 (`async function*`), `Symbol.asyncIterator`, 비동기와 동기 이터레이터에 위임하는 `yield*`, 클래스와 객체 리터럴의 async 메서드
+* `개선` 임베딩: `AsyncTracker`로 일시 중단된 async 함수 수와 첫 중단 위치를 조회할 수 있습니다. `UnhandledRejectionTracker`는 `Context`별로 분리되어 스크립트 스레드끼리 섞이지 않습니다
+* `수정` 컴파일 모드의 제너레이터에서 중첩된 `try`: 안쪽에서 다시 던지거나 안쪽 `finally`에 `yield`가 있으면 바깥 `catch`가 예외를 받지 못했습니다
+* `수정` 제너레이터에서 재개된 strict 함수 본문이 호출자의 strict 모드를 따랐습니다. 이제 항상 함수 자신의 모드로 실행됩니다
+* `수정` `Promise.all` / `Promise.race` / `Promise.any`는 이터레이터보다 먼저 `resolve`를 읽고 실패하면 거부합니다. `then` 접근자가 예외를 던지면 밖으로 던지지 않고 거부합니다
+* `수정` `new Function`의 소스가 명세대로 생성됩니다: `//` 주석으로 끝나는 매개변수가 더 이상 실패하지 않고 제너레이터는 `function*`로 표기됩니다. `Function.prototype.toString`은 호출 가능한 `Proxy`에도 동작합니다
+
 # 2026-10-31
 
 ###### 2026/10/31

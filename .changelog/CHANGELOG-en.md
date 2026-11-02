@@ -17,6 +17,18 @@ This history records maintenance changes to this fork by date. Official Rhino re
 
 [Read the original official Rhino README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). This entry is pinned to commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, preserving the upstream language and the context of relative links. The original document is retained without translation; this page and its other language versions describe this fork.
 
+# 2026-11-02
+
+###### 2026/11/02
+
+* `Feature` `async` / `await`: async functions, methods and arrow functions return a native `Promise`, and the code after `await` continues in a microtask; both interpreted and compiled modes
+* `Feature` `for await` and async generators (`async function*`), `Symbol.asyncIterator`, `yield*` delegating to async and sync iterators, and async methods in classes and object literals
+* `Improvement` Embedding: `AsyncTracker` reports the number of suspended async functions and the first suspension point, and `UnhandledRejectionTracker` is now per `Context`, so script threads no longer see each other's rejections
+* `Fix` Nested `try` in generators in compiled mode: the outer `catch` missed the exception when the inner block rethrew it or had a `yield` in its `finally`
+* `Fix` A strict function body resumed in a generator took the strictness of its caller; it now always runs with its own
+* `Fix` `Promise.all` / `Promise.race` / `Promise.any` read `resolve` before the iterator and reject when that throws; a throwing `then` getter now rejects instead of propagating
+* `Fix` `new Function` builds its source as the specification says: a parameter ending in a `//` comment no longer fails and generators read `function*`; `Function.prototype.toString` works on a callable `Proxy`
+
 # 2026-10-31
 
 ###### 2026/10/31

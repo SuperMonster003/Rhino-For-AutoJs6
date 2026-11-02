@@ -64,6 +64,18 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 
 이 이력은 포크의 유지 관리 변경 사항을 날짜별로 기록합니다. Rhino 공식 릴리스 이력은 업스트림 릴리스 노트에 유지되며 이 포크의 새 버전으로 기록하지 않습니다.
 
+### 2026-11-02
+
+###### 2026/11/02
+
+* `추가` `async` / `await`: async 함수, 메서드, 화살표 함수가 네이티브 `Promise`를 반환하고 `await` 뒤의 코드는 마이크로태스크에서 이어집니다. 인터프리터와 컴파일 모드 모두 지원
+* `추가` `for await`와 async 제너레이터 (`async function*`), `Symbol.asyncIterator`, 비동기와 동기 이터레이터에 위임하는 `yield*`, 클래스와 객체 리터럴의 async 메서드
+* `개선` 임베딩: `AsyncTracker`로 일시 중단된 async 함수 수와 첫 중단 위치를 조회할 수 있습니다. `UnhandledRejectionTracker`는 `Context`별로 분리되어 스크립트 스레드끼리 섞이지 않습니다
+* `수정` 컴파일 모드의 제너레이터에서 중첩된 `try`: 안쪽에서 다시 던지거나 안쪽 `finally`에 `yield`가 있으면 바깥 `catch`가 예외를 받지 못했습니다
+* `수정` 제너레이터에서 재개된 strict 함수 본문이 호출자의 strict 모드를 따랐습니다. 이제 항상 함수 자신의 모드로 실행됩니다
+* `수정` `Promise.all` / `Promise.race` / `Promise.any`는 이터레이터보다 먼저 `resolve`를 읽고 실패하면 거부합니다. `then` 접근자가 예외를 던지면 밖으로 던지지 않고 거부합니다
+* `수정` `new Function`의 소스가 명세대로 생성됩니다: `//` 주석으로 끝나는 매개변수가 더 이상 실패하지 않고 제너레이터는 `function*`로 표기됩니다. `Function.prototype.toString`은 호출 가능한 `Proxy`에도 동작합니다
+
 ### 2026-10-31
 
 ###### 2026/10/31
@@ -94,12 +106,6 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 * `수정` `switch` 문의 판별식에서 case 블록 안의 같은 이름의 `let` / `const` 선언이 보이는 문제 수정
 * `개선` ES6 언어 버전에서 `const`에 다시 할당하면 비엄격 모드에서도 TypeError가 발생하도록 변경 (이전에는 조용히 무시), ECMAScript 명세 준수; 언어 버전 180 이하는 기존 동작 유지
 * `의존성` 업스트림 mozilla/rhino를 커밋 `34abaca89` (2026/10/23)까지 동기화
-
-### 2026-10-20
-
-###### 2026/10/20
-
-* `수정` configurable이 false인 열거 가능한 속성에 `enumerable`을 생략한 디스크립터 (`{ value: 5 }` 등)로 `Object.defineProperty`를 호출하면 TypeError가 잘못 발생하는 문제 수정
 
 [전체 포크 유지 관리 이력](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-ko.md)
 
