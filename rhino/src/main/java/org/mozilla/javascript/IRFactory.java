@@ -551,10 +551,12 @@ public final class IRFactory {
                     if (fnType == FunctionNode.FUNCTION_EXPRESSION_STATEMENT
                             || fnType == FunctionNode.FUNCTION_BLOCK_SCOPED) {
                         functions.add(transform((AstNode) kid));
+                        kids.add(BindingLowering.evaluation(kid)); // AutoJs6: class syntax
                         continue;
                     }
                 }
-                kids.add(transform((AstNode) kid));
+                Node stmt = transform((AstNode) kid); // AutoJs6: class syntax
+                kids.add(BindingLowering.inBlock(kid, stmt, functions)); // AutoJs6: class syntax
             }
             node.removeChildren();
 
@@ -1278,7 +1280,7 @@ public final class IRFactory {
                 if (stmts != null) {
                     for (AstNode kid : stmts) {
                         Node stmt = transform(kid); // AutoJs6: class syntax
-                        stmt = BindingLowering.inCase(kid, stmt, fns); // AutoJs6: class syntax
+                        stmt = BindingLowering.inBlock(kid, stmt, fns); // AutoJs6: class syntax
                         body.addChildToBack(stmt); // AutoJs6: class syntax
                     }
                 }

@@ -1072,3 +1072,7 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 - `assertWithAllModes_ES6` 连类型一起比较, 数字与布尔的结果要包 `String(...)`.
 - 门禁脚本 `ALL_FORK_ICODES` 里几个不直观的触发条件: `CLASS_PARAM_SCOPE` 要默认值用到函数体声明的名字, `CLASS_INIT_FIELDS` 在基类构造器, `CLASS_ITER_REST` 只在参数解构, `CLASS_THIS` 在派生类构造器, `SPREAD_CALL_ON_SUPER` 是 `super.m(...x)`.
 - 微基准没有跑, 理由在附录 A "基线 Q58 - Q60".
+
+## Q61 (2026-11-02, 子会话 rhino-q61)
+
+进度 (未完成时以这里为准): ROADMAP 回填 a77ef319e; `BlockFunctionsTest` 修前 13 个用例失败 (`q61-before-fix.log`), 修后 0 失败; 钩子已登记 HOOKS.md.

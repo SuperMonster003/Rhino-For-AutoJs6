@@ -111,7 +111,7 @@ public final class ClassOp {
     public static final int OPTIONAL_CALLEE = 17;
 
     /**
-     * A function declaration of a switch where it is written, see {@link BindingLowering#inCase}:
+     * A function declaration of a block where it is written, see {@link BindingLowering#inBlock}:
      * the var binding {@link #name} gets the value of the block binding.
      */
     public static final int BLOCK_FUNCTION = 18;

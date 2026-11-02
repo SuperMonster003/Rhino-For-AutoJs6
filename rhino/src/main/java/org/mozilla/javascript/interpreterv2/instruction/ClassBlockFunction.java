@@ -12,7 +12,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.interpreterv2.InstructionFormatter;
 
 /**
- * AutoJs6: a function declaration of a switch where it is written (the {@code CLASS_BLOCK_FUNCTION}
+ * AutoJs6: a function declaration of a block where it is written (the {@code CLASS_BLOCK_FUNCTION}
  * icode, see {@code ClassOp.BLOCK_FUNCTION}): the var binding gets the value of the block binding.
  * Pushes undefined.
  */

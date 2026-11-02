@@ -216,7 +216,7 @@ abstract class Icode {
             CLASS_OPTIONAL = CLASS_FOR_AWAIT - 1, // AutoJs6: class syntax
             CLASS_OPTIONAL_CALLEE = CLASS_OPTIONAL - 1, // AutoJs6: class syntax
 
-            // AutoJs6: class syntax (function declarations of a switch, see ClassOp.BLOCK_FUNCTION)
+            // AutoJs6: class syntax (function declarations of a block, see ClassOp.BLOCK_FUNCTION)
             CLASS_BLOCK_FUNCTION = CLASS_OPTIONAL_CALLEE - 1, // AutoJs6: class syntax
 
             // Last icode

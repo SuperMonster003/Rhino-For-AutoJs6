@@ -317,8 +317,8 @@ public final class ClassRuntime {
     }
 
     /**
-     * Annex B.3.3.1: the evaluation of a function declaration of a switch, whose block binding the
-     * entry to the switch initialized (ClassOp.BLOCK_FUNCTION). {@code scope} is the block.
+     * Annex B.3.3.1: the evaluation of a function declaration of a block, whose binding the entry
+     * to the block initialized (ClassOp.BLOCK_FUNCTION). {@code scope} is the block.
      */
     public static Object hoistBlockFunction(VarScope scope, String name) {
         Object value = scope.get(name, scope);

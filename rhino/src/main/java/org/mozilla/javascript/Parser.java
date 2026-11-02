@@ -2598,6 +2598,10 @@ public class Parser {
         // no more labels; now parse the labeled statement
         try {
             currentLabel = bundle;
+            if (stmt == null && bindings.labelsTopLevelFunction()) { // AutoJs6: class syntax
+                consumeToken(); // AutoJs6: class syntax
+                stmt = function(FunctionNode.FUNCTION_STATEMENT); // AutoJs6: class syntax
+            } // AutoJs6: class syntax
             if (stmt == null) {
                 stmt = statementHelper();
                 classSyntax.checkStatementPosition(stmt); // AutoJs6: class syntax

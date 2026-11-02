@@ -6,6 +6,7 @@
 
 package org.mozilla.javascript;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -25,6 +26,7 @@ import org.mozilla.javascript.ast.ForLoop;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.IfStatement;
 import org.mozilla.javascript.ast.Jump;
+import org.mozilla.javascript.ast.LabeledStatement;
 import org.mozilla.javascript.ast.Name;
 import org.mozilla.javascript.ast.NodeVisitor;
 import org.mozilla.javascript.ast.ObjectLiteral;
@@ -419,34 +421,58 @@ final class BindingLowering {
     }
 
     /**
-     * A statement of a case of a switch (appendix C Q59). The block of the switch initializes its
-     * function declarations on entry, also those of the cases that do not run, so a declaration
-     * moves to {@code functions}. Where it was written, a function that Annex B.3.3 also gives a
-     * var binding copies the block binding to it, which is not done on entry.
+     * A statement of a block or of a case of a switch (appendix C Q59, Q61). The block initializes
+     * its function declarations on entry, also the labelled ones and those of the cases that do not
+     * run, so a declaration moves to {@code functions} and its {@link #evaluation} stays.
      */
-    static Node inCase(AstNode statement, Node node, List<Node> functions) {
-        if (!(statement instanceof FunctionNode)) {
+    static Node inBlock(Node statement, Node node, List<Node> functions) {
+        boolean labelled = statement instanceof LabeledStatement;
+        Node declaration = labelled ? ((LabeledStatement) statement).getStatement() : statement;
+        if (!(declaration instanceof FunctionNode)
+                || ((FunctionNode) declaration).getFunctionType()
+                        != FunctionNode.FUNCTION_BLOCK_SCOPED) {
             return node;
         }
-        FunctionNode fn = (FunctionNode) statement;
-        if (fn.getFunctionType() != FunctionNode.FUNCTION_BLOCK_SCOPED) {
-            return node;
+        if (!labelled) {
+            functions.add(node);
+            return evaluation(declaration);
         }
-        functions.add(node);
+        Node function = node.getFirstChild().getNext();
+        functions.add(function);
+        node.replaceChild(function, evaluation(declaration));
+        return node;
+    }
+
+    /**
+     * What stays where a function declaration of a block is written. A function that Annex B.3.3
+     * also gives a var binding copies the block binding to it here, which is not done on entry.
+     */
+    static Node evaluation(Node declaration) {
+        FunctionNode fn = (FunctionNode) declaration;
         if (!fn.isAnnexBHoisted()) {
             return new Node(Token.EMPTY);
         }
         fn.setAnnexBHoisted(false);
         Node copy = ClassLowering.newClassNode(ClassOp.BLOCK_FUNCTION);
         ClassOp.of(copy).name = fn.getName();
-        return new Node(Token.EXPR_VOID, copy, node.getLineno(), node.getColumn());
+        return new Node(Token.EXPR_VOID, copy);
     }
 
-    /** Puts the functions that {@link #inCase} took out in front of the switch in its block. */
+    /** Puts the functions that {@link #inBlock} took out in front of the switch in its block. */
     static void enterCases(Node block, List<Node> functions) {
         for (int i = functions.size() - 1; i >= 0; i--) {
             block.addChildToFront(functions.get(i));
         }
+    }
+
+    /**
+     * Whether the statement after a label is a function declaration at the top level of a script or
+     * function: it belongs to the top level declarations, not to a block (appendix C Q61).
+     */
+    boolean labelsTopLevelFunction() throws IOException {
+        return parser.peekToken() == Token.FUNCTION
+                && parser.currentScope == parser.currentScriptOrFn
+                && parser.compilerEnv.getLanguageVersion() >= Context.VERSION_ES6;
     }
 
     /** Nested functions are FUNCTION leaves in the tree, so their yields are not found. */
