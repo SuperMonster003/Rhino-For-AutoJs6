@@ -51,6 +51,61 @@ class AsyncFunctionTest {
                 """);
     }
 
+    /** Appendix C Q56 and Q57: only a plain function gets the hoisting of Annex B. */
+    @Test
+    void blockDeclarationsAreBlockScoped() {
+        assertLog(
+                "undefined|undefined|undefined|function"
+                        + "|undefined|undefined|undefined|function"
+                        + "|function|function|function"
+                        + "|1|1|1"
+                        + "|undefined|undefined",
+                """
+                function names() {
+                    { async function a() {} function* b() {} async function* c() {} function d() {} }
+                    log.push(typeof a, typeof b, typeof c, typeof d);
+                }
+                names();
+                switch (0) {
+                    default:
+                        async function e() {}
+                        function* f() {}
+                        async function* g() {}
+                        function h() {}
+                }
+                log.push(typeof e, typeof f, typeof g, typeof h);
+                function inside() {
+                    {
+                        log.push(typeof a, typeof b, typeof c);
+                        async function a() {} function* b() {} async function* c() {}
+                    }
+                }
+                inside();
+                function outer() {
+                    var a = 1, b = 1, c = 1;
+                    { async function a() {} function* b() {} async function* c() {} }
+                    log.push(a, b, c);
+                }
+                outer();
+                log.push(eval('{ async function i() {} } typeof i'));
+                (function () { 'use strict'; { function* j() {} } log.push(typeof j); })();
+                """);
+    }
+
+    @Test
+    void blockDeclarationsMayStillNotBeRedeclared() {
+        assertLog(
+                "SyntaxError|SyntaxError|SyntaxError|SyntaxError",
+                """
+                function syntax(s) { try { new Function(s); return 'ok'; } catch (e) { return e.name; } }
+                log.push(
+                    syntax('{ async function f() {} var f; }'),
+                    syntax('{ var f; function* f() {} }'),
+                    syntax('{ async function f() {} async function f() {} }'),
+                    syntax('{ function f() {} function* f() {} }'));
+                """);
+    }
+
     @Test
     void returnsANativePromise() {
         assertLog(

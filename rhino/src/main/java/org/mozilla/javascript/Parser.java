@@ -1078,6 +1078,7 @@ public class Parser {
         // ES2024, B.3.2.1: register annexB candidate after FunctionNode is created.
         if (type == FunctionNode.FUNCTION_BLOCK_SCOPED
                 && !inUseStrictDirective
+                && !suspends // AutoJs6: async
                 && name != null
                 && name.length() > 0) {
             Symbol letSym = currentScope.getSymbol(name.getIdentifier());
