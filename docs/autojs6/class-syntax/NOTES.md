@@ -1108,3 +1108,65 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 - 块的 Annex B 用例在 `annexB/language/{function-code,global-code,eval-code}/block-decl-*`, 没有 `annexB/language/statements/block` 这个目录. `*-update.js` 这类用例在块结束之后才读外层 var, 所以 Q61 的时机问题 test262 看不出来, 回归靠 `BlockFunctionsTest`.
 - 用例里 `assertWithAllModes_ES6` 连类型一起比较, eval 的完成值要包 `String(...)`.
 - 微基准没有跑, 理由在附录 A "基线 Q61 - Q63".
+
+## P9 宿主 (2026-11-03, 子会话 rhino-p9b)
+
+roadmap 最后一张卡, P9.5 / P9.6 / P9.7 与附录 C Q62 / Q63 回填. 证据目录 `build/upstream-sync/class-p9b-20261103/` (git 忽略).
+
+提交: fork caa3e3b54 (Q62 / Q63 回填), 3e0f62702 (Q64 / Q65), 356418b38 (changelog), 61602b7fe (Q66), 6ad0d396b (Q67), 本节所在提交; 宿主 a1f24cc27 (jar), 9a5c68c6d (P9.5), bbeec3643 (P9.6), 008c59bea (收尾复查的两处修复), 7aa27d5b2 (T1 场景的数据竞争); 文档站 b840ba4 + fa8b5a2, 离线文档 0dfefaa, TypeScript Engine 52cc6b7, Ace Editor 05faeb0. 全部只本地.
+
+### jar
+
+- JDK 25 shadowJar, 基于 6ad0d396b, sha256 `9308d108238951bbe19f7ff218ae6364e0b674e5c7047a92d6c95986810f3ed6`, 3529162 字节. 对宿主原 jar (`a5049a70`, 3394845 字节): 条目 1477 -> 1550, 新增 73 个类, 删除 0, 改动 394 (`jar-diff.txt`). slim 排除项 331 不变, 没有新增优化器类 (`slim-check.txt`).
+- 表面基线 `surface-jvm.txt` -1 +17, 随 jar 同一提交. 另有两个夹具跟 jar 走: `jvm-npm.js` (行号), `JsoxModulesTest.txt` (`5e-324` 的打印).
+- 全程只换一次. 卡片的顺序是先换 jar 再做 P9.5, 但 Q64 - Q67 都是做 P9.5 时才发现的, 所以 jar 留在隔离克隆, P9.5 与 P9.6 通过后才和产品代码一起搬进共享工作区.
+
+### Promise 统一的设计
+
+宿主线程有四种: 脚本主线程 (mainTimer), `threads` 线程 (各有 Timer 与常驻 Context), UI 线程 (mUiTimer, Context 临时进入, ui 脚本共用一个 Context), 外来线程 (binder, OkHttp, 线程池, 没有 timer). fork 的 NativePromise 按单线程写, 宿主补的是 "谁来运行反应":
+
+- 检查点: `EventLoopContextFactory.doTopCall` 在顶层调用结束时排空, ContinuationPending 也算结束 (协程挂起之后栈是空的). `Loopers.queueIdle` 空转前再排一次, 接住顶层调用之外入队的任务. `AutoJsContext.inCheckpoint` 防重入: 队列里的任务调用脚本函数本身也是顶层调用, 不防的话 `helper()` 结束时会在函数中途运行别的反应 (`aTopCallInsideATaskRunsNoMicrotasks`).
+- 转交: `AutoJsContext.forwardTask`. `home == null` 是落定: 当前线程没有 timer 时转主线程, 在顶层调用里就地入队, 否则投到本线程 timer. `home != null` 是 await: 回到函数所在线程; 那个线程已结束或没有 timer 时返回 false, 在落定线程继续. `RuntimeEventLoop.post` 经 `RhinoUtils.withRhinoContext` 进入 Context 后在检查点里运行, 投递被拒绝 (timer 已停) 时丢弃.
+- `wait()`: `SettlementLatch` 每轮先 `runMicrotasks()`, 这是嵌套运行, 不报告未处理 rejection: 外层这一轮之后还可能处理它 (`waitRunsReactionsAndLeavesTheReportToTheEndOfTheTurn`). 已落定就返回, 所以 W2 不再顺带运行到期的 timer.
+- 协程: `captureContinuation` 的 IllegalStateException 转成 `error_continuation_cannot_suspend_here` 的 TypeError. `Continuation` 记下失败, 之后的 `resume` 不恢复. async 函数的帧 `parentFrame = null`, 所以捕获必然失败; 反方向 `continuation.await(asyncFn())` 只是等一个 Promise, 不受影响.
+- 分发器: `ScriptAsyncDispatcher` 每次投递后要运行微任务, 用 `AutoJsContext.runMicrotasks()`, 不能直接 `processMicrotasks()`: 协程在反应里恢复后再次挂起时 ContinuationPending 会从投递动作抛出, 被 `drain` 当成首个失败记下, 排在它之后的真实错误就丢了 (`Timer.runCallback` 只吞 ContinuationPending). 全部宿主代码里 `processMicrotasks` 现在只在 `runMicrotasks` 里调用.
+- Q6: `AutoJsContext` 打开 `setTrackUnhandledPromiseRejections(true)`, `microtaskCheckpoint` 排空后 `process`, `ScriptEventLoop.describeRejection` 写 Context.toString + stack, 打印失败时退回类名. `ScriptEventLoop` 经 `TopLevelScope` 取到, 所以 `AutoJsContext` 不认识 `ScriptRuntime`.
+- Q7: `Loopers.endedByItself() = !interrupted && !scriptRuntime.isExiting`, 主 Looper 退出前 `warnAboutPendingAwaits`, 子线程退出时 `keepPendingAwaits` 把 tracker 留给主线程, 合计提示一次.
+
+promise.js / `PromiseConstructor` 定制点的去向:
+
+| 定制点 | 现在 |
+|---|---|
+| `Promise._immediateFn` (宏任务调度) | 规范微任务 (Q5), 属性不再存在 |
+| `Promise._unhandledRejectionFn` | `UnhandledRejectionTracker` + `reportUnhandledRejection` (Q6), 属性不再存在 |
+| `await()` | `PromiseSuspension.install` 定义在 `Promise.prototype`, 经 continuation, 不可枚举 |
+| `wait()` | 同上, `SettlementLatch` 加 `microtasks` 参数 |
+| `ScriptPromise` 实例类 | NativePromise, 宿主方法返回类型改 `Scriptable` |
+| `TimerReactionPoster` | `ScriptEventLoop` + `forwardTask` |
+| `PromiseCalls` / `PromiseJob` / `PromiseConstructor` | 删除 |
+| `ResultAdapter.promise` | 不变, 构造的就是全局 Promise |
+| `js_Promise` | `TopLevel.getBuiltinCtor(..., Builtins.Promise)` |
+| `handleAsyncOperation` | 持 wait token 到落定之后的下一条 UI 消息 (Q7 的 "宿主异步任务") |
+
+### Q64 - Q67
+
+都是做 P9.5 时发现的 fork 问题, 已先行, 待维护者确认, 详见附录 C. Q66 与 Q67 由差分与新用例发现: `PromiseDifferentialTest` 的错误文字带 `(main.js#4)` 且丢 stack, 报告顺序随 identity hash 变化 (Q66); `aSuspensionInAnAsyncFunctionIsCaughtInIt` 里捕获失败后 `log('no')` 被运行 (Q67, 帧已冻结, 恢复时用的是原帧).
+
+### 设备
+
+- 结果表在附录 B. `async-cases.js` 13 例, Kotlin 另 13 例 (协程, 控制台, 结束判定, ui 模式, 调试器). 用例里 `verdict` 用 `await` 取结果而不是 `then`: then 的反应运行在落定线程, 跨线程用例结束时 `clearInterval` 会落在错的线程上, 用例挂住.
+- 调试用例要让 `attach` 先于引擎创建: 编辑器流程里两者有竞争, 用例的 `HeldFileSource` 把引擎线程卡在 `engineName` 上, 到 `attach` 之后才放行 (`execute` 在调用线程上也读 `engineName`, 按线程区分).
+- `device_promise_check.py` 改成对照 `SCENARIOS` 期望表, 只打印失败项与通过数. 临时 AVD 要先授存储权限, 否则 0 行输出像超时.
+- `device_promise_check.py` 在 XQ-AT72 上出现过一次 17 / 18: `T1-callback-thread` 缺 `java:main`. 这是场景脚本的数据竞争, 不是产品问题: 两个反应同时在两个线程上 `push` 同一个数组. 探针 `t1-probe.js` 400 轮里数组 7 轮少元素, 各自的计数器 0 轮丢失, java 反应全部在主线程 (`t1-probe-result.txt`). 宿主 7aa27d5b2 改成各用一个变量, 之后 XQ-AT72 连续 3 遍 18 / 18.
+- 手写的 project.json 要有 packageName / versionName / versionCode, 否则 `useFeatures` 不生效, `continuation.await` 报的就是 "协程无法在此处挂起".
+- bench (us, `device_promise_check.py --bench`): XQ-AT72 resolve+then 182.76, new+then3 334.34, reject+catch 228.27, then-throws+catch 355.47, all10 1487.15, wait-resolved 273.92, await-resolved 539.41, queued+wait 97.21, queued1200+wait 106.35. API 35 AVD 61.73 / 113.56 / 57.15 / 95.35 / 606.25 / 141.35 / 129.13 / 25.02 / 28.37. API 24 AVD 17.63 / 37.15 / 32.54 / 53.74 / 220.38 / 37.79 / 108.84 / 14.42 / 18.33. 宿主 ROADMAP 记录的 Kotlin 实现 (XQ-AT72, bg): resolve+then 121.0, new+then3 332.8, reject+catch 287.1, then-throws+catch 359.1, all10 1139, wait-resolved 190.8, await-resolved 543.1. 调度组与构建都不同 (这次 fg), 只作量级参考, 同一量级.
+
+收尾复查的新用例 `aCoroutineAwaitsOneAfterTheOtherThroughADispatcher` 在未修复时失败, 但失败原因不是上面的分发器, 而是更早就有的缺陷: `AutoJsContext.resumeContinuation` / `resumeContinuationWithError` 声明返回非空 `Any`, 恢复后的代码以 JS null 结束时 (这里是最后一条语句 `runtime.putProperty`) 抛 `NullPointerException: resumeContinuation(...) must not be null`. 协程主脚本的完成值就是这个返回值, 回调的返回值同理, 所以 2023 年起一直有. 同样以 `runtime.putProperty` 结尾的 `rhino-async-coroutine` 用例没有失败, 按代码看是因为它最后一次恢复发生在 async 函数里, NPE 变成了那个函数的 rejection (推断, 没有单独验证). 改成 `Any?`, JVM 用例 `ContinuationResumeTest` 的 `aResumedScriptMayEndWithNull` / `aRejectedScriptMayEndWithNull` 修复前失败, 修复后通过. 分发器那处的修复没有单独的失败用例: 现象要 ContinuationPending 之后紧跟一个真实错误, 在设备用例里构造不出确定的顺序, 这里按代码推理修复.
+
+### 文档
+
+`api/asyncAwait.md` 的说法: 语法示例在 Rhino shell 上跑过, 其余在 API 35 模拟器的项目脚本上核对 (`doc_check`, 未入库): 静态方法齐全, `wait()` 不要协程, 顶层 `await 1` 是 SyntaxError, `continuation.await(asyncFn())` 取得 200, `continuation.delay` 在 async 内是 TypeError, http 的 then 在 UI 线程, 线程结束后 await 在落定线程继续, warn 的位置是完整路径. 文档站 `generate_markdown` 只写 zh-Hans 时跳过跨语言校验 (见记忆), `--check` 失败是预期. 文档站 BAT 用不带 `--verify-offline` 的方式, 与 P7.4 相同.
+
+### 清理
+
+最终汇报与看板写明. 证据目录保留门禁, 设备与 jar 对比的输出 (含两个 jar), 没有 hprof 与完整 logcat.
