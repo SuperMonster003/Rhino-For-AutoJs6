@@ -317,6 +317,19 @@ public final class ClassRuntime {
     }
 
     /**
+     * Annex B.3.3.1: the evaluation of a function declaration of a switch, whose block binding the
+     * entry to the switch initialized (ClassOp.BLOCK_FUNCTION). {@code scope} is the block.
+     */
+    public static Object hoistBlockFunction(VarScope scope, String name) {
+        Object value = scope.get(name, scope);
+        while (scope.isNestedScope()) {
+            scope = scope.getParentScope();
+        }
+        scope.put(name, scope, value);
+        return Undefined.instance;
+    }
+
+    /**
      * ClassFieldDefinitionEvaluation and ClassStaticBlockDefinitionEvaluation: converts the key and
      * creates the initializer (or the body of the static block) with its home object, and records
      * the element on F.

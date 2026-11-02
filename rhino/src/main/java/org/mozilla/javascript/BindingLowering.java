@@ -418,6 +418,37 @@ final class BindingLowering {
         return jump;
     }
 
+    /**
+     * A statement of a case of a switch (appendix C Q59). The block of the switch initializes its
+     * function declarations on entry, also those of the cases that do not run, so a declaration
+     * moves to {@code functions}. Where it was written, a function that Annex B.3.3 also gives a
+     * var binding copies the block binding to it, which is not done on entry.
+     */
+    static Node inCase(AstNode statement, Node node, List<Node> functions) {
+        if (!(statement instanceof FunctionNode)) {
+            return node;
+        }
+        FunctionNode fn = (FunctionNode) statement;
+        if (fn.getFunctionType() != FunctionNode.FUNCTION_BLOCK_SCOPED) {
+            return node;
+        }
+        functions.add(node);
+        if (!fn.isAnnexBHoisted()) {
+            return new Node(Token.EMPTY);
+        }
+        fn.setAnnexBHoisted(false);
+        Node copy = ClassLowering.newClassNode(ClassOp.BLOCK_FUNCTION);
+        ClassOp.of(copy).name = fn.getName();
+        return new Node(Token.EXPR_VOID, copy, node.getLineno(), node.getColumn());
+    }
+
+    /** Puts the functions that {@link #inCase} took out in front of the switch in its block. */
+    static void enterCases(Node block, List<Node> functions) {
+        for (int i = functions.size() - 1; i >= 0; i--) {
+            block.addChildToFront(functions.get(i));
+        }
+    }
+
     /** Nested functions are FUNCTION leaves in the tree, so their yields are not found. */
     private static boolean hasYield(Node node) {
         for (Node child = node.getFirstChild(); child != null; child = child.getNext()) {

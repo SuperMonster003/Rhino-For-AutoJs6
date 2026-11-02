@@ -35,6 +35,8 @@ import org.mozilla.javascript.Interpreter.NewState;
  *   <li>{@code CLASS_SUPER_CALL}: index register = argument count, then a byte, 1 when the only
  *       argument is an array holding the arguments. Stack: super constructor, arguments -&gt; this.
  *   <li>{@code CLASS_PRIVATE_NAME}: string register = the identifier. Pushes a new private name.
+ *   <li>{@code CLASS_BLOCK_FUNCTION}: string register = the function. Copies the block binding to
+ *       the var binding, pushes undefined.
  *   <li>{@code CLASS_INIT_FIELDS}: no operand. Initializes the instance elements of the class on
  *       this, pushes undefined.
  *   <li>{@code CLASS_STATIC_INIT}: no operand. Stack: F -&gt; F, once the static elements ran.
@@ -230,6 +232,10 @@ final class ClassInterpreter {
                 gen.addStringOp(Icode.CLASS_PRIVATE_NAME, op.name);
                 gen.stackChange(1);
                 break;
+            case ClassOp.BLOCK_FUNCTION:
+                gen.addStringOp(Icode.CLASS_BLOCK_FUNCTION, op.name);
+                gen.stackChange(1);
+                break;
             case ClassOp.INIT_FIELDS:
                 gen.addIcode(Icode.CLASS_INIT_FIELDS);
                 gen.stackChange(1);
@@ -319,6 +325,7 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_FOR_AWAIT] = new DoClassForAwait();
         instructionObjs[base + Icode.CLASS_OPTIONAL] = new DoClassOptional();
         instructionObjs[base + Icode.CLASS_OPTIONAL_CALLEE] = new DoClassOptional();
+        instructionObjs[base + Icode.CLASS_BLOCK_FUNCTION] = new DoClassBlockFunction();
         SpreadCall.register(instructionObjs, base);
     }
 
@@ -364,6 +371,8 @@ final class ClassInterpreter {
                 return "CLASS_FOR_AWAIT";
             case Icode.CLASS_OPTIONAL:
                 return "CLASS_OPTIONAL";
+            case Icode.CLASS_BLOCK_FUNCTION:
+                return "CLASS_BLOCK_FUNCTION";
             case Icode.CLASS_OPTIONAL_CALLEE:
                 return "CLASS_OPTIONAL_CALLEE";
             default:
@@ -646,6 +655,15 @@ final class ClassInterpreter {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
             frame.stack[++frame.stackTop] = ClassRuntime.newPrivateName(state.stringReg);
+            return null;
+        }
+    }
+
+    private static final class DoClassBlockFunction extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.stack[++frame.stackTop] =
+                    ClassRuntime.hoistBlockFunction(frame.scope, state.stringReg);
             return null;
         }
     }

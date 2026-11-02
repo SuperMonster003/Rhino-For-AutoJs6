@@ -1264,6 +1264,7 @@ public final class IRFactory {
         try {
             node.addChildToBack(switchExpr);
 
+            List<Node> fns = new ArrayList<>(); // AutoJs6: class syntax
             for (SwitchCase sc : node.getCases()) {
                 AstNode expr = sc.getExpression();
                 Node caseExpr = null;
@@ -1276,12 +1277,15 @@ public final class IRFactory {
                 Node body = new Block();
                 if (stmts != null) {
                     for (AstNode kid : stmts) {
-                        body.addChildToBack(transform(kid));
+                        Node stmt = transform(kid); // AutoJs6: class syntax
+                        stmt = BindingLowering.inCase(kid, stmt, fns); // AutoJs6: class syntax
+                        body.addChildToBack(stmt); // AutoJs6: class syntax
                     }
                 }
                 addSwitchCase(block, caseExpr, body);
             }
             closeSwitch(block);
+            BindingLowering.enterCases(block, fns); // AutoJs6: class syntax
             return outer != null ? outer : block;
         } finally {
             parser.currentScope = savedScope;

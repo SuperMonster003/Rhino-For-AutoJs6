@@ -17,6 +17,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.ForAwait;
 import org.mozilla.javascript.interpreterv2.instruction.ClassAwait;
+import org.mozilla.javascript.interpreterv2.instruction.ClassBlockFunction;
 import org.mozilla.javascript.interpreterv2.instruction.ClassCtorCheck;
 import org.mozilla.javascript.interpreterv2.instruction.ClassDefine;
 import org.mozilla.javascript.interpreterv2.instruction.ClassElement;
@@ -79,7 +80,8 @@ class ClassInstructionsTest {
                 Arguments.of(
                         new ClassForAwait(2, ForAwait.STEP), 0, "ClassForAwait(slot=2, step=2)"),
                 Arguments.of(new ClassOptional(3, false), 0, "ClassOptional(slot=3, callee=false)"),
-                Arguments.of(new ClassOptional(3, true), 0, "ClassOptional(slot=3, callee=true)"));
+                Arguments.of(new ClassOptional(3, true), 0, "ClassOptional(slot=3, callee=true)"),
+                Arguments.of(new ClassBlockFunction("f"), 1, "ClassBlockFunction(name=\"f\")"));
     }
 
     @ParameterizedTest

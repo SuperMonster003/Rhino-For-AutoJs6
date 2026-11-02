@@ -110,6 +110,12 @@ public final class ClassOp {
      */
     public static final int OPTIONAL_CALLEE = 17;
 
+    /**
+     * A function declaration of a switch where it is written, see {@link BindingLowering#inCase}:
+     * the var binding {@link #name} gets the value of the block binding.
+     */
+    public static final int BLOCK_FUNCTION = 18;
+
     /** Element kinds, in the low bits of the int {@link Node#CLASS_PROP} of an element. */
     public static final int ELEMENT_METHOD = 0, ELEMENT_GETTER = 1, ELEMENT_SETTER = 2;
 
@@ -150,7 +156,7 @@ public final class ClassOp {
     /**
      * {@link #TDZ}: the name of the class binding or of the parameter. {@link #PARAM_SCOPE}: the
      * names that resolve outside the function, joined by commas. {@link #PRIVATE_NAME}: the
-     * identifier of the private name, without {@code #}.
+     * identifier of the private name, without {@code #}. {@link #BLOCK_FUNCTION}: the function.
      */
     String name;
 

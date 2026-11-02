@@ -150,6 +150,14 @@ final class ClassBodyCodegen {
                 cfw.addPush(op.getName());
                 invoke(cfw, "newPrivateName", "(Ljava/lang/String;)" + OBJECT);
                 break;
+            case ClassOp.BLOCK_FUNCTION:
+                cfw.addALoad(bc.variableObjectLocal);
+                cfw.addPush(op.getName());
+                invoke(
+                        cfw,
+                        "hoistBlockFunction",
+                        "(Lorg/mozilla/javascript/VarScope;Ljava/lang/String;)" + OBJECT);
+                break;
             case ClassOp.INIT_FIELDS:
                 cfw.addALoad(bc.thisObjLocal);
                 cfw.addALoad(bc.funObjLocal);
