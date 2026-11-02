@@ -707,6 +707,7 @@ P9 (async, 记录与理由见 NOTES.md "P9 fork"):
 - ~~编译模式的嵌套 yield / await 被提前无条件求值~~: Q58 修复, yield 点先求操作数再保存操作数栈. 同一处修掉 `[a, b] = [1, yield 2]` 在编译模式的 `$0 is not defined` (`visitEnterScope` 太晚登记作用域局部变量).
 - ~~`switch` 里没走到的 case 中的函数声明, 进入 switch 时没有初始化~~: Q59 修复. ES6 之前的版本 (`FUNCTION_EXPRESSION_STATEMENT`) 保持原样, 走到才初始化.
 - ~~普通块的函数声明把 Annex B 的 var 复制也提到块首, 带标签的函数声明不提前初始化~~: Q61 修复. ES6 之前的版本保持原样: 块内函数在入口赋给外层 var, 标签函数走到才初始化.
+- 宽松模式仍然接受规范禁止的标签函数写法: `if (c) l: function f() {}` (`if/labelled-fn-stmt-*.js` 的 `non-strict` 仍登记), 在顶层按 Q63 无条件提升; `l: function* g() {}` 同样接受. 不改成拒绝, 理由同附录 C Q54.
 - ~~`getLineNumbers` 不认识 fork 带操作数字节的 8 个 icode~~: Q60 修复. `ClassChainUniquenessTest` 两个门禁: `operandsOfForkIcodesAreInTheirSpan` 从 `ClassInterpreter` / `SpreadCall` 的源码读出每个 fork icode 之后的 `gen.addUint8`, 与 `bytecodeSpan` 对照 (所以 fork 的操作数要紧跟在 icode 之后写, 新的发射文件加进 `FORK_EMITTERS`); `forkIcodesDumpWithTheirSpan` 编译一段含全部 fork icode 的脚本走一遍 icode 转储, 转储逐条核对长度, 新 icode 没被脚本覆盖时报错.
 - 严格函数拿到的是包装后的 this (上游, `language/function-code` 的已知失败), 只有 `%AsyncIteratorPrototype%[@@asyncIterator]` 经 call / apply 保留原始值 (`AsyncRuntime.returnsThis`).
 - `yield*` 的驱动器层 await 不计入 `AsyncTracker`. Java 错误 (`StackOverflowError` 等) 不转 rejection.

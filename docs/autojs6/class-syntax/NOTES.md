@@ -1075,4 +1075,36 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 
 ## Q61 (2026-11-02, 子会话 rhino-q61)
 
-进度 (未完成时以这里为准): ROADMAP 回填 a77ef319e; `BlockFunctionsTest` 修前 13 个用例失败 (`q61-before-fix.log`), 修后 0 失败; 钩子已登记 HOOKS.md.
+提交: a77ef319e (回填 Q61), 23dce8a34 (Q61, Q63), c50ae36cb (Q62), 71e4e3cd9 (10 语 changelog), cc30a3068 (Q63 限宽松模式), 1db4c7ab1 (properties). 验收数字见 ROADMAP 附录 A "基线 Q61 - Q63" 与附录 C 各行的 "结果". 证据 `build/upstream-sync/class-q61-20261102/`.
+
+### Q61 的改法
+
+- `IRFactory.transformBlock` 仍由上游把声明收进 `functions` 提到块首, 块级绑定因此还在入口初始化. 钩子只在原位留下 `BindingLowering.evaluation`: 有 Annex B 提升的留 `EXPR_VOID(CLASS[BLOCK_FUNCTION])` 并 `setAnnexBHoisted(false)` (入口不再顺带复制), 其余留 EMPTY. ES6 之前的 `FUNCTION_EXPRESSION_STATEMENT` 走同一分支, 留 EMPTY, 行为不变 (入口赋给外层 var).
+- Q59 的 `inCase` 改名 `inBlock`, 块与 switch 共用, 只负责 "语句是不是块级函数声明", 新增标签函数: `transformLabeledStatement` 的结果是 `BLOCK[label, statement, target]`, 取第二个子节点进 `functions`, 原位换成 `evaluation`. 块的循环里普通语句走 `inBlock` (改动的上游行), 普通函数声明在上游的分支里, 所以钩子分两处.
+- 三个后端没有新代码: 解释 `CLASS_BLOCK_FUNCTION`, 编译 `ClassBodyCodegen` 的 case, V2 `ClassBlockFunction` 都是 Q59 的. 块级绑定的读取依赖块是真实的作用域对象: 含函数的函数都 `setRequiresActivation`, `createScopeObjects` 为真.
+- 块里 `evaluation` 的节点不带行号, Q59 那里传的 `node.getLineno()` 其实总是 -1 (`Node.newString(Token.FUNCTION, ...)`), 一并去掉.
+
+### Q62 (顺带修, 已先行) 解构 catch 参数
+
+- `*-skip-early-err-try.js` 一批早就登记在 properties, 不在 Q61 的描述里. `catch ({ f })` 的 f 到 `transformTry` 才成为 catch 体的 `let`, 解析期的 `hasAnnexBConflict` 看不到, 块内同名函数因此提升. 不能在解析期 `defineSymbol`: IR 阶段的 `let` 会报重复声明.
+- `BindingLowering.catchParameter` 用现成的 `boundNames` 记下名字 (按 catch 的 Scope), `Parser.function` 登记候选之前经 `boundByCatchPattern` 沿作用域链查到函数边界为止. `catch (f)` 不受影响 (B.3.5).
+
+### Q63 (顺带修, 已先行) 顶层的标签函数
+
+- 顶层的标签函数算顶层函数声明. `nameOrLabel` 判断 `labelsTopLevelFunction` (下一个 token 是 function, 当前作用域就是脚本或函数, 非严格, ES6 起) 后按 `FUNCTION_STATEMENT` 解析, 不走 `statementHelper`: 后者的 `case Token.FUNCTION` 分不清 `l: function f() {}` 与 `l: if (x) function f() {}`, 用例 `anIfStatementIsNotALabelledFunction` 守着.
+- 严格模式不走这条路: 第一版没有判断, 重生成时 `if/labelled-fn-stmt-{first,lone,second}.js` 的标签从 `non-strict` 变成全模式 (`propdiff` 的 label-changed, 严格模式下原来经块级函数的路径报错, 钩子绕过了它), 改为只对宽松模式生效, 用例 `strictCodeStillRejectsALabelledFunctionAsASingleStatement` 守着.
+- 规范禁止的写法在宽松模式仍然接受 (`if/labelled-fn-stmt-*` 的 `non-strict` 继续登记): `l: function* g() {}`, `if (c) l: function f() {}`. 最后一个在顶层改为无条件提升, 是这一项唯一的副作用. 不改成拒绝, 理由同 Q54 (旧脚本一个不坏).
+
+### 给宿主卡 (P9.5 - P9.7) 的注意点
+
+- jar 从本卡最终提交重建, 不用再等其他 fork 卡.
+- 行为变化, 进宿主 changelog: 块内函数声明之前, 从块外 (块外定义的闭包, 或提前跳出块之后) 读外层 var 得到 undefined, 原来是函数; 块内自己调用不受影响, 块级绑定仍在入口初始化. 另外两项 (解构 catch 同名函数不再提升, 标签函数提前初始化) 写法极少, 不必单列. 只读核对过宿主 `app/src/main/assets` 的 11 个 `.js`: 标签形式的 2 行是对象字面量成员, 没有标签函数.
+- 两个新钩子都只在编译期, 运行时没有新的 icode, 宿主 slim jar 不用改.
+
+### 跑验收时的几点
+
+- 重生成跑了两遍: 第一遍 15 分 36 秒, `propdiff` 的 newly failing 是 0, 但 label changed 3 (严格版本的失败), 只看新增失败会漏掉; 修正后第二遍 16 分 9 秒, 三项都干净. 第一遍的对照留在证据的 `first-regen/`.
+- 全量 20 分 32 秒. `junit_failures.py` 的单目录输出带 ` :: 错误信息`, 与基线的 names 比较之前要切掉.
+- 块的 Annex B 用例在 `annexB/language/{function-code,global-code,eval-code}/block-decl-*`, 没有 `annexB/language/statements/block` 这个目录. `*-update.js` 这类用例在块结束之后才读外层 var, 所以 Q61 的时机问题 test262 看不出来, 回归靠 `BlockFunctionsTest`.
+- 用例里 `assertWithAllModes_ES6` 连类型一起比较, eval 的完成值要包 `String(...)`.
+- 微基准没有跑, 理由在附录 A "基线 Q61 - Q63".
