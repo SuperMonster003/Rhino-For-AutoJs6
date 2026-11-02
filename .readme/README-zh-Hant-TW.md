@@ -75,6 +75,8 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 * `修復` 嚴格模式函式主體在產生器裡恢復執行時沿用了呼叫方的嚴格性, 現在總是按函式自身的嚴格性執行
 * `修復` `Promise.all` / `Promise.race` / `Promise.any` 在取迭代器之前先讀取 `resolve`, 取值拋錯時傳回被拒絕的 Promise; `then` 存取子拋錯時拒絕而不是向外拋出
 * `修復` `new Function` 產生的原始碼符合規範: 參數以 `//` 註解結尾時不再報錯, 產生器寫作 `function*`; `Function.prototype.toString` 可用於可呼叫的 `Proxy`
+* `修復` 可選鏈整條短路: `a?.b.c` 在 `a` 為 `null` / `undefined` 時整條得到 `undefined`, 後面的索引與引數不再求值; 只有 `?.` 才做判斷, `a?.b.c` 在 `a.b` 為 `undefined` 時依規範擲出 TypeError, `a?.b()` 在方法不存在時同樣擲出 TypeError; `eval?.()` 是間接呼叫, `delete a?.b.c` 短路時得到 `true`, 帶標籤範本與 `new a?.b()` 是語法錯誤
+* `修復` 區塊內的 `async` 函式與產生器宣告改為區塊級作用域, 區塊外讀不到, 也不再覆寫外層同名變數; 一般函式的行為不變
 
 ### 2026-10-31
 

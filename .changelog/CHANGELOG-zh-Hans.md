@@ -28,6 +28,8 @@
 * `修复` 严格模式函数体在生成器里恢复执行时沿用了调用方的严格性, 现在总是按函数自身的严格性执行
 * `修复` `Promise.all` / `Promise.race` / `Promise.any` 在取迭代器之前先读取 `resolve`, 取值抛错时返回被拒绝的 Promise; `then` 访问器抛错时拒绝而不是向外抛出
 * `修复` `new Function` 生成的源码符合规范: 参数以 `//` 注释结尾时不再报错, 生成器写作 `function*`; `Function.prototype.toString` 可用于可调用的 `Proxy`
+* `修复` 可选链整条短路: `a?.b.c` 在 `a` 为 `null` / `undefined` 时整条得 `undefined`, 后面的下标与实参不再求值; 只有 `?.` 才做判断, `a?.b.c` 在 `a.b` 为 `undefined` 时按规范抛 TypeError, `a?.b()` 在方法不存在时同样抛 TypeError; `eval?.()` 是间接调用, `delete a?.b.c` 短路时得 `true`, 带标签模板与 `new a?.b()` 是语法错误
+* `修复` 块内的 `async` 函数与生成器声明改为块级作用域, 块外读不到, 也不再覆盖外层同名变量; 普通函数的行为不变
 
 # 2026-10-31
 

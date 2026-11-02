@@ -37,6 +37,14 @@
         {
           "category": "fix",
           "text": "`new Function` 生成的源碼符合規範: 參數以 `//` 註釋結尾時不再報錯, 生成器寫作 `function*`; `Function.prototype.toString` 可用於可調用的 `Proxy`"
+        },
+        {
+          "category": "fix",
+          "text": "可選鏈整條短路: `a?.b.c` 在 `a` 為 `null` / `undefined` 時整條得 `undefined`, 後面的下標與實參不再求值; 只有 `?.` 才作判斷, `a?.b.c` 在 `a.b` 為 `undefined` 時按規範拋 TypeError, `a?.b()` 在方法不存在時同樣拋 TypeError; `eval?.()` 是間接調用, `delete a?.b.c` 短路時得 `true`, 帶標籤模板與 `new a?.b()` 是語法錯誤"
+        },
+        {
+          "category": "fix",
+          "text": "區塊內的 `async` 函數與生成器聲明改為區塊級作用域, 區塊外讀不到, 也不再覆蓋外層同名變量; 普通函數的行為不變"
         }
       ]
     },

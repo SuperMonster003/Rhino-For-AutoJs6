@@ -28,6 +28,8 @@
 * `修復` 嚴格模式函數體在生成器裡恢復執行時沿用了調用方的嚴格性, 現在總是按函數自身的嚴格性執行
 * `修復` `Promise.all` / `Promise.race` / `Promise.any` 在取疊代器之前先讀取 `resolve`, 取值拋錯時返回被拒絕的 Promise; `then` 訪問器拋錯時拒絕而不是向外拋出
 * `修復` `new Function` 生成的源碼符合規範: 參數以 `//` 註釋結尾時不再報錯, 生成器寫作 `function*`; `Function.prototype.toString` 可用於可調用的 `Proxy`
+* `修復` 可選鏈整條短路: `a?.b.c` 在 `a` 為 `null` / `undefined` 時整條得 `undefined`, 後面的下標與實參不再求值; 只有 `?.` 才作判斷, `a?.b.c` 在 `a.b` 為 `undefined` 時按規範拋 TypeError, `a?.b()` 在方法不存在時同樣拋 TypeError; `eval?.()` 是間接調用, `delete a?.b.c` 短路時得 `true`, 帶標籤模板與 `new a?.b()` 是語法錯誤
+* `修復` 區塊內的 `async` 函數與生成器聲明改為區塊級作用域, 區塊外讀不到, 也不再覆蓋外層同名變量; 普通函數的行為不變
 
 # 2026-10-31
 

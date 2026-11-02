@@ -28,6 +28,8 @@ Cet historique consigne par date les changements de maintenance de cette variant
 * `Correction` Le corps d'une fonction stricte repris dans un générateur prenait le mode de son appelant ; il s'exécute maintenant toujours avec le sien
 * `Correction` `Promise.all` / `Promise.race` / `Promise.any` lisent `resolve` avant l'itérateur et rejettent si cette lecture échoue ; un accesseur `then` qui lève une exception rejette au lieu de la propager
 * `Correction` `new Function` construit sa source selon la spécification : un paramètre terminé par un commentaire `//` n'échoue plus et les générateurs s'écrivent `function*` ; `Function.prototype.toString` fonctionne sur un `Proxy` appelable
+* `Correction` Les chaînes optionnelles court-circuitent en entier: si `a` vaut `null` ou `undefined`, toute l'expression `a?.b.c` vaut `undefined` et les indices et arguments suivants ne sont pas évalués. Seul `?.` teste sa valeur: `a?.b.c` lève donc une TypeError si `a.b` vaut `undefined`, et `a?.b()` de même si la méthode n'existe pas. `eval?.()` est un appel indirect, `delete a?.b.c` vaut `true` en cas de court-circuit, et un gabarit étiqueté sur une chaîne ou `new a?.b()` sont des erreurs de syntaxe
+* `Correction` Les déclarations de fonctions `async` et de générateurs dans un bloc ont une portée de bloc: elles ne sont plus visibles hors du bloc et n'écrasent plus une variable externe de même nom; les fonctions ordinaires ne changent pas
 
 # 2026-10-31
 

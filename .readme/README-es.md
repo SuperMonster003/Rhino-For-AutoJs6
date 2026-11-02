@@ -75,6 +75,8 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 * `Corrección` El cuerpo de una función estricta reanudado en un generador tomaba el modo de quien lo llamaba; ahora siempre se ejecuta con el suyo
 * `Corrección` `Promise.all` / `Promise.race` / `Promise.any` leen `resolve` antes del iterador y rechazan si la lectura falla; un accesor `then` que lanza una excepción rechaza en lugar de propagarla
 * `Corrección` `new Function` construye su fuente según la especificación: un parámetro terminado en un comentario `//` ya no falla y los generadores se escriben `function*`; `Function.prototype.toString` funciona con un `Proxy` invocable
+* `Corrección` Las cadenas opcionales se cortocircuitan por completo: si `a` es `null` o `undefined`, toda `a?.b.c` da `undefined` y los índices y argumentos posteriores no se evalúan. Solo `?.` comprueba su valor, así que `a?.b.c` lanza TypeError si `a.b` es `undefined`, y `a?.b()` también si el método no existe. `eval?.()` es una llamada indirecta, `delete a?.b.c` da `true` al cortocircuitarse, y una plantilla etiquetada sobre una cadena o `new a?.b()` son errores de sintaxis
+* `Corrección` Las declaraciones de funciones `async` y generadores dentro de un bloque tienen ámbito de bloque: no se ven fuera de él y ya no sobrescriben una variable externa con el mismo nombre; las funciones normales no cambian
 
 ### 2026-10-31
 

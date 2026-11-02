@@ -37,6 +37,14 @@
         {
           "category": "fix",
           "text": "`new Function` builds its source as the specification says: a parameter ending in a `//` comment no longer fails and generators read `function*`; `Function.prototype.toString` works on a callable `Proxy`"
+        },
+        {
+          "category": "fix",
+          "text": "Optional chains short-circuit as a whole: `a?.b.c` is `undefined` when `a` is `null` or `undefined`, and later indexes and arguments are not evaluated. Only `?.` tests its value, so `a?.b.c` throws a TypeError when `a.b` is `undefined`, and `a?.b()` throws one when the method is missing. `eval?.()` is an indirect call, `delete a?.b.c` is `true` when it short-circuits, and a tagged template on a chain or `new a?.b()` is a syntax error"
+        },
+        {
+          "category": "fix",
+          "text": "`async` function and generator declarations inside a block are block-scoped: they are not visible outside the block and no longer overwrite an outer variable of the same name; plain functions behave as before"
         }
       ]
     },

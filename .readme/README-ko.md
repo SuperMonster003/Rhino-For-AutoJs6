@@ -75,6 +75,8 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 * `수정` 제너레이터에서 재개된 strict 함수 본문이 호출자의 strict 모드를 따랐습니다. 이제 항상 함수 자신의 모드로 실행됩니다
 * `수정` `Promise.all` / `Promise.race` / `Promise.any`는 이터레이터보다 먼저 `resolve`를 읽고 실패하면 거부합니다. `then` 접근자가 예외를 던지면 밖으로 던지지 않고 거부합니다
 * `수정` `new Function`의 소스가 명세대로 생성됩니다: `//` 주석으로 끝나는 매개변수가 더 이상 실패하지 않고 제너레이터는 `function*`로 표기됩니다. `Function.prototype.toString`은 호출 가능한 `Proxy`에도 동작합니다
+* `수정` 선택적 체이닝이 체인 전체를 단락합니다: `a`가 `null` / `undefined`이면 `a?.b.c` 전체가 `undefined`이고 뒤의 인덱스와 인수는 평가하지 않습니다. 판정은 `?.`에서만 하므로 `a.b`가 `undefined`이면 `a?.b.c`는 TypeError, 메서드가 없으면 `a?.b()`도 TypeError입니다. `eval?.()`은 간접 호출이고, 단락된 `delete a?.b.c`는 `true`이며, 체인에 붙인 태그 템플릿과 `new a?.b()`는 구문 오류입니다
+* `수정` 블록 안의 `async` 함수와 제너레이터 선언이 블록 스코프가 되어 블록 밖에서 보이지 않고 바깥의 같은 이름 변수를 덮어쓰지 않습니다. 일반 함수의 동작은 그대로입니다
 
 ### 2026-10-31
 

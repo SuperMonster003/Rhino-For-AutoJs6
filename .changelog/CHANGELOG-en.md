@@ -28,6 +28,8 @@ This history records maintenance changes to this fork by date. Official Rhino re
 * `Fix` A strict function body resumed in a generator took the strictness of its caller; it now always runs with its own
 * `Fix` `Promise.all` / `Promise.race` / `Promise.any` read `resolve` before the iterator and reject when that throws; a throwing `then` getter now rejects instead of propagating
 * `Fix` `new Function` builds its source as the specification says: a parameter ending in a `//` comment no longer fails and generators read `function*`; `Function.prototype.toString` works on a callable `Proxy`
+* `Fix` Optional chains short-circuit as a whole: `a?.b.c` is `undefined` when `a` is `null` or `undefined`, and later indexes and arguments are not evaluated. Only `?.` tests its value, so `a?.b.c` throws a TypeError when `a.b` is `undefined`, and `a?.b()` throws one when the method is missing. `eval?.()` is an indirect call, `delete a?.b.c` is `true` when it short-circuits, and a tagged template on a chain or `new a?.b()` is a syntax error
+* `Fix` `async` function and generator declarations inside a block are block-scoped: they are not visible outside the block and no longer overwrite an outer variable of the same name; plain functions behave as before
 
 # 2026-10-31
 
