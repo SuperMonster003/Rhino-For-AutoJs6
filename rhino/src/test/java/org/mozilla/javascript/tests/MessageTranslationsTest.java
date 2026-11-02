@@ -100,7 +100,9 @@ class MessageTranslationsTest {
                     "msg.async.await.params",
                     "msg.async.for.await.of",
                     "msg.async.decl.not.in.block",
-                    "msg.async.name.missing");
+                    "msg.async.name.missing",
+                    "msg.optional.template",
+                    "msg.optional.new");
 
     static Stream<String> languages() {
         return Stream.of("ar", "es", "fr", "ja", "ko", "ru", "zh", "zh_HK", "zh_TW");

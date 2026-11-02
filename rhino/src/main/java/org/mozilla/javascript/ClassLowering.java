@@ -320,12 +320,8 @@ final class ClassLowering {
 
     /** {@code o.#x}: the element access {@code o[#x@n]}. */
     static Node privateMember(IRFactory factory, PropertyGet node) {
-        Node target = factory.transform(node.getTarget());
-        Node result = new Node(Token.GETELEM, target, privateReference(node.getProperty()));
-        if (node.type == Token.QUESTION_DOT) {
-            result.putIntProp(Node.OPTIONAL_CHAINING, 1);
-        }
-        return result;
+        Node target = factory.chains.target(node, node.getTarget());
+        return new Node(Token.GETELEM, target, privateReference(node.getProperty()));
     }
 
     /**

@@ -34,7 +34,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
     private JSDescriptor.Builder<T> builder;
 
     private ScriptNode scriptOrFn;
-    private int iCodeTop;
+    int iCodeTop; // AutoJs6: class syntax
     private int stackDepth;
     private int lineNumber = -1;
     private int doubleTableTop;
@@ -1341,6 +1341,10 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         stackChange(-1);
     }
 
+    void generateCallee(Node left) { // AutoJs6: class syntax
+        generateCallFunAndThis(left, false); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     private CompleteOptionalCallJump generateCallFunAndThis(
             Node left, boolean isOptionalChainingCall) {
         // Generate code to place on stack function and thisObj
@@ -1391,6 +1395,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
                 }
             default:
                 // Including Token.GETVAR
+                if (ClassInterpreter.callee(this, left)) break; // AutoJs6: class syntax
                 visitExpression(left, 0);
                 // stack: ... value -> ... function thisObj
                 if (isOptionalChainingCall) {
@@ -1840,7 +1845,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         resolveGoto(fromPC, jumpPC);
     }
 
-    private void resolveForwardGoto(int fromPC) {
+    void resolveForwardGoto(int fromPC) { // AutoJs6: class syntax
         // Ensure that forward jump skips at least self bytecode
         if (iCodeTop < fromPC + 3) throw Kit.codeBug();
         resolveGoto(fromPC, iCodeTop);
@@ -1924,7 +1929,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         return index;
     }
 
-    private void addGotoOp(int gotoOp) {
+    void addGotoOp(int gotoOp) { // AutoJs6: class syntax
         byte[] array = itsData.itsICode;
         int top = iCodeTop;
         if (top + 3 > array.length) {
@@ -2095,7 +2100,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         }
     }
 
-    private int allocLocal() {
+    int allocLocal() { // AutoJs6: class syntax
         int localSlot = localTop;
         ++localTop;
         if (localTop > itsData.maxLocals) {
@@ -2104,7 +2109,7 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
         return localSlot;
     }
 
-    private void releaseLocal(int localSlot) {
+    void releaseLocal(int localSlot) { // AutoJs6: class syntax
         --localTop;
         if (localSlot != localTop) Kit.codeBug();
     }

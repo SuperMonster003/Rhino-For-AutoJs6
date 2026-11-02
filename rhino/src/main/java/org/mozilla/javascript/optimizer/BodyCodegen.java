@@ -3217,7 +3217,7 @@ class BodyCodegen {
      * Generate code to look up a property or variable. The result is a ScriptRuntime.LookupResult
      * object on the stack.
      */
-    private void generateLookupResult(Node node, Node parent) {
+    void generateLookupResult(Node node, Node parent) { // AutoJs6: class syntax
         // Place on stack (function object, function this) pair
         int type = node.getType();
         boolean isOptionalChainingCall = parent.getIntProp(Node.OPTIONAL_CHAINING, 0) == 1;
@@ -3274,6 +3274,7 @@ class BodyCodegen {
 
             default: // including GETVAR
                 {
+                    if (ClassBodyCodegen.callee(this, node)) break; // AutoJs6: class syntax
                     generateExpression(node, parent);
                     cfw.addALoad(contextLocal);
                     String name =
@@ -5041,6 +5042,14 @@ class BodyCodegen {
      * @param isConst true iff the variable is const
      * @return the register for the word pair (double/long)
      */
+    int newChainLocal() { // AutoJs6: class syntax
+        return getNewWordLocal(); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
+    void releaseChainLocal(int local) { // AutoJs6: class syntax
+        releaseWordLocal(local); // AutoJs6: class syntax
+    } // AutoJs6: class syntax
+
     private short getNewWordPairLocal(boolean isConst) {
         return getNewWordIntern(isConst ? 3 : 2);
     }

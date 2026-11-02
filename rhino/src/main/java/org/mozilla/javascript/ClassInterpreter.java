@@ -49,6 +49,10 @@ import org.mozilla.javascript.Interpreter.NewState;
  *       ClassRuntime#logicalBind}) and the value read from it, the read itself emits nothing; 1:
  *       binding -&gt; binding, scope the assignment writes to ({@link ClassRuntime#logicalTarget});
  *       2: binding, value -&gt; value.
+ *   <li>{@code CLASS_OPTIONAL}: index register = the local of an {@link ClassOp#OPTIONAL_CHAIN}.
+ *       Stack: value -&gt; value, also stored in the local.
+ *   <li>{@code CLASS_OPTIONAL_CALLEE}: the same for a lookup result, which goes into the local.
+ *       Stack: lookup result -&gt; function ({@link ClassRuntime#optionalCallee}).
  * </ul>
  */
 final class ClassInterpreter {
@@ -77,6 +81,72 @@ final class ClassInterpreter {
         gen.stackChange(1);
         gen.addStringOp(Icode.CLASS_BOUND_NAME, node.getString());
         return true;
+    }
+
+    /**
+     * Emits a callee of a {@link Token#CALL} that is a {@link Token#CLASS} node with a lookup
+     * result of its own: a chain in parentheses keeps the this value of its last member.
+     */
+    static <T extends ScriptOrFn<T>> boolean callee(CodeGenerator<T> gen, Node left) {
+        if (left.getType() != Token.CLASS) {
+            return false;
+        }
+        switch (ClassOp.of(left).kind) {
+            case ClassOp.OPTIONAL_CALLEE:
+                {
+                    Node localBlock = (Node) left.getProp(Node.LOCAL_BLOCK_PROP);
+                    gen.addIndexOp(
+                            Token.LOCAL_LOAD, localBlock.getExistingIntProp(Node.LOCAL_PROP));
+                    gen.stackChange(2);
+                    return true;
+                }
+            case ClassOp.OPTIONAL_CHAIN:
+                optionalChain(gen, left, true);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Emits an {@link ClassOp#OPTIONAL_CHAIN}, which leaves one value or, as a callee, a lookup
+     * result. A lookup result counts as two values of the stack, like the ones of CodeGenerator.
+     */
+    private static <T extends ScriptOrFn<T>> void optionalChain(
+            CodeGenerator<T> gen, Node node, boolean callee) {
+        Node head = node.getFirstChild();
+        Node rest = head.getNext();
+        Node shortValue = rest.getNext();
+        boolean optionalCall = ClassOp.of(node).optionalCall;
+        if (optionalCall) {
+            gen.generateCallee(head);
+            gen.stackChange(-1);
+        } else {
+            gen.visitExpression(head, 0);
+        }
+        int local = gen.allocLocal();
+        ((Node) node.getProp(Node.LOCAL_BLOCK_PROP)).putIntProp(Node.LOCAL_PROP, local);
+        gen.addIndexOp(optionalCall ? Icode.CLASS_OPTIONAL_CALLEE : Icode.CLASS_OPTIONAL, local);
+        int shortCircuit = gen.iCodeTop;
+        gen.addGotoOp(Icode.IF_NULL_UNDEF);
+        gen.stackChange(-1);
+        if (callee) {
+            gen.generateCallee(rest);
+        } else {
+            gen.visitExpression(rest, 0);
+        }
+        int end = gen.iCodeTop;
+        gen.addGotoOp(Token.GOTO);
+        gen.resolveForwardGoto(shortCircuit);
+        gen.stackChange(callee ? -2 : -1);
+        if (callee) {
+            gen.generateCallee(shortValue);
+        } else {
+            gen.visitExpression(shortValue, 0);
+        }
+        gen.resolveForwardGoto(end);
+        gen.addIndexOp(Icode.LOCAL_CLEAR, local);
+        gen.releaseLocal(local);
     }
 
     /** Emits the icodes of a {@link Token#CLASS} node, which leaves one value on the stack. */
@@ -219,6 +289,9 @@ final class ClassInterpreter {
                     gen.stackChange(-1);
                     break;
                 }
+            case ClassOp.OPTIONAL_CHAIN:
+                optionalChain(gen, node, false);
+                break;
             default:
                 throw Kit.codeBug();
         }
@@ -244,6 +317,8 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_LOGICAL_BIND] = new DoClassLogicalBind();
         instructionObjs[base + Icode.CLASS_AWAIT] = new DoClassAwait();
         instructionObjs[base + Icode.CLASS_FOR_AWAIT] = new DoClassForAwait();
+        instructionObjs[base + Icode.CLASS_OPTIONAL] = new DoClassOptional();
+        instructionObjs[base + Icode.CLASS_OPTIONAL_CALLEE] = new DoClassOptional();
         SpreadCall.register(instructionObjs, base);
     }
 
@@ -287,6 +362,10 @@ final class ClassInterpreter {
                 return "CLASS_AWAIT";
             case Icode.CLASS_FOR_AWAIT:
                 return "CLASS_FOR_AWAIT";
+            case Icode.CLASS_OPTIONAL:
+                return "CLASS_OPTIONAL";
+            case Icode.CLASS_OPTIONAL_CALLEE:
+                return "CLASS_OPTIONAL_CALLEE";
             default:
                 return SpreadCall.icodeName(icode);
         }
@@ -475,6 +554,24 @@ final class ClassInterpreter {
         void dumpICode(int op, String tname, ICodeDumpContext ctx) {
             int step = ctx.compilerData.itsICode[ctx.pc++] & 0xFF;
             ctx.out.println(tname + " local " + ctx.indexReg + " step " + step);
+        }
+    }
+
+    private static final class DoClassOptional extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            Object value = value(frame, frame.stackTop);
+            frame.stack[frame.localShift + state.indexReg] = value;
+            frame.stack[frame.stackTop] =
+                    op == Icode.CLASS_OPTIONAL_CALLEE
+                            ? ClassRuntime.optionalCallee((ScriptRuntime.LookupResult) value)
+                            : value;
+            return null;
+        }
+
+        @Override
+        void dumpICode(int op, String tname, ICodeDumpContext ctx) {
+            ctx.out.println(tname + " local " + ctx.indexReg);
         }
     }
 

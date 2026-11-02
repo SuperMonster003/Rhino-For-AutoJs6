@@ -212,8 +212,12 @@ abstract class Icode {
             CLASS_AWAIT = CLASS_LOGICAL_BIND - 1, // AutoJs6: async
             CLASS_FOR_AWAIT = CLASS_AWAIT - 1, // AutoJs6: async
 
+            // AutoJs6: class syntax (optional chains, see ClassOp.OPTIONAL_CHAIN)
+            CLASS_OPTIONAL = CLASS_FOR_AWAIT - 1, // AutoJs6: class syntax
+            CLASS_OPTIONAL_CALLEE = CLASS_OPTIONAL - 1, // AutoJs6: class syntax
+
             // Last icode
-            MIN_ICODE = CLASS_FOR_AWAIT; // AutoJs6: class syntax
+            MIN_ICODE = CLASS_OPTIONAL_CALLEE; // AutoJs6: class syntax
 
     static String bytecodeName(int bytecode) {
         if (!validBytecode(bytecode)) {

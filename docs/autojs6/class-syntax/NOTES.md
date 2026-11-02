@@ -977,3 +977,9 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 - 暂存脚本跑全库 (不是 `Test262SuiteTest`) 会卡在没有超时保护的慢用例上, 回归判据用官方的重生成加 `propdiff.py`.
 - `new Function` 的源码改为规范形式之后, 动态函数体里的行号比原来多 2, 与 V8 相同; 全量回归没有用例依赖旧行号.
 - 宽松模式的 `for ({ eval = 0 } of [{}])` 是合法写法, 严格模式才是 SyntaxError; 上游 `ObjIdInitSimpleStrictForOf` 没开严格模式, 见 ROADMAP P9.4.
+
+## Q55 / Q56 (2026-11-02, 子会话 rhino-q55)
+
+进行中. 第一笔 4e2c469ca 回填 Q54 / Q55 / Q56. 证据目录 `build/upstream-sync/class-q55-20261102/`.
+
+- Q55 设计: `OptionalChain` (新文件) 在 IRFactory 把整条链改写为 `CLASS[OPTIONAL_CHAIN](head, rest, short)`: head 是 `?.` 之前的值, 存进一个 local, rest 是后面整段 (读 local), short 是短路值 (undefined, delete 时 true). `?.()` 的 head 存 LookupResult, rest 的 callee 是 `CLASS[OPTIONAL_CALLEE]`. Parser 用 AST 的 int 属性 `Node.OPTIONAL_CHAINING` 标出真正的 `?.`, QUESTION_DOT 类型仍表示 "在链里" (赋值目标判断要用).

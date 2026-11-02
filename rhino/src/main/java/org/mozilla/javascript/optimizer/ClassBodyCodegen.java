@@ -24,6 +24,7 @@ import org.mozilla.javascript.ast.ScriptNode;
 final class ClassBodyCodegen {
 
     private static final String RUNTIME = "org/mozilla/javascript/ClassRuntime";
+    private static final String LOOKUP_RESULT = "org/mozilla/javascript/ScriptRuntime$LookupResult";
     private static final String OBJECT = "Ljava/lang/Object;";
     private static final String CONTEXT_SCOPE =
             "Lorg/mozilla/javascript/Context;Lorg/mozilla/javascript/VarScope;";
@@ -230,9 +231,84 @@ final class ClassBodyCodegen {
             case ClassOp.LOGICAL_NAME:
                 logicalName(bc, child, node);
                 break;
+            case ClassOp.OPTIONAL_CHAIN:
+                optionalChain(bc, node, false);
+                break;
             default:
                 throw Kit.codeBug();
         }
+    }
+
+    /**
+     * Generates a callee of a {@link Token#CALL} that is a {@link Token#CLASS} node with a lookup
+     * result of its own: a chain in parentheses keeps the this value of its last member.
+     */
+    static boolean callee(BodyCodegen bc, Node node) {
+        if (node.getType() != Token.CLASS) {
+            return false;
+        }
+        switch (ClassOp.of(node).getKind()) {
+            case ClassOp.OPTIONAL_CALLEE:
+                bc.cfw.addALoad(
+                        ((Node) node.getProp(Node.LOCAL_BLOCK_PROP))
+                                .getExistingIntProp(Node.LOCAL_PROP));
+                bc.cfw.add(ByteCode.CHECKCAST, LOOKUP_RESULT);
+                return true;
+            case ClassOp.OPTIONAL_CHAIN:
+                optionalChain(bc, node, true);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * An {@link ClassOp#OPTIONAL_CHAIN}, which leaves one object or, as a callee, a lookup result.
+     * The local is allocated after the first child, which may yield before it has a value.
+     */
+    private static void optionalChain(BodyCodegen bc, Node node, boolean callee) {
+        ClassFileWriter cfw = bc.cfw;
+        Node head = node.getFirstChild();
+        Node rest = head.getNext();
+        Node shortValue = rest.getNext();
+        boolean optionalCall = ClassOp.of(node).isOptionalCall();
+        if (optionalCall) {
+            bc.generateLookupResult(head, node);
+        } else {
+            bc.generateExpression(head, node);
+        }
+        int local = bc.newChainLocal();
+        Node localBlock = (Node) node.getProp(Node.LOCAL_BLOCK_PROP);
+        localBlock.putIntProp(Node.LOCAL_PROP, local);
+        cfw.add(ByteCode.DUP);
+        cfw.addAStore(local);
+        if (optionalCall) {
+            invoke(cfw, "optionalCallee", "(L" + LOOKUP_RESULT + ";)" + OBJECT);
+        }
+        cfw.addInvoke(
+                ByteCode.INVOKESTATIC,
+                "org/mozilla/javascript/optimizer/OptRuntime",
+                "isNullOrUndefined",
+                "(" + OBJECT + ")Z");
+        int shortCircuit = cfw.acquireLabel();
+        cfw.add(ByteCode.IFNE, shortCircuit);
+        int stack = cfw.getStackTop();
+        if (callee) {
+            bc.generateLookupResult(rest, node);
+        } else {
+            bc.generateExpression(rest, node);
+        }
+        int end = cfw.acquireLabel();
+        cfw.add(ByteCode.GOTO, end);
+        cfw.markLabel(shortCircuit, stack);
+        if (callee) {
+            bc.generateLookupResult(shortValue, node);
+        } else {
+            bc.generateExpression(shortValue, node);
+        }
+        cfw.markLabel(end);
+        bc.releaseChainLocal(local);
+        localBlock.removeProp(Node.LOCAL_PROP);
     }
 
     /**

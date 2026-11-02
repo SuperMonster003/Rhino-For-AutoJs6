@@ -3566,8 +3566,14 @@ public class Parser {
                 case Token.DOT:
                 case Token.QUESTION_DOT:
                 case Token.DOTDOT:
+                    if (tt == Token.QUESTION_DOT && !allowCallSyntax) { // AutoJs6: class syntax
+                        reportError("msg.optional.new"); // AutoJs6: class syntax
+                    } // AutoJs6: class syntax
                     isOptionalChain |= (tt == Token.QUESTION_DOT);
                     pn = propertyAccess(tt, pn, isOptionalChain);
+                    if (tt == Token.QUESTION_DOT) { // AutoJs6: class syntax
+                        pn.putIntProp(Node.OPTIONAL_CHAINING, 1); // AutoJs6: class syntax
+                    } // AutoJs6: class syntax
                     break;
 
                 case Token.DOTQUERY:
@@ -3593,6 +3599,7 @@ public class Parser {
                 case Token.LB:
                     consumeToken();
                     pn = makeElemGet(pn, ts.tokenBeg);
+                    if (isOptionalChain) pn.setType(Token.QUESTION_DOT); // AutoJs6: class syntax
                     break;
 
                 case Token.LP:
@@ -3612,6 +3619,9 @@ public class Parser {
                                     : currentFlagTOken;
                     break;
                 case Token.TEMPLATE_LITERAL:
+                    if (isOptionalChain) { // AutoJs6: class syntax
+                        reportError("msg.optional.template"); // AutoJs6: class syntax
+                    } // AutoJs6: class syntax
                     consumeToken();
                     pn = taggedTemplateLiteral(pn);
                     break;
@@ -3761,7 +3771,7 @@ public class Parser {
         boolean xml = ref instanceof XmlRef;
         InfixExpression result = xml ? new XmlMemberGet() : new PropertyGet();
         if (xml && tt == Token.DOT) result.setType(Token.DOT);
-        if (isOptionalChain) {
+        if (isOptionalChain && tt != Token.DOTDOT) { // AutoJs6: class syntax
             result.setType(Token.QUESTION_DOT);
         }
         int pos = pn.getPosition();

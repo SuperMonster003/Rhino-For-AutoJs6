@@ -599,6 +599,12 @@ public final class ClassRuntime {
         return new ScriptRuntime.LookupResult(value, base, key.toString());
     }
 
+    /** The value that {@code ?.()} tests: the function of the lookup, undefined when absent. */
+    public static Object optionalCallee(ScriptRuntime.LookupResult lookup) {
+        Object value = lookup.getResult();
+        return value == Scriptable.NOT_FOUND ? Undefined.instance : value;
+    }
+
     /** {@code #x in o}. */
     public static boolean privateIn(Object name, Object obj) {
         if (!(obj instanceof Scriptable)) {

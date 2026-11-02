@@ -24,6 +24,7 @@ import org.mozilla.javascript.interpreterv2.instruction.ClassForAwait;
 import org.mozilla.javascript.interpreterv2.instruction.ClassInitFields;
 import org.mozilla.javascript.interpreterv2.instruction.ClassIterClose;
 import org.mozilla.javascript.interpreterv2.instruction.ClassIterRest;
+import org.mozilla.javascript.interpreterv2.instruction.ClassOptional;
 import org.mozilla.javascript.interpreterv2.instruction.ClassParamScope;
 import org.mozilla.javascript.interpreterv2.instruction.ClassPrivateName;
 import org.mozilla.javascript.interpreterv2.instruction.ClassRequireObject;
@@ -76,7 +77,9 @@ class ClassInstructionsTest {
                 Arguments.of(
                         new ClassForAwait(2, ForAwait.NEXT), 1, "ClassForAwait(slot=2, step=1)"),
                 Arguments.of(
-                        new ClassForAwait(2, ForAwait.STEP), 0, "ClassForAwait(slot=2, step=2)"));
+                        new ClassForAwait(2, ForAwait.STEP), 0, "ClassForAwait(slot=2, step=2)"),
+                Arguments.of(new ClassOptional(3, false), 0, "ClassOptional(slot=3, callee=false)"),
+                Arguments.of(new ClassOptional(3, true), 0, "ClassOptional(slot=3, callee=true)"));
     }
 
     @ParameterizedTest

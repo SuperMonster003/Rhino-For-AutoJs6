@@ -48,7 +48,9 @@ class ClassChainUniquenessTest {
                     "CLASS_BOUND_NAME",
                     "CLASS_LOGICAL_BIND",
                     "CLASS_AWAIT",
-                    "CLASS_FOR_AWAIT");
+                    "CLASS_FOR_AWAIT",
+                    "CLASS_OPTIONAL",
+                    "CLASS_OPTIONAL_CALLEE");
 
     /** Fork node properties, in chain order, after the upstream properties. */
     private static final List<String> FORK_PROPS = List.of("CLASS_PROP", "DEFAULT_NAME_PROP");

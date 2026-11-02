@@ -94,6 +94,22 @@ public final class ClassOp {
      */
     public static final int FOR_AWAIT = 15;
 
+    /**
+     * The part of an optional chain from a {@code ?.} on, see {@link OptionalChain}. The value of
+     * the first child goes into the local of the {@link Node#LOCAL_BLOCK_PROP}, which the node
+     * allocates itself; when it is null or undefined the value of the node is the third child,
+     * otherwise the second child, which reads the local. With {@link #optionalCall} the first child
+     * is a callee: the local holds its lookup result and the test looks at the function.
+     */
+    public static final int OPTIONAL_CHAIN = 16;
+
+    /**
+     * The callee of the call of {@code f?.()}: the lookup result in the local of the {@link
+     * #OPTIONAL_CHAIN} around it, the {@link Node#LOCAL_BLOCK_PROP} of the node. It only appears as
+     * the callee of a call.
+     */
+    public static final int OPTIONAL_CALLEE = 17;
+
     /** Element kinds, in the low bits of the int {@link Node#CLASS_PROP} of an element. */
     public static final int ELEMENT_METHOD = 0, ELEMENT_GETTER = 1, ELEMENT_SETTER = 2;
 
@@ -149,6 +165,9 @@ public final class ClassOp {
      * #FOR_AWAIT}: one of the constants of {@link ForAwait}.
      */
     int step;
+
+    /** {@link #OPTIONAL_CHAIN}: the first child is the callee of {@code ?.()}. */
+    boolean optionalCall;
 
     ClassOp(int kind) {
         this.kind = kind;
@@ -242,5 +261,9 @@ public final class ClassOp {
 
     public int getStep() {
         return step;
+    }
+
+    public boolean isOptionalCall() {
+        return optionalCall;
     }
 }

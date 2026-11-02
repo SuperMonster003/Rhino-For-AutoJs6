@@ -100,6 +100,7 @@ public final class IRFactory {
     private static final int ALWAYS_FALSE_BOOLEAN = -1;
 
     private Parser parser;
+    final OptionalChain chains = new OptionalChain(this); // AutoJs6: class syntax
     private AstNodePosition astNodePos;
     boolean outerScopeIsStrict; // AutoJs6: class syntax
 
@@ -150,6 +151,7 @@ public final class IRFactory {
     // IR transformation part of the public AST API - desirable?
     // Another possibility:  create AstTransformer interface and adapter.
     Node transform(AstNode node) { // AutoJs6: class syntax
+        if (chains.starts(node)) return chains.lower(node); // AutoJs6: class syntax
         Node statement = parser.bindings.statement(this, node); // AutoJs6: class syntax
         if (statement != null) return statement; // AutoJs6: class syntax
         switch (node.getType()) {
@@ -190,6 +192,9 @@ public final class IRFactory {
             case Token.GETPROP:
                 return transformPropertyGet((PropertyGet) node);
             case Token.QUESTION_DOT:
+                if (node instanceof XmlMemberGet) { // AutoJs6: class syntax
+                    return transformXmlMemberGet((XmlMemberGet) node); // AutoJs6: class syntax
+                } // AutoJs6: class syntax
                 if (node instanceof ElementGet) {
                     return transformElementGet((ElementGet) node);
                 } else {
@@ -597,7 +602,7 @@ public final class IRFactory {
     private Node transformElementGet(ElementGet node) {
         // OPT: could optimize to createPropertyGet
         // iff elem is string that can not be number
-        Node target = transform(node.getTarget());
+        Node target = chains.target(node, node.getTarget()); // AutoJs6: class syntax
         Node element = transform(node.getElement());
         Node getElem = new Node(Token.GETELEM, target, element);
         if (node.type == Token.QUESTION_DOT) {
@@ -760,7 +765,7 @@ public final class IRFactory {
             if (ClassLowering.isSuperCall(parser, node)) { // AutoJs6: class syntax
                 return ClassLowering.transformSuperCall(this, node); // AutoJs6: class syntax
             } // AutoJs6: class syntax
-            Node transformedTarget = transform(node.getTarget());
+            Node transformedTarget = chains.target(node, node.getTarget()); // AutoJs6: class syntax
             Node call = createCallOrNew(Token.CALL, transformedTarget);
             call.setLineColumnNumber(node.getLineno(), node.getColumn());
             List<AstNode> args = node.getArguments();
@@ -771,6 +776,7 @@ public final class IRFactory {
             if (node.isOptionalCall()) {
                 call.putIntProp(Node.OPTIONAL_CHAINING, 1);
             }
+            call.removeProp(Node.OPTIONAL_CHAINING); // AutoJs6: class syntax
             if (transformedTarget.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1) {
                 call.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
             }
@@ -1089,7 +1095,7 @@ public final class IRFactory {
         if (ClassLowering.isPrivateMember(node)) { // AutoJs6: class syntax
             return ClassLowering.privateMember(this, node); // AutoJs6: class syntax
         } // AutoJs6: class syntax
-        Node target = transform(node.getTarget());
+        Node target = chains.target(node, node.getTarget()); // AutoJs6: class syntax
         String name = node.getProperty().getIdentifier();
         return createPropertyGet(target, null, name, 0, node.type);
     }
@@ -1368,6 +1374,10 @@ public final class IRFactory {
             return transformDefaultXmlNamespace(node);
         }
 
+        if (type == Token.DELPROP) { // AutoJs6: class syntax
+            Node chain = chains.delete(node.getOperand()); // AutoJs6: class syntax
+            if (chain != null) return chain; // AutoJs6: class syntax
+        } // AutoJs6: class syntax
         Node child = transform(node.getOperand());
         return createUnary(type, child);
     }
@@ -1503,7 +1513,7 @@ public final class IRFactory {
 
     private Node transformXmlMemberGet(XmlMemberGet node) {
         XmlRef ref = node.getMemberRef();
-        Node pn = transform(node.getLeft());
+        Node pn = chains.target(node, node.getLeft()); // AutoJs6: class syntax
         int flags = ref.isAttributeAccess() ? Node.ATTRIBUTE_FLAG : 0;
         if (node.getType() == Token.DOTDOT) {
             flags |= Node.DESCENDANTS_FLAG;
@@ -2172,7 +2182,7 @@ public final class IRFactory {
         return new Node(Token.HOOK, cond, ifTrue, ifFalse);
     }
 
-    private static Node createUnary(int nodeType, Node child) {
+    static Node createUnary(int nodeType, Node child) { // AutoJs6: class syntax
         int childType = child.getType();
         switch (nodeType) {
             case Token.DELPROP:
