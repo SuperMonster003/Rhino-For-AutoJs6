@@ -25,6 +25,8 @@ public class ClassBenchmark {
 
         Function classNew;
         Function functionNew;
+        Function functionExprNew;
+        Function strictFunctionExprNew;
         Function classDerivedNew;
         Function functionDerivedNew;
         Function classCall;
@@ -47,6 +49,8 @@ public class ClassBenchmark {
             }
             classNew = function("classNew");
             functionNew = function("functionNew");
+            functionExprNew = function("functionExprNew");
+            strictFunctionExprNew = function("strictFunctionExprNew");
             classDerivedNew = function("classDerivedNew");
             functionDerivedNew = function("functionDerivedNew");
             classCall = function("classCall");
@@ -77,6 +81,16 @@ public class ClassBenchmark {
     @Benchmark
     public Object functionNew(ClassState state) {
         return state.run(state.functionNew);
+    }
+
+    @Benchmark
+    public Object functionExprNew(ClassState state) {
+        return state.run(state.functionExprNew);
+    }
+
+    @Benchmark
+    public Object strictFunctionExprNew(ClassState state) {
+        return state.run(state.strictFunctionExprNew);
     }
 
     @Benchmark

@@ -55,6 +55,35 @@ function functionNew() {
     return p;
 }
 
+// Function expressions: the compiler has no direct call for these, as for a class constructor
+// (a function statement in the same script gets one, Q51).
+var PointV = function (x, y) {
+    this.x = x;
+    this.y = y;
+};
+
+var PointS = function (x, y) {
+    'use strict';
+    this.x = x;
+    this.y = y;
+};
+
+function functionExprNew() {
+    var p;
+    for (var i = 0; i < 1000; i++) {
+        p = new PointV(i, 1);
+    }
+    return p;
+}
+
+function strictFunctionExprNew() {
+    var p;
+    for (var i = 0; i < 1000; i++) {
+        p = new PointS(i, 1);
+    }
+    return p;
+}
+
 function classDerivedNew() {
     var p;
     for (var i = 0; i < 1000; i++) {
