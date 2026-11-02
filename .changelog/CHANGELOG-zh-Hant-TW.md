@@ -30,6 +30,9 @@
 * `修復` `new Function` 產生的原始碼符合規範: 參數以 `//` 註解結尾時不再報錯, 產生器寫作 `function*`; `Function.prototype.toString` 可用於可呼叫的 `Proxy`
 * `修復` 可選鏈整條短路: `a?.b.c` 在 `a` 為 `null` / `undefined` 時整條得到 `undefined`, 後面的索引與引數不再求值; 只有 `?.` 才做判斷, `a?.b.c` 在 `a.b` 為 `undefined` 時依規範擲出 TypeError, `a?.b()` 在方法不存在時同樣擲出 TypeError; `eval?.()` 是間接呼叫, `delete a?.b.c` 短路時得到 `true`, 帶標籤範本與 `new a?.b()` 是語法錯誤
 * `修復` 區塊內的 `async` 函式與產生器宣告改為區塊級作用域, 區塊外讀不到, 也不再覆寫外層同名變數; 一般函式的行為不變
+* `修復` 編譯模式下產生器與 `async` 函式裡巢狀的 `yield` / `await` 按書寫的位置求值: `yield [g(1), yield 'x']` 先呼叫 `g(1)`, `await (u ? await g() : 2)` 在 `u` 為假時不再呼叫 `g()`; `[a, b] = [1, yield 2]` 不再報 `$0` 未定義
+* `修復` `switch` 各 `case` 裡的函式宣告在進入 `switch` 時就初始化, 沒走到的 `case` 裡宣告的函式也能呼叫; 非嚴格模式下外層的同名變數要走到宣告時才賦值
+* `修復` 除錯模式下, 含 `for-of`, 解構, `class ... extends`, `for await` 的指令碼不再因為讀取行號失敗而無法編譯
 
 # 2026-10-31
 

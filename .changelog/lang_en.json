@@ -45,6 +45,18 @@
         {
           "category": "fix",
           "text": "`async` function and generator declarations inside a block are block-scoped: they are not visible outside the block and no longer overwrite an outer variable of the same name; plain functions behave as before"
+        },
+        {
+          "category": "fix",
+          "text": "In compiled mode, a `yield` or `await` nested in another one runs where it is written in generators and `async` functions: `yield [g(1), yield 'x']` calls `g(1)` first, and `await (u ? await g() : 2)` no longer calls `g()` when `u` is false. `[a, b] = [1, yield 2]` no longer fails with `$0` is not defined"
+        },
+        {
+          "category": "fix",
+          "text": "Function declarations in the `case` clauses of a `switch` are initialized on entering the `switch`, so a function declared in a `case` that does not run can be called; in sloppy mode an outer variable of the same name is assigned only when the declaration is reached"
+        },
+        {
+          "category": "fix",
+          "text": "In debug mode, scripts with `for-of`, destructuring, `class ... extends` or `for await` no longer fail to compile because their line numbers could not be read"
         }
       ]
     },

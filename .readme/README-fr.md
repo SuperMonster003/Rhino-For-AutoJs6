@@ -77,6 +77,9 @@ Cet historique consigne par date les changements de maintenance de cette variant
 * `Correction` `new Function` construit sa source selon la spécification : un paramètre terminé par un commentaire `//` n'échoue plus et les générateurs s'écrivent `function*` ; `Function.prototype.toString` fonctionne sur un `Proxy` appelable
 * `Correction` Les chaînes optionnelles court-circuitent en entier: si `a` vaut `null` ou `undefined`, toute l'expression `a?.b.c` vaut `undefined` et les indices et arguments suivants ne sont pas évalués. Seul `?.` teste sa valeur: `a?.b.c` lève donc une TypeError si `a.b` vaut `undefined`, et `a?.b()` de même si la méthode n'existe pas. `eval?.()` est un appel indirect, `delete a?.b.c` vaut `true` en cas de court-circuit, et un gabarit étiqueté sur une chaîne ou `new a?.b()` sont des erreurs de syntaxe
 * `Correction` Les déclarations de fonctions `async` et de générateurs dans un bloc ont une portée de bloc: elles ne sont plus visibles hors du bloc et n'écrasent plus une variable externe de même nom; les fonctions ordinaires ne changent pas
+* `Correction` En mode compilé, un `yield` ou `await` imbriqué dans un autre s'exécute là où il est écrit dans les générateurs et les fonctions `async`: `yield [g(1), yield 'x']` appelle d'abord `g(1)`, et `await (u ? await g() : 2)` n'appelle plus `g()` quand `u` est faux. `[a, b] = [1, yield 2]` n'échoue plus avec `$0` non défini
+* `Correction` Les déclarations de fonction dans les `case` d'un `switch` sont initialisées à l'entrée du `switch`: une fonction déclarée dans un `case` non exécuté peut être appelée; en mode non strict, une variable externe du même nom n'est affectée qu'en atteignant la déclaration
+* `Correction` En mode débogage, les scripts avec `for-of`, déstructuration, `class ... extends` ou `for await` ne refusent plus de compiler faute de pouvoir lire leurs numéros de ligne
 
 ### 2026-10-31
 

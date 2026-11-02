@@ -77,6 +77,9 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 * `修復` `new Function` 生成的源碼符合規範: 參數以 `//` 註釋結尾時不再報錯, 生成器寫作 `function*`; `Function.prototype.toString` 可用於可調用的 `Proxy`
 * `修復` 可選鏈整條短路: `a?.b.c` 在 `a` 為 `null` / `undefined` 時整條得 `undefined`, 後面的下標與實參不再求值; 只有 `?.` 才作判斷, `a?.b.c` 在 `a.b` 為 `undefined` 時按規範拋 TypeError, `a?.b()` 在方法不存在時同樣拋 TypeError; `eval?.()` 是間接調用, `delete a?.b.c` 短路時得 `true`, 帶標籤模板與 `new a?.b()` 是語法錯誤
 * `修復` 區塊內的 `async` 函數與生成器聲明改為區塊級作用域, 區塊外讀不到, 也不再覆蓋外層同名變量; 普通函數的行為不變
+* `修復` 編譯模式下生成器與 `async` 函數裡巢狀的 `yield` / `await` 按書寫的位置求值: `yield [g(1), yield 'x']` 先調用 `g(1)`, `await (u ? await g() : 2)` 在 `u` 為假時不再調用 `g()`; `[a, b] = [1, yield 2]` 不再報 `$0` 未定義
+* `修復` `switch` 各 `case` 裡的函數聲明在進入 `switch` 時就初始化, 沒走到的 `case` 裡聲明的函數也能調用; 非嚴格模式下外層的同名變量要走到聲明時才賦值
+* `修復` 調試模式下, 含 `for-of`, 解構, `class ... extends`, `for await` 的腳本不再因為讀取行號失敗而無法編譯
 
 ### 2026-10-31
 

@@ -77,6 +77,9 @@ AutoJs6 从 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 * `修复` `new Function` 生成的源码符合规范: 参数以 `//` 注释结尾时不再报错, 生成器写作 `function*`; `Function.prototype.toString` 可用于可调用的 `Proxy`
 * `修复` 可选链整条短路: `a?.b.c` 在 `a` 为 `null` / `undefined` 时整条得 `undefined`, 后面的下标与实参不再求值; 只有 `?.` 才做判断, `a?.b.c` 在 `a.b` 为 `undefined` 时按规范抛 TypeError, `a?.b()` 在方法不存在时同样抛 TypeError; `eval?.()` 是间接调用, `delete a?.b.c` 短路时得 `true`, 带标签模板与 `new a?.b()` 是语法错误
 * `修复` 块内的 `async` 函数与生成器声明改为块级作用域, 块外读不到, 也不再覆盖外层同名变量; 普通函数的行为不变
+* `修复` 编译模式下生成器与 `async` 函数里嵌套的 `yield` / `await` 按书写的位置求值: `yield [g(1), yield 'x']` 先调用 `g(1)`, `await (u ? await g() : 2)` 在 `u` 为假时不再调用 `g()`; `[a, b] = [1, yield 2]` 不再报 `$0` 未定义
+* `修复` `switch` 各 `case` 里的函数声明在进入 `switch` 时就初始化, 没走到的 `case` 里声明的函数也能调用; 非严格模式下外层的同名变量要走到声明时才赋值
+* `修复` 调试模式下, 含 `for-of`, 解构, `class ... extends`, `for await` 的脚本不再因为读取行号失败而无法编译
 
 ### 2026-10-31
 

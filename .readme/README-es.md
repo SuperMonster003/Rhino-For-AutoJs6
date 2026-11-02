@@ -77,6 +77,9 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 * `Corrección` `new Function` construye su fuente según la especificación: un parámetro terminado en un comentario `//` ya no falla y los generadores se escriben `function*`; `Function.prototype.toString` funciona con un `Proxy` invocable
 * `Corrección` Las cadenas opcionales se cortocircuitan por completo: si `a` es `null` o `undefined`, toda `a?.b.c` da `undefined` y los índices y argumentos posteriores no se evalúan. Solo `?.` comprueba su valor, así que `a?.b.c` lanza TypeError si `a.b` es `undefined`, y `a?.b()` también si el método no existe. `eval?.()` es una llamada indirecta, `delete a?.b.c` da `true` al cortocircuitarse, y una plantilla etiquetada sobre una cadena o `new a?.b()` son errores de sintaxis
 * `Corrección` Las declaraciones de funciones `async` y generadores dentro de un bloque tienen ámbito de bloque: no se ven fuera de él y ya no sobrescriben una variable externa con el mismo nombre; las funciones normales no cambian
+* `Corrección` En modo compilado, un `yield` o `await` anidado en otro se ejecuta donde está escrito en generadores y funciones `async`: `yield [g(1), yield 'x']` llama primero a `g(1)`, y `await (u ? await g() : 2)` ya no llama a `g()` cuando `u` es falso. `[a, b] = [1, yield 2]` ya no falla con `$0` no definido
+* `Corrección` Las declaraciones de función en los `case` de un `switch` se inicializan al entrar en el `switch`, por lo que se puede llamar a una función declarada en un `case` que no se ejecuta; en modo no estricto, una variable externa del mismo nombre solo se asigna al llegar a la declaración
+* `Corrección` En modo de depuración, los scripts con `for-of`, desestructuración, `class ... extends` o `for await` ya no dejan de compilar por no poder leer sus números de línea
 
 ### 2026-10-31
 

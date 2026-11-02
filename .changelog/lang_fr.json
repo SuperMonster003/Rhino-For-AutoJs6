@@ -45,6 +45,18 @@
         {
           "category": "fix",
           "text": "Les déclarations de fonctions `async` et de générateurs dans un bloc ont une portée de bloc: elles ne sont plus visibles hors du bloc et n'écrasent plus une variable externe de même nom; les fonctions ordinaires ne changent pas"
+        },
+        {
+          "category": "fix",
+          "text": "En mode compilé, un `yield` ou `await` imbriqué dans un autre s'exécute là où il est écrit dans les générateurs et les fonctions `async`: `yield [g(1), yield 'x']` appelle d'abord `g(1)`, et `await (u ? await g() : 2)` n'appelle plus `g()` quand `u` est faux. `[a, b] = [1, yield 2]` n'échoue plus avec `$0` non défini"
+        },
+        {
+          "category": "fix",
+          "text": "Les déclarations de fonction dans les `case` d'un `switch` sont initialisées à l'entrée du `switch`: une fonction déclarée dans un `case` non exécuté peut être appelée; en mode non strict, une variable externe du même nom n'est affectée qu'en atteignant la déclaration"
+        },
+        {
+          "category": "fix",
+          "text": "En mode débogage, les scripts avec `for-of`, déstructuration, `class ... extends` ou `for await` ne refusent plus de compiler faute de pouvoir lire leurs numéros de ligne"
         }
       ]
     },

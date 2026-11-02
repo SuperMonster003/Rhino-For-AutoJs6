@@ -45,6 +45,18 @@
         {
           "category": "fix",
           "text": "區塊內的 `async` 函數與生成器聲明改為區塊級作用域, 區塊外讀不到, 也不再覆蓋外層同名變量; 普通函數的行為不變"
+        },
+        {
+          "category": "fix",
+          "text": "編譯模式下生成器與 `async` 函數裡巢狀的 `yield` / `await` 按書寫的位置求值: `yield [g(1), yield 'x']` 先調用 `g(1)`, `await (u ? await g() : 2)` 在 `u` 為假時不再調用 `g()`; `[a, b] = [1, yield 2]` 不再報 `$0` 未定義"
+        },
+        {
+          "category": "fix",
+          "text": "`switch` 各 `case` 裡的函數聲明在進入 `switch` 時就初始化, 沒走到的 `case` 裡聲明的函數也能調用; 非嚴格模式下外層的同名變量要走到聲明時才賦值"
+        },
+        {
+          "category": "fix",
+          "text": "調試模式下, 含 `for-of`, 解構, `class ... extends`, `for await` 的腳本不再因為讀取行號失敗而無法編譯"
         }
       ]
     },
