@@ -872,3 +872,59 @@ class 与 `new JavaAdapter` 的首次开销相同, 第二次构造不再转 dex.
 - 微基准 (`BENCHMARK=ClassBenchmark`, JDK 21, 55dcd35f4, `branches/class-mainline-bench.txt`), class 对 function + prototype: `super` 调用 解释 547.4 ± 52.6 对 638.4 ± 46.8 (-14.2%), 编译 60.2 ± 9.5 对 78.4 ± 14.2 (-23.2%); 实例化 解释 342.2 ± 71.6 对 284.7 ± 17.0 (+20.2%), 编译 85.4 ± 4.2 对 78.1 ± 3.9 (+9.4%); 派生类实例化 解释 582.1 ± 99.3 对 598.3 ± 89.9 (-2.7%), 编译 165.0 ± 35.7 对 166.7 ± 16.0 (-1.0%). 第一遍的方法调用受干扰 (解释 587.3 ± 198.2, 编译 40.1 ± 44.6, 同机有其他会话在构建), 这组单独重跑 (`class-mainline-bench-call.txt`): 解释 328.7 ± 42.1 对 326.9 ± 31.2 (+0.5%), 编译 31.07 ± 1.66 对 34.66 ± 1.23 (-10.4%). 编译模式实例化在主线上是 +9.4%, fork 上 +23.6% (Q51), 解释模式反过来 (+20.2% 对 +0.3%), 同一处两次测量相差这么多, 说明这个基准的实例化噪声不小, Q51 按原计划到 P9.4 用交替方式复测. PR 文案原来引用的是 P2 时 fork 的数字, 已换成这一组.
 - 这一轮之外的变化: `246901d27` (api-coverage 会话) 已把 Q205 补丁 (`Context.resumeContinuationWithError`) 落进 fork, 所以 P8.3 里 "换入前要先落补丁" 这一条满足了. 但证据里的 jar `3f7c0a60` 是补丁之前构建的, P9.7 换入时要重新构建, 不能用它.
 - 2026-11-02 维护者决定: 不向上游 (mozilla/rhino) 提交任何 PR, 只操作 SuperMonster003/Rhino-For-AutoJs6. 因此 D6 改定, P8.2 的推送, draft PR 与续做候选取消, P9.8 取消, Q49 已决. 这一节的分支没有推送到任何远端, 也没有改 fork; 它们的修复 fork 本来就有, 不用移回. 克隆已删除, 分支留在证据目录的 bundle 里 (前提提交 5f98a38f2 在 fork 的历史里, 在 fork 上 `git bundle verify` 通过), PR 文案从 docs 移到证据目录. 上游仍是同步来源, `AGENTS.md` 第七节的同步规程不变. 前面各节的 "上游 PR 拆分边界" 只作历史记录.
+
+## Q51 剖析: 编译模式实例化 class 对 function (2026-11-02, 子会话 rhino-q51, 附录 C Q51 = B)
+
+结论: 不改运行时代码. P8.3 的 +23.6% 是单 fork 对比的噪声, 交替测量四组的中位数差是 -1.4% 到 +9.1%, 每轮比值中位 +3.4% 到 +11.6%, 都在 20% 登记线以内, 机器安静时分不出差别; class 路径没有专属热点; 两个候选改法都测不出收益. 证据在 `build/upstream-sync/class-q51-20261102/` (git 忽略目录).
+
+### 现象为什么不可信
+
+P8.3 `bench-class.txt` 里 classNew 98.00 ± 11.45, functionNew 79.27 ± 3.86. 单个 fork 内部很稳 (classNew 95.2-102.9, functionNew 78.1-80.6), JMH 报的误差只算 fork 内部, 看起来可信. 但 `:benchmarks:jmh` 每项只有一个 fork, 这两项相隔约 4 分钟先后跑, `bench-load.txt` 是空的, 当时的负载没有记录. 本节同一构建上 classNew 的 fork 在 85.0-112.7 之间, functionNew 在 80.4-105.6 之间 (不含被干扰的轮次), 98.0 在 class 的范围中段, 79.3 比 function 最低的 fork 略低, 单次取到这样一对并不意外. 主线分支 +9.4%, P2 +2.0%, 各次单跑的数字相差这么大也是同一个原因.
+
+### 复现: 交替 fork
+
+JDK 21, 构建 dc071fea4 (`jmh-pre-dc071fea4.jar`), 每轮 class 与 function 各一个 fork, fork 参数与 `:benchmarks:jmh` 相同 (5 s × 4 预热, 2 s × 5 测量), 隔轮反序. us/op, 比值是 class / function:
+
+| 目录 | 轮数 | 负载 min / 中位 / max | classNew | functionNew | 中位数差 | 每轮比值 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ab-pre/` | 5 | 17 / 39.5 / 73 | 93.13 | 85.38 | +9.1% | 1.116 1.212 1.038 1.137 1.074, 中位 +11.6% |
+| `ab-exp/` | 5 | 11 / 31.5 / 67 | 85.87 | 81.84 | +4.9% | 1.044 1.111 1.060 1.057 1.049, 中位 +5.7% |
+| `ab-final/` | 10 | 19 / 65.5 / 100 | 作废 | 作废 | - | 前 4 轮 1.028 1.105 1.110 1.159; 后 6 轮 0.54-1.57 |
+| `ab-quiet/` | 5 | 18 / 37 / 73 | 85.38 | 86.55 | -1.4% | 1.034 0.946 0.981 1.054 1.047, 中位 +3.4% |
+
+`ab-final/` 中途 aj6-q50 的 3 台模拟器与 Gradle 占满 CPU (负载 100%, 个别 fork 432 us), 只有前 4 轮可用, 中位 +10.8%.
+`ab-quiet/` 是最干净的一组: 没有其他构建与模拟器在跑 (负载读数含采样用的 powershell 本身), classNew 85.38 ± 4.6, functionNew 86.55 ± 5.4, functionExprNew 86.87 ± 7.0, strictFunctionExprNew 88.87 ± 5.1, 四项都在彼此的误差之内. `ab-pre/` 与 `ab-final/` 测量时 aj6-q50 在跑构建或模拟器.
+
+### 定位
+
+- 分配 (`-prof gc`, 没有噪声): classNew 与 functionExprNew 都是每次 `new` 248 字节, functionNew 224 字节. 差的 24 字节是 `BodyCodegen.visitStandardNew` (`BodyCodegen.java:2950`) 的 `Object[2]` 实参数组, class 没有多分配任何对象.
+- 路径: `Codegen.java:392` 只把 `FUNCTION_STATEMENT` 收进 direct call, `new PointF(i, 1)` 走 `BodyCodegen.visitOptimizedCall` (`BodyCodegen.java:2960`). class 构造器是函数表达式 (`ClassParser.java:766`), 与所有函数表达式一样走 `visitStandardNew` -> `ScriptRuntime.newObject` (`ScriptRuntime.java:3601`) -> `JSFunction.construct`: `:190` 建 this, `:193` 经 `MHJSFunctionCode.execute` (非常量 MethodHandle) 进函数体. 这条路径不是 class 专属的. 为此 `ClassBenchmark` 新增 `functionExprNew` / `strictFunctionExprNew` 作对照.
+- JFR (`jfr-pre/*.summary.txt`, 取测量段样本, 负载下的相对占比): classNew 473 个样本里 `ClassRuntime.*` 0 个, class 专属的 `checkConstructorCall` (`ClassRuntime.java:763`, 由 `ClassLowering.java:155` 插入) 采不到. classNew 的 78.4% 在 `ScriptRuntime.newObject`, 其中 `JSFunction.construct:193` 49.0%, `:190` 29.2%. 热点分布与 functionExprNew, strictFunctionExprNew 相同: `Context.getCurrentContext` 分别 37.2% / 36.3% / 35.3% (functionNew 5.0%), 来自 `SlotMapOwner.createSlotMap:331` 与 `Context.isCurrentContextStrict:3044` (`ScriptableObject.put:243`).
+- 分解 (`ab-pre/` 中位数): functionNew 85.4 -> functionExprNew 89.9 (无 direct call, +5.3%) -> strictFunctionExprNew 88.6 (严格模式, -1.4%) -> classNew 93.1 (+5.1%). 每一步都小于这组的 fork 误差 (中位 ±6 到 ±18), 而且安静时 (`ab-quiet/`) 这个顺序不成立, class 反而最低, 所以这个分解不能当结论, 不能再往下拆到行.
+
+### 两个候选改法 (实验, 没有入库)
+
+都与修前 jar 同轮交替 (`ab-exp/`, us/op), 补丁与 jar 在证据目录:
+
+| 改法 | 改动 | classNew | 对修前 | 分配 |
+| --- | --- | --- | --- | --- |
+| 修前 | - | 85.87 ± 4.6 | - | 248 |
+| A `exp-a.patch`: `BuiltinConstruction.createFromConstructor` 用手上的 `cx` 选空属性表, 省掉 JFR 里占 25% 的 ThreadLocal 查询 | 4 个文件 17 行 | 84.97 ± 8.8 | -1.1% | 248 |
+| B `exp-b.patch`: 基类构造器进 direct call (派生类与 rest 参数除外) | 3 个文件 24 行 | 86.38 ± 5.0 | +0.6% | 224 |
+| functionNew (参照) | - | 81.84 ± 4.8 | -4.7% | 224 |
+
+- A 拿掉那次查询后时间不变, 说明 JFR 的 25% 是归因偏差, 这里的 `ThreadLocal.get` 占比不能当真开销看. functionNew 里同样的查询只占约 2%, 也是同一现象.
+- B 确实生效 (`-Drhino.debugDirectCalls=true` 打出 fast NEW, 分配与 function 相同, 不带 `new` 调用仍抛 TypeError), 但时间不变. 它还要给类构造器打开 `Optimizer` 的参数类型推断和新快路径, 不值得. 回归用例草稿 `ClassDirectCallTest.java.txt` 留在证据目录, 以后要做时可用.
+- 两个都不入库: 差距已在 20% 内, 改了也测不出变化. 卡片的 "修后复测" 与第 (2) (3) 项回归因此不适用.
+
+宿主在 ART 上走解释模式, 这些都不影响宿主; 解释模式实例化差距 P8.3 是 +0.3%.
+
+### 留下的东西
+
+- `ClassBenchmark` 的 `functionExprNew` / `strictFunctionExprNew`: 没有 direct call 的对照.
+- `.python/jmh_alternate.py`: 交替 fork 并汇总中位数与每轮比值, 可比较不同构建的 jar. `AGENTS.md` 7.2 第 8 项 (不入库, 副本与 sha256 在证据目录) 改为超过 20% 时先用它复核再登记. P9.4 复测用它.
+- 附录 C Q52: 剖析时发现的上游缺陷, 编译模式 direct call 不建 rest 数组 (`rest-direct-call.js` / `.txt`). B 因此排除了 rest 参数.
+
+### 验证
+
+`:rhino:test --tests "org.mozilla.javascript.tests.classsyntax.*"` 26 个类 353 例 0 失败 (`classsyntax-test.log`), `:benchmarks:spotlessCheck` 与 `git diff --check` 通过. 运行时代码没有改动, 按卡片不跑 test262 与全量, `HOOKS.md` 不变, 没有用户可感知的变化, 不写 changelog.
