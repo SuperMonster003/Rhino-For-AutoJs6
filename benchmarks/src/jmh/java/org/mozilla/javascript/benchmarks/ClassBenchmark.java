@@ -133,7 +133,9 @@ public class ClassBenchmark {
         return state.run(state.functionSuperCall);
     }
 
-    /** ROADMAP P9.4: the round trip of an await of a settled promise, against the same with then. */
+    /**
+     * ROADMAP P9.4: the round trip of an await of a settled promise, against the same with then.
+     */
     @Benchmark
     public Object awaitSettled(ClassState state) {
         return state.runMicrotasks(state.awaitSettled);

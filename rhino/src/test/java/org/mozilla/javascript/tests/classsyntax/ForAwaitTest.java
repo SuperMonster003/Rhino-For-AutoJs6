@@ -198,6 +198,23 @@ class ForAwaitTest {
     }
 
     @Test
+    void shorthandInitializersInLoopHeads() {
+        // Without strict mode, eval is a plain name; a pattern in the head of a for-of loop was
+        // rejected as an object literal.
+        assertLog(
+                "1|2|0",
+                RUN
+                        + """
+                        run(async function () {
+                          var a, b;
+                          for ({ a = 1 } of [{}]) log.push(a);
+                          for await ({ b = 2 } of [{}]) log.push(b);
+                          (function () { for ({ eval = 0 } of [{}]) log.push(eval); })();
+                        });
+                        """);
+    }
+
+    @Test
     void labelsAndContinue() {
         assertLog(
                 "1|3|return",

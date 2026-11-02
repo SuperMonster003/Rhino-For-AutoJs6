@@ -963,6 +963,7 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 - `NativePromise` 的 reaction 排到 resolve 所在 Context 的微任务队列, 宿主从其他线程 resolve 时要注意.
 - 宿主回调经 `JSFunction.call` 的顶层调用不排空微任务, 只有 `JSScript.exec` 在无顶层调用时 `processMicrotasks`, 所以 Loopers 每个宏任务后都要调.
 - `yield*` 的驱动器层 await 不计入 `AsyncTracker`. Java 错误 (StackOverflowError 等) 不转 rejection.
+- async 函数体里捕获 continuation (`Context.captureContinuation`, 宿主的 `continuation.await`): 同步段与微任务里都抛 `IllegalStateException` ("Cannot capture continuation from JavaScript code not called directly by ..."), 因为函数体经 Java 驱动器恢复, 中间隔着 Java 帧; 这是 Java 异常, 不转 rejection, 在微任务里会从 `processMicrotasks` 穿出 (探针 2026-11-02, 解释模式). D15 的两个互操作方向不受影响: `continuation.await(asyncFn())` 在顶层等返回的 Promise, 函数内用 `await`. P9.6 要有用例, 文档站写明 "async 函数内用 await, 不用 continuation".
 
 ### 进度
 
