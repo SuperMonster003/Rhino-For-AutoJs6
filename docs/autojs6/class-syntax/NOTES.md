@@ -847,3 +847,27 @@ class 与 `new JavaAdapter` 的首次开销相同, 第二次构造不再转 dex.
 - jar: JDK 25 shadowJar, 3465374 字节, sha256 `3f7c0a605f642f38edf357a45f060fd20fff142abdd67af02507068fa27c3402`. 对宿主现用 jar (a5049a70, 7b3ddf3c1 + Q205 补丁): 条目 1477 -> 1522, 新增 46 个类 (V2 指令类, `JavaSerializationPolicy` 等), 删除 1 个, 改动 340 (`jar-diff.txt`). 含 tools/debugger, xml, 13 个 Messages, services 与 JLine JNI. **没有换入宿主**, 留给 P9.7. 删除的那 1 个是 `ContinuationError`: Q205 补丁 (api-coverage Q223) 还没进 fork, 现在 fork 合并已结束, 可以落地; 落地之前从 fork 重建的 jar 换入宿主会编译失败.
 - 微基准 (`BENCHMARK=ClassBenchmark`, JDK 21, df228f828 的构建, 8 分 51 秒, `bench-class.txt`), class 对 function + prototype: 方法调用 解释 289.0 ± 29.9 对 322.1 ± 104.4 (-10.3%), 编译 26.93 ± 0.66 对 27.79 ± 2.11 (-3.1%), 10% 硬门槛通过; super 方法调用 解释 -9.2%, 编译 -15.1%; 实例化 解释 +0.3%, 编译 98.0 ± 11.5 对 79.3 ± 3.9 (+23.6%); 派生类实例化 解释 +9.8%, 编译 +3.2%. 只有编译模式实例化超过 20%. 合并前后 jar 交替 5 轮 (`bench-ab.txt`, bench-interleaved, 进程内 class 与 function 交替): 编译模式 classNew 265.5 -> 255.1 us (0.96), functionNew 196.8 -> 225.3, 解释模式 1263.5 -> 1116.5 (0.88), 派生类 1.02 / 0.75, 方法调用 0.94 / 0.98. 合并没有变慢, 差距在合并之前就有 (class / function 比值修前 1.35, 修后 1.13). 登记附录 C Q51, 复测放到 P9.4.
 - 规程修订 (AGENTS.md 不入库, 副本与 sha256 已刷新): 7.2 第 6 项写明 `RHINO_TEST_JAVA_VERSION=17` 与先去 class 两目录的 `~`. 第三节第 9 条之外, 第二节 "本地化" 这条在合并时容易漏, 7.2 第 7 项只说了同名键, 演练时靠重新看上游 diff 才发现新键; 这一项加进 7.2 第 7 项: 用 `git diff <合并基线> <上游> -- Messages.properties` 列新键.
+
+### P8.2 上游分支与 PR 文案
+
+- 克隆 `E:/.cache/aj6-rhino-upstream-p8` (703 MB, 含构建输出与 test262, 留到维护者推送之后), 9 个 `p8/*` 分支都基于上游 5f98a38f2, 身份是 noreply 邮箱. 备份 `build/upstream-sync/class-p8-20261101/p8-branches.bundle` (176 KB, 以 5f98a38f2 为前提, `git bundle verify` 通过), `patches/<分支>/` (1 MB), 清单 `p8-branches.txt`. PR 文案 `UPSTREAM-PRS.md`.
+- 基线 5f98a38f2: 183189 例 8 失败 20 跳过 (`branches/baseline-*`), spotless 通过. 8 个失败都是本机环境: `JLineConsoleTest.barePrintlnWritesOnlyLineSeparator` 1, `SourceMapSpecSuiteTest` missing-suite 1 (子模块没初始化), `built-ins/Function/prototype/toString/line-terminator-normalisation-LF.js` 6 (克隆的 test262 是 CRLF 检出). 分支的 properties 都去掉了这个 CRLF 用例, 所以与上游版本的差异只有该分支自己的变化.
+- 跑法 (`-DupdateTest262properties=all` 一次得到全量与 properties): `RHINO_TEST_JAVA_VERSION=17`, JDK 21, `:rhino:test :rhino-xml:test :rhino-engine:test :rhino-tools:test :tests:test --continue --no-daemon`, 然后 `spotlessCheck`. 候选的例数比基线多是新增的测试类, 开了更新开关的例数比不开时多 (登记为失败的用例也跑). 主线的全量在 55dcd35f4 上跑, 不开更新开关, 对入库的 properties 核对.
+
+| 候选 | 分支 | 提交 | 全量 (例 / 失败 / 跳过) | spotless | 依赖 | 解锁的 test262 (文件) |
+|---|---|---|---|---|---|---|
+| 主线 class | `p8/class-mainline` | 04616a8b0, a34cb0327, 8189dc37c, 063465ea9, 55dcd35f4 | 150007 / 6 / 20 | 过 | 无 | 6909 (class 两目录 5679), 新失败 0 |
+| P6.19 Q46 ToPrimitive, ToBigInt | `p8/to-bigint-to-primitive` | a06975d32, 5aef41cd1, properties 5e151d4dc | 183212 / 8 / 20 | 过 | 无 | 11, 新失败 0 |
+| Q27 Reflect ToPropertyKey | `p8/reflect-property-keys` | 6b328f166, properties 336f902e3 | 183195 / 8 / 20 | 过 | 无 | 5, 新失败 0 |
+| P6.14 Proxy [[Set]] / [[Delete]] | `p8/proxy-set-delete` | 5a5d13014, properties 03eab332b | 183207 / 8 / 20 | 过 | `p8/reflect-property-keys` | 48 (含上一行 5), 新失败 0 |
+| P6.11 Set-like, fromEntries | `p8/set-likes-from-entries` | bd294c884, properties 8eba905a2 | 183195 / 8 / 20 | 过 | 无 | 2, 新失败 0 |
+| P6.8 编译模式 home object, 数字被调用者 | `p8/compiled-home-object-number-callee` | 1da35d516 | 183192 / 8 / 20 | 过 | 无 | 0 |
+| Q30 解构默认值 | `p8/destructuring-default-target` | 4b7072e71, properties bcb1e3089 | 183192 / 8 / 20 | 过 | 无 | 5, 新失败 0 |
+| Q18 `set: undefined` | `p8/undefined-setter` | e349c471c, properties bee3835d9 | 183191 / 17 / 20 | 过 | P6.7 (续做) | 15, **新失败 3** |
+| P6.7 编译模式块内 `super` | `p8/compiled-super-in-block` | 71a477e73 | 183191 / 8 / 20 | 过 | 无 | 0 |
+
+- 主线的 6 个失败: JLine 1, missing-suite 1, CRLF 用例 4 (不开更新开关时它跑 4 种组合). 除此之外 test262 与入库的 properties 完全一致. class 两目录剩 2747 (`expressions/class` 1367 / 4059, `statements/class` 1380 / 4367), 其中 1913 要 async 函数或异步迭代, 不在这个 PR 里; fork 同步后是 2743, 差的是主线没带的通用修复.
+- 7 个候选的 8 个失败与基线逐条同名. `undefined-setter` 多 9 个 = 3 个文件 × 3 种模式: `logical-assignment/lgcl-{and,or,nullish}-assignment-operator-no-set.js` (严格). 用例是 `obj.prop &&= 1`, 属性只有 getter 且 `set: undefined`, 规范要求短路不写回. 上游的逻辑赋值不短路, 总是写回, 之前靠 "写入被悄悄忽略" 碰巧通过, Q18 修好后写回抛 TypeError. fork 里 P6.7 同时修了这两件事, 所以 fork 没有这个现象, 只有拆开才暴露. 这 3 个已登记进该分支的 properties, PR 文案写明了, 并标注先别单独开: 先做续做的 P6.7, 把这个分支 rebase 上去.
+- `Update test262.properties` 提交是全量生成的结果去掉 CRLF 用例, 没有在该提交上再跑一遍 (文本上与生成结果只差 CRLF 用例那 1 行与目录计数). `proxy-set-delete` 为了排在 `reflect-property-keys` 的 properties 提交之后 rebase 过, fd96ddc7d -> 5a5d13014, 全量是在 fd96ddc7d 上跑的, 两者只差 `test262.properties`.
+- 微基准 (`BENCHMARK=ClassBenchmark`, JDK 21, 55dcd35f4, `branches/class-mainline-bench.txt`), class 对 function + prototype: `super` 调用 解释 547.4 ± 52.6 对 638.4 ± 46.8 (-14.2%), 编译 60.2 ± 9.5 对 78.4 ± 14.2 (-23.2%); 实例化 解释 342.2 ± 71.6 对 284.7 ± 17.0 (+20.2%), 编译 85.4 ± 4.2 对 78.1 ± 3.9 (+9.4%); 派生类实例化 解释 582.1 ± 99.3 对 598.3 ± 89.9 (-2.7%), 编译 165.0 ± 35.7 对 166.7 ± 16.0 (-1.0%). 第一遍的方法调用受干扰 (解释 587.3 ± 198.2, 编译 40.1 ± 44.6, 同机有其他会话在构建), 这组单独重跑 (`class-mainline-bench-call.txt`): 解释 328.7 ± 42.1 对 326.9 ± 31.2 (+0.5%), 编译 31.07 ± 1.66 对 34.66 ± 1.23 (-10.4%). 编译模式实例化在主线上是 +9.4%, fork 上 +23.6% (Q51), 解释模式反过来 (+20.2% 对 +0.3%), 同一处两次测量相差这么多, 说明这个基准的实例化噪声不小, Q51 按原计划到 P9.4 用交替方式复测. PR 文案原来引用的是 P2 时 fork 的数字, 已换成这一组.
+- 这一轮之外的变化: `246901d27` (api-coverage 会话) 已把 Q205 补丁 (`Context.resumeContinuationWithError`) 落进 fork, 所以 P8.3 里 "换入前要先落补丁" 这一条满足了. 但证据里的 jar `3f7c0a60` 是补丁之前构建的, P9.7 换入时要重新构建, 不能用它.
