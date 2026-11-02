@@ -84,6 +84,7 @@ class OptTransformer extends NodeTransformer {
                     ofn = possibleDirectCalls.get(targetName);
                     if (ofn != null
                             && argCount == ofn.fnode.getParamCount()
+                            && !ofn.fnode.hasRestParameter() // AutoJs6: class syntax
                             && !ofn.fnode.requiresActivation()) {
                         // Refuse to directCall any function with more
                         // than 32 parameters - prevent code explosion

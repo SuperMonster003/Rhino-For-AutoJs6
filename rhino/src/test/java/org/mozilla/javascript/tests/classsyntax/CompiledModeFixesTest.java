@@ -94,4 +94,29 @@ class CompiledModeFixesTest {
                 run();
                 """);
     }
+
+    @Test
+    void directCallsCollectTheRestParameter() {
+        // Appendix C Q53: a call with as many arguments as parameters (the rest parameter counted)
+        // was direct, and a direct call does not build the array.
+        assertWithAllModes_ES6(
+                "true,[2]|true,[2]|[2,3]|[]|2|[]",
+                """
+                function f(a, ...r) { return r; }
+                function N(a, ...r) { this.r = r; }
+                function o(...r) { return r; }
+                function run() {
+                  var x = f(1, 2);
+                  return [
+                    [Array.isArray(x), JSON.stringify(x)],
+                    [Array.isArray(new N(1, 2).r), JSON.stringify(new N(1, 2).r)],
+                    JSON.stringify(f(1, 2, 3)),
+                    JSON.stringify(f(1)),
+                    o(1, 2).length,
+                    JSON.stringify(o())
+                  ].join('|');
+                }
+                run();
+                """);
+    }
 }
