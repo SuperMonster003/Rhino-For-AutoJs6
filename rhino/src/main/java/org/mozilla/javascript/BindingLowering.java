@@ -10,8 +10,10 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.mozilla.javascript.ast.ArrayLiteral;
@@ -33,6 +35,7 @@ import org.mozilla.javascript.ast.ObjectLiteral;
 import org.mozilla.javascript.ast.ObjectProperty;
 import org.mozilla.javascript.ast.ParenthesizedExpression;
 import org.mozilla.javascript.ast.ReturnStatement;
+import org.mozilla.javascript.ast.Scope;
 import org.mozilla.javascript.ast.ScriptNode;
 import org.mozilla.javascript.ast.Spread;
 import org.mozilla.javascript.ast.SpreadObjectProperty;
@@ -74,6 +77,7 @@ final class BindingLowering {
     private static final Pattern TEMP_NAME = Pattern.compile("\\$\\d+");
 
     private final Parser parser;
+    private final Map<Scope, Set<String>> catchPatterns = new HashMap<>();
 
     BindingLowering(Parser parser) {
         this.parser = parser;
@@ -467,12 +471,44 @@ final class BindingLowering {
 
     /**
      * Whether the statement after a label is a function declaration at the top level of a script or
-     * function: it belongs to the top level declarations, not to a block (appendix C Q61).
+     * function: it belongs to the top level declarations, not to a block (appendix C Q63).
      */
     boolean labelsTopLevelFunction() throws IOException {
         return parser.peekToken() == Token.FUNCTION
                 && parser.currentScope == parser.currentScriptOrFn
                 && parser.compilerEnv.getLanguageVersion() >= Context.VERSION_ES6;
+    }
+
+    /**
+     * Remembers the names of a destructuring catch parameter. They only become bindings when the
+     * body of the catch is transformed, too late for the Annex B.3.3 check of its functions.
+     */
+    void catchParameter(Scope block, AstNode parameter) {
+        if (parameter instanceof ArrayLiteral || parameter instanceof ObjectLiteral) {
+            Set<String> names = new HashSet<>();
+            boundNames(parameter, names);
+            catchPatterns.put(block, names);
+        }
+    }
+
+    /**
+     * Whether a var binding for a function of the current block would be an early error, because a
+     * destructuring catch parameter around it binds the name (appendix C Q62). B.3.5 only excuses a
+     * catch parameter that is a plain name.
+     */
+    boolean boundByCatchPattern(Name name) {
+        if (name == null || catchPatterns.isEmpty()) {
+            return false;
+        }
+        Scope scope = parser.currentScope;
+        while (scope != null && scope != parser.currentScriptOrFn) {
+            Set<String> names = catchPatterns.get(scope);
+            if (names != null && names.contains(name.getIdentifier())) {
+                return true;
+            }
+            scope = scope.getParentScope();
+        }
+        return false;
     }
 
     /** Nested functions are FUNCTION leaves in the tree, so their yields are not found. */

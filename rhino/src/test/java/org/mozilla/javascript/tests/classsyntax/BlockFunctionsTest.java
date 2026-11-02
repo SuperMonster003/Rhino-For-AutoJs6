@@ -14,9 +14,10 @@ import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.testutils.Utils;
 
 /**
- * AutoJs6 (appendix C Q61): a block initializes its function declarations on entry, also the
+ * AutoJs6 (appendix C Q61 - Q63): a block initializes its function declarations on entry, also the
  * labelled ones, and Annex B.3.3 gives an ordinary function its var binding only where the
- * declaration is written, in both modes. The switch has the same rules, see SwitchFunctionsTest.
+ * declaration is written and no destructuring catch parameter binds the name, in both modes. The
+ * switch has the same rules, see SwitchFunctionsTest.
  */
 class BlockFunctionsTest {
 
@@ -405,6 +406,64 @@ class BlockFunctionsTest {
                     { function f() {} }
                 }
                 return [inside, typeof f].join();
+                """);
+    }
+
+    @Test
+    void aDestructuringCatchParameterStopsTheVarBinding() {
+        assertBody(
+                "undefined",
+                "try { throw {}; } catch ({ f }) { { function f() {} } } return typeof f;");
+        assertBody(
+                "undefined",
+                """
+                try {
+                    throw [];
+                } catch ([f]) {
+                    switch (1) { case 1: function f() {} }
+                }
+                return typeof f;
+                """);
+        assertBody(
+                "undefined",
+                """
+                try {
+                    throw {};
+                } catch ({ a: { b: [f = 1] = [] } = {} }) {
+                    { function f() {} }
+                }
+                return typeof f;
+                """);
+        assertBody(
+                "undefined",
+                "try { throw {}; } catch ({ ...f }) { if (true) function f() {} } return typeof f;");
+        assertBody(
+                "function,number",
+                """
+                var r = [];
+                try {
+                    throw { f: 1 };
+                } catch ({ f }) {
+                    { function f() {} r.push(typeof f); }
+                    r.push(typeof f);
+                }
+                return r.join();
+                """);
+    }
+
+    @Test
+    void otherNamesAndNestedFunctionsAreNotStopped() {
+        assertBody(
+                "function",
+                "try { throw {}; } catch ({ f }) { { function g() {} } } return typeof g;");
+        assertBody(
+                "function",
+                """
+                try {
+                    throw {};
+                } catch ({ f }) {
+                    return (function () { { function f() {} } return typeof f; })();
+                }
                 """);
     }
 

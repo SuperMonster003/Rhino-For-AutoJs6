@@ -1079,6 +1079,7 @@ public class Parser {
         if (type == FunctionNode.FUNCTION_BLOCK_SCOPED
                 && !inUseStrictDirective
                 && !suspends // AutoJs6: async
+                && !bindings.boundByCatchPattern(name) // AutoJs6: class syntax
                 && name != null
                 && name.length() > 0) {
             Symbol letSym = currentScope.getSymbol(name.getIdentifier());
@@ -2193,6 +2194,7 @@ public class Parser {
                 catchNode.setLineColumnNumber(catchLine, catchColumn);
                 pushScope(catchScope);
                 try {
+                    bindings.catchParameter(catchScope, varName); // AutoJs6: class syntax
                     statements(catchScope);
                 } finally {
                     hasUndefinedBeenRedefined = previous;
