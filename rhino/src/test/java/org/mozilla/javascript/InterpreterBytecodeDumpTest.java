@@ -137,22 +137,27 @@ class InterpreterBytecodeDumpTest {
 
     @Test
     void optionalChainingBranchIsPrinted() throws IOException {
+        // AutoJs6: class syntax (appendix C Q55: the chain keeps the value before ?. in a local)
         assertEquals(
                 Utils.portableLines(
-                        "ICode dump, for null, length = 18",
-                        "MaxStack = 2",
+                        "ICode dump, for null, length = 22",
+                        "MaxStack = 1",
                         " [0] LINE : 1",
                         " [3] REG_STR_C0 \"x\"",
                         " [4] NAME",
-                        " [5] DUP",
-                        " [6] IF_NULL_UNDEF 14",
-                        " [9] REG_STR_C1 \"y\"",
-                        " [10] GETPROP",
-                        " [11] GOTO 16",
-                        " [14] POP",
-                        " [15] UNDEF",
-                        " [16] POP_RESULT",
-                        " [17] RETURN_RESULT",
+                        " [5] REG_IND_C0",
+                        " [6] CLASS_OPTIONAL local 0",
+                        " [7] IF_NULL_UNDEF 17",
+                        " [10] REG_IND_C0",
+                        " [11] LOCAL_LOAD",
+                        " [12] REG_STR_C1 \"y\"",
+                        " [13] GETPROP",
+                        " [14] GOTO 18",
+                        " [17] UNDEF",
+                        " [18] REG_IND_C0",
+                        " [19] LOCAL_CLEAR",
+                        " [20] POP_RESULT",
+                        " [21] RETURN_RESULT",
                         ""),
                 getByteCodeFrom("x?.y"));
     }

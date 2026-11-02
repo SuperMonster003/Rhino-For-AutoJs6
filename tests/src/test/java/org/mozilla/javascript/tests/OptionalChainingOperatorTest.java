@@ -170,7 +170,9 @@ public class OptionalChainingOperatorTest {
         Utils.assertWithAllModes_ES6(1, "eval = function () { return 1 };\n" + "eval?.()");
         Utils.assertWithAllModes_ES6(Undefined.instance, "eval = null;\n" + "eval?.()");
         Utils.assertWithAllModes_ES6(Undefined.instance, "eval = undefined;\n" + "eval?.()");
-        Utils.assertWithAllModes_ES6(Undefined.instance, "delete eval;\n" + "eval?.()");
+        String deleted = "delete eval;\n" + "eval?.()"; // AutoJs6: class syntax
+        String message = "ReferenceError: \"eval\" is not defined."; // AutoJs6: class syntax
+        Utils.assertEcmaErrorES6(message, deleted); // AutoJs6: class syntax
     }
 
     @Test
