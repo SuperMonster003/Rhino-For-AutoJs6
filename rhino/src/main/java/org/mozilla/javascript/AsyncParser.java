@@ -10,24 +10,32 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
+import org.mozilla.javascript.ast.AbstractObjectProperty;
+import org.mozilla.javascript.ast.ArrayLiteral;
+import org.mozilla.javascript.ast.Assignment;
 import org.mozilla.javascript.ast.AstNode;
 import org.mozilla.javascript.ast.AwaitExpression;
 import org.mozilla.javascript.ast.EmptyExpression;
+import org.mozilla.javascript.ast.ExpressionStatement;
 import org.mozilla.javascript.ast.ForAwaitOfLoop;
 import org.mozilla.javascript.ast.ForInLoop;
 import org.mozilla.javascript.ast.FunctionCall;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.InfixExpression;
 import org.mozilla.javascript.ast.Name;
+import org.mozilla.javascript.ast.ObjectLiteral;
 import org.mozilla.javascript.ast.ObjectProperty;
 import org.mozilla.javascript.ast.ParenthesizedExpression;
 import org.mozilla.javascript.ast.PropertyGet;
+import org.mozilla.javascript.ast.Scope;
+import org.mozilla.javascript.ast.Spread;
+import org.mozilla.javascript.ast.Symbol;
 
 /**
  * AutoJs6 async: parsing of async functions, async methods, async arrow functions, {@code await}
- * and {@code for await} (ES2018). The syntax is parsed ahead of its implementation: until P9 of
- * {@code docs/autojs6/class-syntax/ROADMAP.md} lands, {@link AsyncLowering} rejects async functions
- * with a readable "not supported yet" error instead of a syntax error.
+ * and {@code for await} (ES2018). The early errors that the parser only reports for some functions
+ * are reported for every async function here; {@link AsyncLowering} takes over from the AST.
  *
  * <p>{@code await} is a keyword only inside async functions (and reserved inside class static
  * blocks); everywhere else in a script it stays an identifier. The await context of every function
@@ -56,6 +64,9 @@ final class AsyncParser {
     private int arrowHeadStart = -1;
     private final Set<Integer> asyncCallees = new HashSet<>();
     private int forAwaitPosition = -1;
+    private boolean forAwaitHead;
+    private int literalDepth;
+    private boolean coverPending;
 
     AsyncParser(Parser parser) {
         this.parser = parser;
@@ -76,6 +87,9 @@ final class AsyncParser {
      * Token#RESERVED}.
      */
     static int keyword(Parser parser, int token) {
+        if (token == Token.YIELD && isEnabled(parser.compilerEnv)) {
+            return parser.asyncSyntax.yieldToken();
+        }
         if (token != Token.RESERVED
                 || !"await".equals(parser.ts.getString())
                 || !isEnabled(parser.compilerEnv)) {
@@ -85,6 +99,31 @@ final class AsyncParser {
             return Token.NAME;
         }
         return parser.ts.wordEscaped ? Token.RESERVED : Token.AWAIT;
+    }
+
+    /**
+     * Rhino reads {@code yield} as the legacy generator operator in every function. Inside an async
+     * function that is wrong: only a generator has the operator, elsewhere the word is an
+     * identifier, or reserved in strict code.
+     */
+    private int yieldToken() {
+        boolean strict = parser.inUseStrictDirective();
+        if (!(parser.currentScriptOrFn instanceof FunctionNode)) {
+            return strict ? Token.YIELD : Token.NAME;
+        }
+        if (!insideAsync() || ((FunctionNode) parser.currentScriptOrFn).isES6Generator()) {
+            return Token.YIELD;
+        }
+        return strict ? Token.RESERVED : Token.NAME;
+    }
+
+    private boolean insideAsync() {
+        for (int i = 0; i < depth; i++) {
+            if (contexts[i] == AWAIT_ASYNC) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -144,6 +183,115 @@ final class AsyncParser {
     /** Returns whether an async method key was just parsed and its function is still pending. */
     boolean isPending() {
         return pendingAsync;
+    }
+
+    // ------------------------------------------------------------------
+    // Early errors
+    // ------------------------------------------------------------------
+
+    /** A generator expression may not be named {@code yield}. */
+    void checkGeneratorName(Name name, int functionType, boolean isGenerator) {
+        if (isGenerator
+                && functionType == FunctionNode.FUNCTION_EXPRESSION
+                && "yield".equals(name.getIdentifier())) {
+            parser.reportError("msg.syntax");
+        }
+    }
+
+    /** A {@code "use strict"} directive needs simple parameters; the parser checks the others. */
+    void checkUseStrict(FunctionNode fn) {
+        if (fn.isAsync() && fn.getProp(Node.DESTRUCTURING_PARAMS) != null) {
+            parser.reportError("msg.default.args.use.strict");
+        }
+    }
+
+    /** A rest parameter has no initializer; the {@code =} is the next token. */
+    void checkRestParameter(FunctionNode fn) throws IOException {
+        if (fn.isAsync() && parser.peekToken() == Token.ASSIGN) {
+            parser.reportError("msg.parm.after.rest");
+        }
+    }
+
+    /** Parameters of a method, or that are not simple, have no duplicates in sloppy code. */
+    void checkDuplicateParameters(FunctionNode fn) {
+        if (!fn.isAsync()
+                || parser.inUseStrictDirective()
+                || (!parser.insideMethod
+                        && fn.getDefaultParams() == null
+                        && !fn.hasRestParameter()
+                        && fn.getProp(Node.DESTRUCTURING_PARAMS) == null)) {
+            return;
+        }
+        Set<String> names = new HashSet<>();
+        for (AstNode param : fn.getParams()) {
+            visitTargets(
+                    param,
+                    name -> {
+                        if (!names.add(name.getIdentifier())) {
+                            parser.addError("msg.dup.param.strict", name.getIdentifier());
+                        }
+                    });
+        }
+    }
+
+    /** The lexical declarations of a function body may not name a parameter. */
+    void checkRedeclared(
+            Symbol.Type declType, Symbol.Type oldType, Scope definingScope, String name) {
+        if (oldType == Symbol.Type.LP
+                && Symbol.isDeclTypeLexical(declType)
+                && definingScope == parser.currentScope
+                && definingScope instanceof FunctionNode
+                && ((FunctionNode) definingScope).isAsync()) {
+            parser.addError("msg.parm.redecl", name);
+        }
+    }
+
+    /** A parenthesized pattern is no assignment target; a pattern settles its cover grammar. */
+    void checkAssignmentTarget(AstNode target) {
+        coverPending = false;
+        if (context() == AWAIT_ASYNC
+                && target instanceof ParenthesizedExpression
+                && isPattern(((ParenthesizedExpression) target).getExpression())) {
+            parser.reportError("msg.syntax.invalid.assignment.lhs");
+        }
+    }
+
+    /** In strict code {@code eval} and {@code arguments} are no targets of the pattern. */
+    void checkForAwaitTarget(AstNode head) {
+        if (parser.inUseStrictDirective() && isPattern(head)) {
+            visitTargets(
+                    head,
+                    name -> {
+                        String id = name.getIdentifier();
+                        if ("eval".equals(id) || "arguments".equals(id)) {
+                            parser.reportError("msg.bad.id.strict", id);
+                        }
+                    });
+        }
+    }
+
+    private static boolean isPattern(AstNode node) {
+        return node instanceof ArrayLiteral || node instanceof ObjectLiteral;
+    }
+
+    private static void visitTargets(AstNode target, Consumer<Name> visitor) {
+        if (target instanceof Name) {
+            visitor.accept((Name) target);
+        } else if (target instanceof ArrayLiteral) {
+            for (AstNode element : ((ArrayLiteral) target).getElements()) {
+                visitTargets(element, visitor);
+            }
+        } else if (target instanceof ObjectLiteral) {
+            for (AbstractObjectProperty property : ((ObjectLiteral) target).getElements()) {
+                if (property instanceof ObjectProperty) {
+                    visitTargets(((ObjectProperty) property).getValue(), visitor);
+                }
+            }
+        } else if (target instanceof Spread) {
+            visitTargets(((Spread) target).getExpression(), visitor);
+        } else if (target instanceof Assignment) {
+            visitTargets(((Assignment) target).getLeft(), visitor);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -233,7 +381,8 @@ final class AsyncParser {
 
     /** Checks {@code for await}: consumes {@code await} and returns true when present. */
     boolean forAwait() throws IOException {
-        if (parser.peekToken() != Token.AWAIT) {
+        forAwaitHead = parser.peekToken() == Token.AWAIT;
+        if (!forAwaitHead) {
             return false;
         }
         parser.consumeToken();
@@ -242,6 +391,74 @@ final class AsyncParser {
             parser.reportError("msg.async.await.context");
         }
         return true;
+    }
+
+    /**
+     * A {@code let} that is the whole body of a {@code for await} loop: in sloppy code it is an
+     * identifier when a line terminator ends the statement, and an error otherwise. Returns {@code
+     * null} when the loop has a block or the statement is not that body.
+     */
+    AstNode letAsForAwaitBody() throws IOException {
+        if (!(parser.currentScope instanceof ForAwaitOfLoop) || parser.inUseStrictDirective()) {
+            return null;
+        }
+        TokenStream ts = parser.ts;
+        parser.consumeToken();
+        int lineno = parser.lineNumber();
+        int column = parser.columnNumber();
+        Name name = new Name(ts.tokenBeg, "let");
+        name.setLineColumnNumber(lineno, column);
+        if (parser.peekTokenOrEOL() != Token.EOL || parser.peekToken() == Token.LB) {
+            parser.reportError("msg.let.decl.not.in.block");
+        }
+        ExpressionStatement statement = new ExpressionStatement(name, !parser.insideFunctionBody());
+        statement.setLineColumnNumber(lineno, column);
+        return statement;
+    }
+
+    /** Whether the expression before {@code tt} is the head of a for-in or for-of loop. */
+    private boolean inForHead(int tt) {
+        return parser.inForInit
+                && (tt == Token.IN || (tt == Token.NAME && "of".equals(parser.ts.getString())));
+    }
+
+    /**
+     * An object literal with a shorthand initializer ends before {@code tt} and no assignment
+     * follows. It is still a pattern in the head of a for-in or for-of loop; inside another literal
+     * the outermost one decides. Returns whether that holds, otherwise the literal is an error.
+     */
+    boolean coverInitializer(int tt) {
+        if (literalDepth > 0) {
+            coverPending = true;
+            return true;
+        }
+        return inForHead(tt);
+    }
+
+    /** The assignment expression that ends before {@code tt} may end a nested cover grammar. */
+    void endAssignment(int tt) {
+        if (coverPending && literalDepth == 0) {
+            coverPending = false;
+            if (!inForHead(tt)) {
+                parser.reportError("msg.syntax");
+            }
+        }
+    }
+
+    /**
+     * Parses a literal: its elements have the {@code in} operator in the head of a for loop, and
+     * they may be patterns with shorthand initializers.
+     */
+    AstNode literal(Parser.LiteralParser literal) throws IOException {
+        boolean wasInForInit = parser.inForInit;
+        parser.inForInit = false;
+        literalDepth++;
+        try {
+            return literal.parse();
+        } finally {
+            literalDepth--;
+            parser.inForInit = wasInForInit;
+        }
     }
 
     /** Creates the loop node of a for-in or for-of loop. */
@@ -294,6 +511,12 @@ final class AsyncParser {
                 }
             case Token.NAME:
                 {
+                    if (forAwaitHead
+                            && parser.inForInit
+                            && "of".equals(ts.getString())
+                            && !followedByArrow()) {
+                        return null; // for await (async of ...)
+                    }
                     parser.consumeToken();
                     Name param = parser.createNameNode(true, Token.NAME);
                     if ("await".equals(param.getIdentifier())) {
@@ -312,6 +535,15 @@ final class AsyncParser {
             default:
                 return null;
         }
+    }
+
+    private boolean followedByArrow() {
+        String src = parser.ts.getSourceString();
+        int i = parser.ts.tokenEnd;
+        while (src != null && i < src.length() && Character.isWhitespace(src.charAt(i))) {
+            i++;
+        }
+        return src != null && src.startsWith("=>", i);
     }
 
     /**
@@ -368,15 +600,20 @@ final class AsyncParser {
         }
         ParenthesizedExpression params = new ParenthesizedExpression(lp, rp + 1 - lp, expr);
         params.setLineColumnNumber(call.getLineno(), call.getColumn());
-        if (call.getIntProp(Node.TRAILING_COMMA, 0) == 1) {
+        if (!args.isEmpty() && args.get(args.size() - 1).getIntProp(Node.TRAILING_COMMA, 0) == 1) {
             params.putIntProp(Node.TRAILING_COMMA, 1);
         }
         return params;
     }
 
+    /** The trailing comma of arguments that may turn out to be async arrow parameters. */
+    void markTrailingComma(List<AstNode> arguments) {
+        arguments.get(arguments.size() - 1).putIntProp(Node.TRAILING_COMMA, 1);
+    }
+
     /**
      * Rejects {@code await} expressions in arrow parameters, and for async arrow functions also
-     * {@code await} used as a parameter or reference.
+     * {@code await} used as a parameter or reference, in nested arrow parameters as well.
      */
     private void checkParameters(AstNode params, boolean isAsync) {
         if (params == null) {
@@ -391,6 +628,13 @@ final class AsyncParser {
                             && "await".equals(((Name) node).getIdentifier())
                             && !isPropertyName(node)) {
                         parser.reportError("msg.async.await.params");
+                    } else if (isAsync
+                            && node instanceof FunctionNode
+                            && ((FunctionNode) node).getFunctionType()
+                                    == FunctionNode.ARROW_FUNCTION) {
+                        for (AstNode param : ((FunctionNode) node).getParams()) {
+                            checkParameters(param, true);
+                        }
                     }
                     return !(node instanceof FunctionNode);
                 });

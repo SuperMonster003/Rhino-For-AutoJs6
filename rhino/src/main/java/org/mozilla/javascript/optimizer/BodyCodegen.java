@@ -119,7 +119,7 @@ class BodyCodegen {
                 !(scriptOrFn instanceof FunctionNode)
                         || ((FunctionNode) scriptOrFn).requiresArgumentObject());
         addScriptRuntimeInvoke(
-                "createFunctionActivation",
+                ClassBodyCodegen.activationMethod(scriptOrFn), // AutoJs6: async
                 "(Lorg/mozilla/javascript/JSFunction;"
                         + "Lorg/mozilla/javascript/Context;"
                         + "Lorg/mozilla/javascript/VarScope;"
@@ -775,6 +775,9 @@ class BodyCodegen {
             case Token.RETHROW:
                 if (compilerEnv.isGenerateObserverCount()) addInstructionCount();
                 cfw.addALoad(getLocalBlockRegister(node));
+                if (isGenerator) { // AutoJs6: async
+                    cfw.add(ByteCode.CHECKCAST, "java/lang/Throwable"); // AutoJs6: async
+                } // AutoJs6: async
                 cfw.add(ByteCode.ATHROW);
                 break;
 
@@ -1207,7 +1210,7 @@ class BodyCodegen {
                 if (isGenerator) {
                     // Generators cannot be constructors, so new.target is always undefined.
                     // Also, newTargetLocal is repurposed as generatorStateLocal for generators.
-                    Codegen.pushUndefined(cfw);
+                    ClassBodyCodegen.generatorNewTarget(this); // AutoJs6: async
                 } else {
                     cfw.addALoad(newTargetLocal);
                 }
@@ -2173,7 +2176,7 @@ class BodyCodegen {
             if (isGenerator) {
                 // Generators cannot be constructors, so new.target is always undefined.
                 // Also, newTargetLocal is repurposed as generatorStateLocal for generators.
-                Codegen.pushUndefined(cfw);
+                ClassBodyCodegen.generatorNewTarget(this); // AutoJs6: async
             } else {
                 cfw.addALoad(newTargetLocal);
             }
@@ -2722,6 +2725,7 @@ class BodyCodegen {
         cfw.add(ByteCode.DUP);
 
         addLoadProperties(node, child, properties, count);
+        releaseWordLocal(savedHomeObjectLocal); // AutoJs6: async
         savedHomeObjectLocal = outerHomeObjectLocal; // AutoJs6: class syntax
 
         // stack: [store]
@@ -3134,6 +3138,7 @@ class BodyCodegen {
                             + ")Ljava/lang/Object;");
         }
 
+        if (type == Token.NEW) releaseWordLocal(thisObjLocal); // AutoJs6: async
         cfw.markLabel(beyond);
     }
 
@@ -3483,9 +3488,7 @@ class BodyCodegen {
         releaseWordLocal(savedVariableObject);
         cfw.markLabel(realEnd);
 
-        if (!isGenerator) {
-            exceptionManager.popExceptionInfo();
-        }
+        exceptionManager.popExceptionInfo(); // AutoJs6: async
     }
 
     private static final int JAVASCRIPT_EXCEPTION = 0;

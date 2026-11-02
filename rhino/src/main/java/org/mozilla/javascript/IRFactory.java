@@ -19,6 +19,7 @@ import org.mozilla.javascript.ast.ArrayLiteral;
 import org.mozilla.javascript.ast.Assignment;
 import org.mozilla.javascript.ast.AstNode;
 import org.mozilla.javascript.ast.AstRoot;
+import org.mozilla.javascript.ast.AwaitExpression; // AutoJs6: async
 import org.mozilla.javascript.ast.BigIntLiteral;
 import org.mozilla.javascript.ast.Block;
 import org.mozilla.javascript.ast.BreakStatement;
@@ -243,6 +244,8 @@ public final class IRFactory {
             case Token.YIELD:
             case Token.YIELD_STAR:
                 return transformYield((Yield) node);
+            case Token.AWAIT: // AutoJs6: async
+                return AsyncLowering.await(this, (AwaitExpression) node); // AutoJs6: async
             default:
                 if (node instanceof ExpressionStatement) {
                     return transformExprStmt((ExpressionStatement) node);
@@ -649,7 +652,7 @@ public final class IRFactory {
     }
 
     private Node transformFunction(FunctionNode fn) {
-        AsyncLowering.check(parser, fn); // AutoJs6: async
+        AsyncLowering.prepare(fn); // AutoJs6: async
         Node mexpr = decompileFunctionHeader(fn);
         int index = parser.currentScriptOrFn.addFunction(fn);
 
@@ -727,6 +730,7 @@ public final class IRFactory {
                 body.addChildToFront(new Node(Token.EXPR_VOID, destructuring, lineno, column));
             }
             paramScope.apply(); // AutoJs6: class syntax
+            AsyncLowering.paramsIntoBody(fn, body); // AutoJs6: async
 
             int syntheticType = fn.getFunctionType();
             Node pn = initFunction(fn, index, body, syntheticType);
@@ -1136,6 +1140,7 @@ public final class IRFactory {
     private Node transformReturn(ReturnStatement node) {
         AstNode rv = node.getReturnValue();
         Node value = rv == null ? null : transform(rv);
+        value = AsyncLowering.returnValue(parser, node, value); // AutoJs6: async
         return rv == null
                 ? new Node(Token.RETURN, node.getLineno(), node.getColumn())
                 : new Node(Token.RETURN, value, node.getLineno(), node.getColumn());
@@ -1441,6 +1446,7 @@ public final class IRFactory {
 
     private Node transformYield(Yield node) {
         Node kid = node.getValue() == null ? null : transform(node.getValue());
+        kid = AsyncLowering.yieldValue(parser, node, kid); // AutoJs6: async
         if (kid != null) return new Node(node.getType(), kid, node.getLineno(), node.getColumn());
         return new Node(node.getType(), node.getLineno(), node.getColumn());
     }
@@ -1617,6 +1623,7 @@ public final class IRFactory {
             Name name = fnNode.getFunctionName();
             if (name != null
                     && name.length() != 0
+                    && !fnNode.isAsync() // AutoJs6: async
                     && fnNode.getSymbol(name.getIdentifier()) == null) {
                 // A function expression needs to have its name as a
                 // variable (if it isn't already allocated as a variable).
@@ -1879,6 +1886,12 @@ public final class IRFactory {
             cond.putProp(Node.LOCAL_BLOCK_PROP, localBlock);
             Node id = new Node(Token.ENUM_ID);
             id.putProp(Node.LOCAL_BLOCK_PROP, localBlock);
+            Node[] forAwait = AsyncLowering.forAwait(ast, localBlock, obj); // AutoJs6: async
+            if (forAwait != null) { // AutoJs6: async
+                init = forAwait[0]; // AutoJs6: async
+                cond = forAwait[1]; // AutoJs6: async
+                id = forAwait[2]; // AutoJs6: async
+            } // AutoJs6: async
 
             Node newBody = new Node(Token.BLOCK);
             Node assign;
@@ -1915,6 +1928,7 @@ public final class IRFactory {
             loop.addChildToFront(init);
             if (type == Token.VAR || type == Token.LET) loop.addChildToFront(lhs);
             loop = parser.bindings.forOf(this, ast, localBlock, loop); // AutoJs6: class syntax
+            loop = AsyncLowering.forAwaitClosing(ast, localBlock, loop); // AutoJs6: async
             localBlock.addChildToBack(loop);
 
             return localBlock;

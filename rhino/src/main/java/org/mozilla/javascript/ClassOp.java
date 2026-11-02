@@ -81,6 +81,19 @@ public final class ClassOp {
      */
     public static final int LOGICAL_NAME = 13;
 
+    /**
+     * {@code await}: the only child is the operand. The value marks it for the driver of the
+     * function ({@link AsyncRuntime#await}) and goes into the {@link Token#YIELD} around this node.
+     */
+    public static final int AWAIT = 14;
+
+    /**
+     * A step of a {@code for await} loop, see {@link ForAwait}: {@link #step} is the step, the node
+     * holds the {@link Node#LOCAL_BLOCK_PROP} of the record of the loop, and the steps of {@link
+     * ForAwait#hasValue} have a child.
+     */
+    public static final int FOR_AWAIT = 15;
+
     /** Element kinds, in the low bits of the int {@link Node#CLASS_PROP} of an element. */
     public static final int ELEMENT_METHOD = 0, ELEMENT_GETTER = 1, ELEMENT_SETTER = 2;
 
@@ -131,7 +144,10 @@ public final class ClassOp {
     /** {@link #ITERATOR_CLOSE}: the loop ends with an exception, which IteratorClose keeps. */
     boolean quiet;
 
-    /** {@link #DESTRUCTURE}: the step, one of the constants of {@link ArrayDestructuring}. */
+    /**
+     * {@link #DESTRUCTURE}: the step, one of the constants of {@link ArrayDestructuring}. {@link
+     * #FOR_AWAIT}: one of the constants of {@link ForAwait}.
+     */
     int step;
 
     ClassOp(int kind) {

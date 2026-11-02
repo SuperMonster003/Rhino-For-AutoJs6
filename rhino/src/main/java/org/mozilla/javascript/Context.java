@@ -3190,6 +3190,7 @@ public class Context implements Closeable {
     private final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
     private int microtaskSuspendCount;
     private final UnhandledRejectionTracker unhandledPromises = new UnhandledRejectionTracker();
+    final AsyncTracker asyncTracker = new AsyncTracker(); // AutoJs6: async
     private boolean finalizationEnabled = false;
 
     /** This is the list of names of objects forcing the creation of function activation records. */

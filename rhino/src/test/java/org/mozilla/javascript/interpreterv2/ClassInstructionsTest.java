@@ -15,9 +15,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EcmaError;
+import org.mozilla.javascript.ForAwait;
+import org.mozilla.javascript.interpreterv2.instruction.ClassAwait;
 import org.mozilla.javascript.interpreterv2.instruction.ClassCtorCheck;
 import org.mozilla.javascript.interpreterv2.instruction.ClassDefine;
 import org.mozilla.javascript.interpreterv2.instruction.ClassElement;
+import org.mozilla.javascript.interpreterv2.instruction.ClassForAwait;
 import org.mozilla.javascript.interpreterv2.instruction.ClassInitFields;
 import org.mozilla.javascript.interpreterv2.instruction.ClassIterClose;
 import org.mozilla.javascript.interpreterv2.instruction.ClassIterRest;
@@ -32,11 +35,11 @@ import org.mozilla.javascript.interpreterv2.instruction.ClassThis;
 import org.mozilla.javascript.interpreterv2.instruction.Instruction;
 
 /**
- * AutoJs6 class syntax (ROADMAP P2.3, P3.4): the Interpreter V2 instructions of the class
- * primitives. V2 has no compiler from the IR yet (ROADMAP appendix C Q11), so the instructions are
- * checked one by one: the stack change, which the V2 compiler relies on for its stack depth, and
- * the debug string; they share the runtime methods of the other two backends, which {@code
- * ClassSyntaxTest} runs.
+ * AutoJs6 class syntax (ROADMAP P2.3, P3.4, P9.1): the Interpreter V2 instructions of the class and
+ * async primitives. V2 has no compiler from the IR yet (ROADMAP appendix C Q11), so the
+ * instructions are checked one by one: the stack change, which the V2 compiler relies on for its
+ * stack depth, and the debug string; they share the runtime methods of the other two backends,
+ * which {@code ClassSyntaxTest} runs.
  */
 class ClassInstructionsTest {
 
@@ -66,7 +69,14 @@ class ClassInstructionsTest {
                 Arguments.of(new ClassElement(-1, 0x43), -1, "ClassElement(fnIndex=-1, flags=67)"),
                 Arguments.of(new ClassPrivateName("x"), 1, "ClassPrivateName(description=\"x\")"),
                 Arguments.of(ClassInitFields.instance, 1, "ClassInitFields"),
-                Arguments.of(ClassStaticInit.instance, 0, "ClassStaticInit"));
+                Arguments.of(ClassStaticInit.instance, 0, "ClassStaticInit"),
+                Arguments.of(new ClassAwait(7), 0, "ClassAwait(line=7)"),
+                Arguments.of(
+                        new ClassForAwait(2, ForAwait.OPEN), 0, "ClassForAwait(slot=2, step=0)"),
+                Arguments.of(
+                        new ClassForAwait(2, ForAwait.NEXT), 1, "ClassForAwait(slot=2, step=1)"),
+                Arguments.of(
+                        new ClassForAwait(2, ForAwait.STEP), 0, "ClassForAwait(slot=2, step=2)"));
     }
 
     @ParameterizedTest

@@ -340,6 +340,7 @@ public class ClassCompiler {
         cfw.add(builder.requiresArgumentObject ? ByteCode.ICONST_1 : ByteCode.ICONST_0);
         cfw.add(builder.declaredAsFunctionExpression ? ByteCode.ICONST_1 : ByteCode.ICONST_0);
         cfw.add(ClassBodyCodegen.flag(builder.derivedConstructor)); // AutoJs6: class syntax
+        cfw.addLoadConstant(builder.asyncKind); // AutoJs6: async
         cfw.add(ByteCode.ACONST_NULL);
         cfw.add(ByteCode.ACONST_NULL);
         cfw.addLoadConstant(builder.functionType);

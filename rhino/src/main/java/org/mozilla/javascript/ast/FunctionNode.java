@@ -120,6 +120,7 @@ public class FunctionNode extends ScriptNode {
     private boolean isGenerator;
     private boolean isES6Generator;
     private boolean isAsync; // AutoJs6: async
+    private boolean isAsyncGenerator; // AutoJs6: async
     // ES2024, B.3.2.1: block-scoped function that should also be var-hoisted
     private boolean annexBHoisted;
     private List<Node> generatorResumePoints;
@@ -341,6 +342,14 @@ public class FunctionNode extends ScriptNode {
 
     public boolean isAsync() { // AutoJs6: async
         return isAsync; // AutoJs6: async
+    } // AutoJs6: async
+
+    public boolean isAsyncGenerator() { // AutoJs6: async
+        return isAsyncGenerator; // AutoJs6: async
+    } // AutoJs6: async
+
+    public void setIsAsyncGenerator(boolean isAsyncGenerator) { // AutoJs6: async
+        this.isAsyncGenerator = isAsyncGenerator; // AutoJs6: async
     } // AutoJs6: async
 
     public void setIsAsync(boolean isAsync) { // AutoJs6: async

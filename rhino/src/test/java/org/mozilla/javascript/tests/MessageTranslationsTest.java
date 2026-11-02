@@ -96,7 +96,6 @@ class MessageTranslationsTest {
                     "msg.java.class.this.uninit",
                     "msg.java.adapter.class.first",
                     "msg.java.adapter.dup",
-                    "msg.async.not.supported",
                     "msg.async.await.context",
                     "msg.async.await.params",
                     "msg.async.for.await.of",

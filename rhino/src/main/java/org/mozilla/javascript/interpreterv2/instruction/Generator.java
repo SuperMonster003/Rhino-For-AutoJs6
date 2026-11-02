@@ -1,10 +1,12 @@
 package org.mozilla.javascript.interpreterv2.instruction;
 
+import org.mozilla.javascript.AsyncRuntime; // AutoJs6: async
 import org.mozilla.javascript.CallFrameV2;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ES6Generator;
 import org.mozilla.javascript.JSFunction;
 import org.mozilla.javascript.NativeGenerator;
+import org.mozilla.javascript.ScriptRuntime; // AutoJs6: async
 import org.mozilla.javascript.interpreterv2.InstructionFormatter;
 
 public class Generator extends Instruction {
@@ -27,6 +29,18 @@ public class Generator extends Instruction {
             frame.pc += 1;
             CallFrameV2 generatorFrame = captureFrameForGenerator(frame);
             generatorFrame.frozen = true;
+            if (AsyncRuntime.isAsync(generatorFrame.fnOrScript)) { // AutoJs6: async
+                JSFunction fn = (JSFunction) generatorFrame.fnOrScript; // AutoJs6: async
+                // The body runs in a frame of its own with the same activation. // AutoJs6: async
+                ScriptRuntime.exitActivationFunction(cx); // AutoJs6: async
+                try { // AutoJs6: async
+                    frame.result = AsyncRuntime.start(cx, fn, generatorFrame); // AutoJs6: async
+                } finally { // AutoJs6: async
+                    ScriptRuntime.enterActivationFunction(cx, frame.scope); // AutoJs6: async
+                } // AutoJs6: async
+                frame.shouldYieldToParent = true; // AutoJs6: async
+                return; // AutoJs6: async
+            } // AutoJs6: async
             if (cx.getLanguageVersion() >= Context.VERSION_ES6) {
                 frame.result =
                         new ES6Generator(

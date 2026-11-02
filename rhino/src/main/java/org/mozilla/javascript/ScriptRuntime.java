@@ -1238,7 +1238,7 @@ public class ScriptRuntime {
             return "[object " + tagValue + "]";
         }
 
-        return "[object " + ((Scriptable) obj).getClassName() + "]";
+        return "[object " + AsyncRuntime.builtinTag((Scriptable) obj) + "]"; // AutoJs6: async
     }
 
     public static String toString(Object[] args, int index) {
@@ -3652,6 +3652,9 @@ public class ScriptRuntime {
         int L = args.length;
         Callable function = getCallable(thisObj);
 
+        if (AsyncRuntime.returnsThis(function)) { // AutoJs6: async
+            return L == 0 ? Undefined.instance : args[0]; // AutoJs6: async
+        } // AutoJs6: async
         Scriptable callThis =
                 getApplyOrCallThis(cx, scope, L == 0 ? null : args[0], L, (Function) function);
 
@@ -3787,6 +3790,7 @@ public class ScriptRuntime {
 
         var homeObject = scope instanceof NativeCall ? ((NativeCall) scope).getHomeObject() : null;
         var classEval = ClassRuntime.evalContext(scope, x.toString()); // AutoJs6: class syntax
+        AsyncRuntime.checkEvalInParameters(cx, scope, x.toString()); // AutoJs6: async
 
         // Compile with explicit interpreter instance to force interpreter
         // mode.

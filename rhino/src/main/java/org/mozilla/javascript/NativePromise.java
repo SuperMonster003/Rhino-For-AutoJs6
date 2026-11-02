@@ -254,7 +254,9 @@ public class NativePromise extends ScriptableObject {
         Object arg = (args.length > 0 ? args[0] : Undefined.instance);
 
         IteratorLikeIterable iterable;
+        ScriptRuntime.LookupResult resolve; // AutoJs6: async
         try {
+            resolve = AsyncRuntime.promiseResolveMethod(thisObj, cx, scope); // AutoJs6: async
             Object maybeIterable = ScriptRuntime.callIterator(arg, cx, scope);
             iterable = new IteratorLikeIterable(cx, scope, maybeIterable);
         } catch (RhinoException re) {
@@ -270,6 +272,7 @@ public class NativePromise extends ScriptableObject {
         try {
             PromiseAllResolver resolver =
                     new PromiseAllResolver(iterator, (Scriptable) thisObj, cap, failFast);
+            resolver.resolveMethod = resolve; // AutoJs6: async
             try {
                 return resolver.resolve(cx, scope);
             } finally {
@@ -307,7 +310,9 @@ public class NativePromise extends ScriptableObject {
         Object arg = (args.length > 0 ? args[0] : Undefined.instance);
 
         IteratorLikeIterable iterable;
+        ScriptRuntime.LookupResult resolve; // AutoJs6: async
         try {
+            resolve = AsyncRuntime.promiseResolveMethod(thisObj, cx, fscope); // AutoJs6: async
             Object maybeIterable = ScriptRuntime.callIterator(arg, cx, f.getDeclarationScope());
             iterable = new IteratorLikeIterable(cx, fscope, maybeIterable);
         } catch (RhinoException re) {
@@ -322,7 +327,7 @@ public class NativePromise extends ScriptableObject {
         IteratorLikeIterable.Itr iterator = iterable.iterator();
         try {
             try {
-                return performRace(cx, fscope, iterator, thisObj, cap);
+                return performRace(cx, fscope, iterator, resolve, cap); // AutoJs6: async
             } finally {
                 if (!iterator.isDone()) {
                     iterable.close();
@@ -342,9 +347,8 @@ public class NativePromise extends ScriptableObject {
             Context cx,
             VarScope scope,
             IteratorLikeIterable.Itr iterator,
-            Object thisObj,
+            ScriptRuntime.LookupResult resolve, // AutoJs6: async
             Capability cap) {
-        var resolve = ScriptRuntime.getPropAndThis(thisObj, "resolve", cx, scope);
 
         // Manually iterate for exception handling purposes
         while (true) {
@@ -384,7 +388,9 @@ public class NativePromise extends ScriptableObject {
         Object arg = (args.length > 0 ? args[0] : Undefined.instance);
 
         IteratorLikeIterable iterable;
+        ScriptRuntime.LookupResult resolve; // AutoJs6: async
         try {
+            resolve = AsyncRuntime.promiseResolveMethod(thisObj, cx, fscope); // AutoJs6: async
             Object maybeIterable = ScriptRuntime.callIterator(arg, cx, fscope);
             iterable = new IteratorLikeIterable(cx, fscope, maybeIterable);
         } catch (RhinoException re) {
@@ -400,6 +406,7 @@ public class NativePromise extends ScriptableObject {
         try {
             PromiseAnyRejector rejector =
                     new PromiseAnyRejector(iterator, (Scriptable) thisObj, cap);
+            rejector.resolveMethod = resolve; // AutoJs6: async
             try {
                 return rejector.reject(cx, fscope);
             } finally {
@@ -512,6 +519,19 @@ public class NativePromise extends ScriptableObject {
         }
         return capability.promise;
     }
+
+    // AutoJs6: async. PerformPromiseThen without a result capability, for Java reactions.
+    void react(Context cx, VarScope scope, ReactionCall ok, ReactionCall no) { // AutoJs6: async
+        if (state == State.PENDING) { // AutoJs6: async
+            fulfillReactions.add(ok); // AutoJs6: async
+            rejectReactions.add(no); // AutoJs6: async
+        } else if (state == State.FULFILLED) { // AutoJs6: async
+            cx.enqueueMicrotask(() -> ok.invoke(cx, scope, result)); // AutoJs6: async
+        } else { // AutoJs6: async
+            markHandled(cx); // AutoJs6: async
+            cx.enqueueMicrotask(() -> no.invoke(cx, scope, result)); // AutoJs6: async
+        } // AutoJs6: async
+    } // AutoJs6: async
 
     private void markHandled(Context cx) {
         if (!handled) {
@@ -635,7 +655,12 @@ public class NativePromise extends ScriptableObject {
         }
 
         Scriptable sresolution = ScriptableObject.ensureScriptable(resolution);
-        Object thenObj = ScriptableObject.getProperty(sresolution, "then");
+        Object thenObj; // AutoJs6: async
+        try { // AutoJs6: async
+            thenObj = ScriptableObject.getProperty(sresolution, "then"); // AutoJs6: async
+        } catch (RhinoException re) { // AutoJs6: async
+            return rejectPromise(cx, scope, getErrorObject(cx, scope, re)); // AutoJs6: async
+        } // AutoJs6: async
         if (!(thenObj instanceof Callable)) {
             return fulfillPromise(cx, scope, resolution);
         }
@@ -879,6 +904,7 @@ public class NativePromise extends ScriptableObject {
         Object thisObj;
         Capability capability;
         boolean failFast;
+        ScriptRuntime.LookupResult resolveMethod; // AutoJs6: async
 
         PromiseAllResolver(
                 IteratorLikeIterable.Itr iter, Object thisObj, Capability cap, boolean failFast) {
@@ -890,9 +916,7 @@ public class NativePromise extends ScriptableObject {
 
         Object resolve(Context topCx, VarScope topScope) {
             int index = 0;
-            // Do this first because we should catch any exception before
-            // invoking the iterator.
-            var resolve = ScriptRuntime.getPropAndThis(thisObj, "resolve", topCx, topScope);
+            var resolve = resolveMethod; // AutoJs6: async
 
             // Iterate manually because we need to catch exceptions in a special way.
             while (true) {
@@ -964,7 +988,7 @@ public class NativePromise extends ScriptableObject {
                             1,
                             (cx, scope, thisObj, args) -> {
                                 Scriptable result = cx.newObject(scope);
-                                result.put("status", result, " rejected");
+                                result.put("status", result, "rejected"); // AutoJs6: async
                                 result.put(
                                         "reason",
                                         result,
@@ -993,6 +1017,7 @@ public class NativePromise extends ScriptableObject {
         IteratorLikeIterable.Itr iterator;
         Scriptable thisObj;
         Capability capability;
+        ScriptRuntime.LookupResult resolveMethod; // AutoJs6: async
 
         PromiseAnyRejector(IteratorLikeIterable.Itr iter, Scriptable thisObj, Capability cap) {
             this.iterator = iter;
@@ -1002,9 +1027,7 @@ public class NativePromise extends ScriptableObject {
 
         Object reject(Context topCx, VarScope topScope) {
             int index = 0;
-            // Do this first because we should catch any exception before
-            // invoking the iterator.
-            var resolve = ScriptRuntime.getPropAndThis(thisObj, "resolve", topCx, topScope);
+            var resolve = resolveMethod; // AutoJs6: async
 
             // Iterate manually because we need to catch exceptions in a special way.
             while (true) {

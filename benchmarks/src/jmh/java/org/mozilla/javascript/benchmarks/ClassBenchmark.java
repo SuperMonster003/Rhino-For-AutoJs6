@@ -33,6 +33,8 @@ public class ClassBenchmark {
         Function functionCall;
         Function classSuperCall;
         Function functionSuperCall;
+        Function awaitSettled;
+        Function thenSettled;
 
         @Param({"Interpreter", "Compiler"})
         public EvaluationMethod evalMethod;
@@ -57,6 +59,8 @@ public class ClassBenchmark {
             functionCall = function("functionCall");
             classSuperCall = function("classSuperCall");
             functionSuperCall = function("functionSuperCall");
+            awaitSettled = function("awaitSettled");
+            thenSettled = function("thenSettled");
         }
 
         private Function function(String name) {
@@ -65,6 +69,12 @@ public class ClassBenchmark {
 
         Object run(Function f) {
             return f.call(cx, scope, null, ScriptRuntime.emptyArgs);
+        }
+
+        Object runMicrotasks(Function f) {
+            Object result = run(f);
+            cx.processMicrotasks();
+            return result;
         }
 
         @TearDown(Level.Trial)
@@ -121,5 +131,16 @@ public class ClassBenchmark {
     @Benchmark
     public Object functionSuperCall(ClassState state) {
         return state.run(state.functionSuperCall);
+    }
+
+    /** ROADMAP P9.4: the round trip of an await of a settled promise, against the same with then. */
+    @Benchmark
+    public Object awaitSettled(ClassState state) {
+        return state.runMicrotasks(state.awaitSettled);
+    }
+
+    @Benchmark
+    public Object thenSettled(ClassState state) {
+        return state.runMicrotasks(state.thenSettled);
     }
 }

@@ -24,7 +24,7 @@ import java.util.function.Consumer;
  */
 public class UnhandledRejectionTracker {
     private boolean enabled = false;
-    private static final IdentityHashMap<NativePromise, NativePromise> unhandled =
+    private final IdentityHashMap<NativePromise, NativePromise> unhandled = // AutoJs6: async
             new IdentityHashMap<>(0);
 
     /**

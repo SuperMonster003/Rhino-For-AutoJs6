@@ -116,8 +116,7 @@ public class Test262SuiteTest {
                     Arrays.asList(
                             "Atomics",
                             "IsHTMLDDA",
-                            "async-functions",
-                            "async-iteration",
+                            // AutoJs6: async (P9.4): the async features run
                             // AutoJs6: class syntax (P6.1): class features run; T10 exclusions
                             "decorators", // AutoJs6: class syntax
                             "nonextensible-applies-to-private", // AutoJs6: class syntax
@@ -402,6 +401,9 @@ public class Test262SuiteTest {
             boolean failedEarly = false;
             try {
                 TopLevel scope = buildScope(cx, testCase, testMode);
+                Test262Async async = null; // AutoJs6: async
+                boolean isAsync = testCase.hasFlag("async"); // AutoJs6: async
+                if (isAsync) async = Test262Async.install(scope); // AutoJs6: async
                 String str = testCase.source;
                 int line = 1;
                 if (useStrict) {
@@ -414,6 +416,11 @@ public class Test262SuiteTest {
 
                 failedEarly = false; // not after this line
                 caseScript.exec(cx, scope, scope.getGlobalThis());
+
+                String failed = async != null ? async.failure(cx) : null; // AutoJs6: async
+                if (failed != null) { // AutoJs6: async
+                    throw ScriptRuntime.constructError("Test262Error", failed); // AutoJs6: async
+                } // AutoJs6: async
 
                 if (testCase.isNegative()) {
                     fail(
@@ -698,7 +705,7 @@ public class Test262SuiteTest {
                 }
             }
             // 2. it runs in an unsupported environment
-            if (testCase.hasFlag("module") || testCase.hasFlag("async")) {
+            if (testCase.hasFlag("module")) { // AutoJs6: async
                 if (includeUnsupported) {
                     TestResultTracker tracker =
                             RESULT_TRACKERS.computeIfAbsent(
@@ -837,6 +844,9 @@ public class Test262SuiteTest {
                 // present by default harness files
                 harnessFiles.add("assert.js");
                 harnessFiles.add("sta.js");
+                if (flags.contains("async")) { // AutoJs6: async
+                    harnessFiles.add(Test262Async.HARNESS); // AutoJs6: async
+                } // AutoJs6: async
 
                 if (metadata.containsKey("includes")) {
                     harnessFiles.addAll((List<String>) metadata.get("includes"));

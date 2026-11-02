@@ -208,8 +208,12 @@ abstract class Icode {
             CLASS_BOUND_NAME = CLASS_DESTRUCTURE - 1, // AutoJs6: class syntax
             CLASS_LOGICAL_BIND = CLASS_BOUND_NAME - 1, // AutoJs6: class syntax
 
+            // AutoJs6: async
+            CLASS_AWAIT = CLASS_LOGICAL_BIND - 1, // AutoJs6: async
+            CLASS_FOR_AWAIT = CLASS_AWAIT - 1, // AutoJs6: async
+
             // Last icode
-            MIN_ICODE = CLASS_LOGICAL_BIND; // AutoJs6: class syntax
+            MIN_ICODE = CLASS_FOR_AWAIT; // AutoJs6: class syntax
 
     static String bytecodeName(int bytecode) {
         if (!validBytecode(bytecode)) {

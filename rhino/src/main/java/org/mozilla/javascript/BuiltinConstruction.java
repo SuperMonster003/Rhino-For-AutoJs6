@@ -201,6 +201,10 @@ public final class BuiltinConstruction {
             return null;
         }
         String name = f.getFunctionName();
+        Scriptable async = AsyncRuntime.constructorPrototype(realm, f);
+        if (async != null) {
+            return async;
+        }
         for (TopLevel.Builtins builtin : TopLevel.Builtins.values()) {
             if (builtin.name().equals(name)) {
                 return TopLevel.getBuiltinPrototype(realm, builtin);

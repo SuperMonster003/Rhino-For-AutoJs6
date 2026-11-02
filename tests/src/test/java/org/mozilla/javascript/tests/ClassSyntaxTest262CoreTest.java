@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,24 +35,19 @@ import org.mozilla.javascript.testutils.TestSource;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * AutoJs6 class syntax (ROADMAP P2.5, P3.5): runs the two test262 class directories (everything but
- * async functions, which belong to P9) in the interpreted and the compiled mode, and expects every
- * test to pass; the counts are reported for the ES2015 core, the public fields and static blocks,
- * and the private names (ROADMAP 1.4). Since P6.1 {@code Test262SuiteTest} runs these directories
- * too, and {@code test262.properties} lists exactly the tests skipped or known to fail here; this
- * test stays the stricter check, as it fails once a known failure passes. Tests that need later
- * phases are listed in {@link #KNOWN_FAILURES}.
+ * AutoJs6 class syntax (ROADMAP P2.5, P3.5, P9.4): runs the two test262 class directories in the
+ * interpreted and the compiled mode, and expects every test to pass; the counts are reported for
+ * the ES2015 core, the public fields and static blocks, and the private names (ROADMAP 1.4). Since
+ * P6.1 {@code Test262SuiteTest} runs these directories too; this test stays the stricter check, as
+ * it reports every failure.
  *
- * <p>Like {@code Test262SuiteTest}, module and async tests are not run, nor are features Rhino does
- * not support at all (T10).
+ * <p>Like {@code Test262SuiteTest}, module tests are not run, nor are features Rhino does not
+ * support at all (T10). {@code AsyncTest262Test} counts the async tests of these directories.
  */
 class ClassSyntaxTest262CoreTest {
 
     private static final List<String> DIRECTORIES =
             List.of("language/statements/class", "language/expressions/class");
-
-    /** Class features of later phases: P9 (async). */
-    static final Set<String> LATER_PHASES = Set.of("async-functions", "async-iteration");
 
     /** The features of the public fields and static blocks (P3.1, P3.2). */
     private static final Set<String> FIELDS =
@@ -86,45 +80,6 @@ class ClassSyntaxTest262CoreTest {
                     // A stage 3 proposal that changes PrivateFieldAdd; P3 follows ES2025 (ROADMAP
                     // appendix C Q14).
                     "nonextensible-applies-to-private");
-
-    /**
-     * Known failures: test path to the phase that fixes them. Each is listed in ROADMAP appendix E,
-     * and the test fails once one of them passes.
-     */
-    private static final Map<String, String> KNOWN_FAILURES =
-            Map.ofEntries(
-                    p9(
-                            "expressions/class/cpn-class-expr-accessors-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9(
-                            "expressions/class/cpn-class-expr-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9("expressions/class/heritage-async-arrow-function.js"),
-                    p9(
-                            "statements/class/cpn-class-decl-accessors-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9(
-                            "statements/class/cpn-class-decl-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9(
-                            "expressions/class/cpn-class-expr-fields-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9(
-                            "expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9(
-                            "statements/class/cpn-class-decl-fields-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9(
-                            "statements/class/cpn-class-decl-fields-methods-computed-property-name-from-async-arrow-function-expression.js"),
-                    p9("expressions/class/elements/private-async-generator-method-name.js"),
-                    p9("expressions/class/elements/private-async-method-name.js"),
-                    p9("expressions/class/elements/private-static-async-generator-method-name.js"),
-                    p9("expressions/class/elements/private-static-async-method-name.js"),
-                    p9("statements/class/elements/private-async-generator-method-name.js"),
-                    p9("statements/class/elements/private-async-method-name.js"),
-                    p9("statements/class/elements/private-static-async-generator-method-name.js"),
-                    p9("statements/class/elements/private-static-async-method-name.js"),
-                    p9("statements/class/static-init-arguments-functions.js"),
-                    p9("statements/class/static-init-arguments-methods.js"));
-
-    /** An async function or method without the async feature tags (P9). */
-    private static Map.Entry<String, String> p9(String path) {
-        return Map.entry("language/" + path, "P9");
-    }
 
     enum Mode {
         INTERPRETED(Test262SuiteTest.TestMode.INTERPRETED),
@@ -182,10 +137,6 @@ class ClassSyntaxTest262CoreTest {
                 }
             }
         }
-        Set<String> unexpected = new TreeSet<>(failures.keySet());
-        unexpected.removeAll(KNOWN_FAILURES.keySet());
-        Set<String> fixed = new TreeSet<>(KNOWN_FAILURES.keySet());
-        fixed.removeAll(failures.keySet());
         System.out.printf(
                 "class test262 core (%s): %d run, %d passed, %d failed, skipped %s%n",
                 mode, run, run - failures.size(), failures.size(), skipped);
@@ -196,9 +147,8 @@ class ClassSyntaxTest262CoreTest {
             System.out.printf("  %s: %d run, %d passed%n", group, groupRun, groupRun - groupFailed);
         }
         StringBuilder report = new StringBuilder();
-        for (String path : unexpected) {
-            report.append(path).append(": ").append(failures.get(path)).append('\n');
-        }
+        failures.forEach(
+                (path, failure) -> report.append(path).append(": ").append(failure).append('\n'));
         // The full list, for working through failures: tests/build/class-syntax/.
         Path out = Path.of("build", "class-syntax");
         Files.createDirectories(out);
@@ -208,7 +158,6 @@ class ClassSyntaxTest262CoreTest {
         Files.writeString(out.resolve("core-" + mode + ".txt"), all.toString());
         assertTrue(run > 2000, "class directories not found under " + tests);
         assertEquals("", report.toString());
-        assertEquals(Set.of(), fixed, "a known failure passes now");
     }
 
     /** Returns why the test is not part of the core, or {@code null}. */
@@ -216,17 +165,9 @@ class ClassSyntaxTest262CoreTest {
         if (testCase.hasFlag("module")) {
             return "module";
         }
-        if (testCase.hasFlag("async")) {
-            return "async";
-        }
         for (String feature : testCase.features) {
             if (UNSUPPORTED.contains(feature)) {
                 return feature;
-            }
-        }
-        for (String feature : testCase.features) {
-            if (LATER_PHASES.contains(feature)) {
-                return "later phase";
             }
         }
         return null;
@@ -262,6 +203,7 @@ class ClassSyntaxTest262CoreTest {
             boolean compiled = false;
             try {
                 TopLevel scope = cx.initSafeStandardObjects(new TopLevel());
+                Test262Async async = testCase.hasFlag("async") ? Test262Async.install(scope) : null;
                 for (String file : testCase.harnessFiles) {
                     Script script =
                             harnessCache.computeIfAbsent(
@@ -282,7 +224,7 @@ class ClassSyntaxTest262CoreTest {
                 if (testCase.isNegative()) {
                     return "expected " + testCase.expectedError;
                 }
-                return null;
+                return async != null ? async.failure(cx) : null;
             } catch (RhinoException e) {
                 if (!testCase.isNegative()) {
                     return e.details();
@@ -352,6 +294,9 @@ class ClassSyntaxTest262CoreTest {
             if (!flags.contains("raw")) {
                 harnessFiles.add("assert.js");
                 harnessFiles.add("sta.js");
+                if (flags.contains("async")) {
+                    harnessFiles.add(Test262Async.HARNESS);
+                }
                 if (metadata.containsKey("includes")) {
                     harnessFiles.addAll((List<String>) metadata.get("includes"));
                 }

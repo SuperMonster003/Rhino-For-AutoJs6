@@ -16,9 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,22 +36,6 @@ import org.mozilla.javascript.testutils.TestSource;
  * features.
  */
 class BuiltinSubclassingTest262Test {
-
-    /** Features skipped here: {@link ClassSyntaxTest262CoreTest#UNSUPPORTED} and P9. */
-    private static final Set<String> SKIPPED_FEATURES;
-
-    static {
-        Set<String> skipped = new TreeSet<>(ClassSyntaxTest262CoreTest.UNSUPPORTED);
-        skipped.addAll(ClassSyntaxTest262CoreTest.LATER_PHASES);
-        SKIPPED_FEATURES = skipped;
-    }
-
-    /**
-     * Known failures: test path to the phase that fixes them (ROADMAP appendix E). The
-     * AsyncFunction test has no async feature tag.
-     */
-    private static final Map<String, String> KNOWN_FAILURES =
-            Map.of("built-ins/AsyncFunction/instance-construct-throws.js", "P9");
 
     @ParameterizedTest
     @EnumSource(ClassSyntaxTest262CoreTest.Mode.class)
@@ -122,14 +104,9 @@ class BuiltinSubclassingTest262Test {
                 "built-in subclassing test262 (%s): %d failed, skipped %s%n%s",
                 mode, failures.size(), skipped, counts);
 
-        Set<String> unexpected = new TreeSet<>(failures.keySet());
-        unexpected.removeAll(KNOWN_FAILURES.keySet());
-        Set<String> fixed = new TreeSet<>(KNOWN_FAILURES.keySet());
-        fixed.removeAll(failures.keySet());
         StringBuilder report = new StringBuilder();
-        for (String path : unexpected) {
-            report.append(path).append(": ").append(failures.get(path)).append('\n');
-        }
+        failures.forEach(
+                (path, failure) -> report.append(path).append(": ").append(failure).append('\n'));
         Path out = Path.of("build", "class-syntax");
         Files.createDirectories(out);
         StringBuilder all = new StringBuilder();
@@ -140,7 +117,6 @@ class BuiltinSubclassingTest262Test {
                 groups.values().stream().allMatch(files -> !files.isEmpty()),
                 "test directories not found under " + tests);
         assertEquals("", report.toString());
-        assertEquals(Set.of(), fixed, "a known failure passes now");
     }
 
     /** The test files of the directories, only those mentioning newTarget if asked to. */
@@ -173,11 +149,8 @@ class BuiltinSubclassingTest262Test {
         if (testCase.hasFlag("module")) {
             return "module";
         }
-        if (testCase.hasFlag("async")) {
-            return "async";
-        }
         for (String feature : testCase.features) {
-            if (SKIPPED_FEATURES.contains(feature)) {
+            if (ClassSyntaxTest262CoreTest.UNSUPPORTED.contains(feature)) {
                 return feature;
             }
         }

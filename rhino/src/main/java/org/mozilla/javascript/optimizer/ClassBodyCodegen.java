@@ -9,9 +9,12 @@ package org.mozilla.javascript.optimizer;
 import org.mozilla.classfile.ByteCode;
 import org.mozilla.classfile.ClassFileWriter;
 import org.mozilla.javascript.ClassOp;
+import org.mozilla.javascript.ForAwait;
 import org.mozilla.javascript.Kit;
 import org.mozilla.javascript.Node;
 import org.mozilla.javascript.Token;
+import org.mozilla.javascript.ast.FunctionNode;
+import org.mozilla.javascript.ast.ScriptNode;
 
 /**
  * AutoJs6 class syntax: the compiler side of the {@link Token#CLASS} IR nodes (ROADMAP P2.3). Each
@@ -186,6 +189,44 @@ final class ClassBodyCodegen {
                     }
                     break;
                 }
+            case ClassOp.AWAIT:
+                bc.generateExpression(child, node);
+                cfw.addPush(Math.max(node.getLineno(), 0));
+                cfw.addInvoke(
+                        ByteCode.INVOKESTATIC,
+                        "org/mozilla/javascript/AsyncRuntime",
+                        "await",
+                        "(" + OBJECT + "I)" + OBJECT);
+                break;
+            case ClassOp.FOR_AWAIT:
+                {
+                    int local =
+                            ((Node) node.getProp(Node.LOCAL_BLOCK_PROP))
+                                    .getExistingIntProp(Node.LOCAL_PROP);
+                    int step = op.getStep();
+                    if (child != null) {
+                        bc.generateExpression(child, node);
+                    } else {
+                        cfw.add(ByteCode.ACONST_NULL);
+                    }
+                    if (step == ForAwait.OPEN) {
+                        cfw.add(ByteCode.ACONST_NULL);
+                    } else {
+                        cfw.addALoad(local);
+                    }
+                    cfw.addPush(step);
+                    pushContextAndScope(bc);
+                    cfw.addInvoke(
+                            ByteCode.INVOKESTATIC,
+                            "org/mozilla/javascript/ForAwait",
+                            "step",
+                            "(" + OBJECT + OBJECT + "I" + CONTEXT_SCOPE + ")" + OBJECT);
+                    if (step == ForAwait.OPEN) {
+                        cfw.add(ByteCode.DUP);
+                        cfw.addAStore(local);
+                    }
+                    break;
+                }
             case ClassOp.LOGICAL_NAME:
                 logicalName(bc, child, node);
                 break;
@@ -320,10 +361,39 @@ final class ClassBodyCodegen {
         bc.cfw.addALoad(bc.variableObjectLocal);
     }
 
+    /**
+     * The method that creates the activation of a generator. An async arrow function is a generator
+     * here (AsyncLowering).
+     */
+    static String activationMethod(ScriptNode scriptOrFn) {
+        return isArrow(scriptOrFn) ? "createArrowFunctionActivation" : "createFunctionActivation";
+    }
+
+    private static boolean isArrow(ScriptNode scriptOrFn) {
+        return scriptOrFn instanceof FunctionNode
+                && ((FunctionNode) scriptOrFn).getFunctionType() == FunctionNode.ARROW_FUNCTION;
+    }
+
+    /**
+     * new.target in a generator, where newTargetLocal holds the generator state: undefined, except
+     * for an async arrow function, which has the one of the function around it.
+     */
+    static void generatorNewTarget(BodyCodegen bc) {
+        if (isArrow(bc.scriptOrFn)) {
+            bc.cfw.addALoad(bc.funObjLocal);
+            bc.cfw.addInvoke(
+                    ByteCode.INVOKEVIRTUAL,
+                    "org/mozilla/javascript/JSFunction",
+                    "getLexicalNewTarget",
+                    "()" + OBJECT);
+        } else {
+            Codegen.pushUndefined(bc.cfw);
+        }
+    }
+
     private static void pushNewTarget(BodyCodegen bc) {
         if (bc.isGenerator) {
-            // newTargetLocal holds the generator state in a generator, and new.target is undefined.
-            Codegen.pushUndefined(bc.cfw);
+            generatorNewTarget(bc);
         } else {
             bc.cfw.addALoad(bc.newTargetLocal);
         }

@@ -37,6 +37,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
     private static final int REQUIRES_ARGUMENT_OBJECT_FLAG = 1 << 11;
     private static final int DECLARED_AS_FUNCTION_EXPRESSION_FLAG = 1 << 12;
     private static final int DERIVED_CONSTRUCTOR_FLAG = 1 << 13;
+    private static final int ASYNC_KIND_SHIFT = 14; // AutoJs6: async
 
     private final JSCode<T> code;
     private final JSCode<T> constructor;
@@ -89,6 +90,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
             boolean requiresArgumentObject,
             boolean declaredAsFunctionExpression,
             boolean derivedConstructor,
+            int asyncKind, // AutoJs6: async
             SecurityController securityController,
             Object securityDomain,
             int functionType) {
@@ -113,6 +115,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         flags = flags | (requiresArgumentObject ? REQUIRES_ARGUMENT_OBJECT_FLAG : 0);
         flags = flags | (declaredAsFunctionExpression ? DECLARED_AS_FUNCTION_EXPRESSION_FLAG : 0);
         flags = flags | (derivedConstructor ? DERIVED_CONSTRUCTOR_FLAG : 0);
+        flags = flags | (asyncKind << ASYNC_KIND_SHIFT); // AutoJs6: async
         this.flags = flags;
 
         this.sourceFile = sourceFile;
@@ -161,6 +164,14 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
     public boolean isFunction() {
         return functionType != 0;
     }
+
+    public int asyncKind() { // AutoJs6: async
+        return (flags >> ASYNC_KIND_SHIFT) & AsyncRuntime.KIND_MASK; // AutoJs6: async
+    } // AutoJs6: async
+
+    boolean bindsOwnName() { // AutoJs6: async
+        return (flags >> ASYNC_KIND_SHIFT & AsyncRuntime.OWN_NAME) != 0; // AutoJs6: async
+    } // AutoJs6: async
 
     public boolean isES6Generator() {
         return (flags & IS_ES6_GENERATOR_FLAG) != 0;
@@ -343,6 +354,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
         public boolean requiresArgumentObject;
         public boolean declaredAsFunctionExpression;
         public boolean derivedConstructor; // AutoJs6: class syntax
+        public int asyncKind; // AutoJs6: async
         public boolean classCode; // AutoJs6: class syntax
         public int classElement; // AutoJs6: class syntax
         public SecurityController securityController;
@@ -416,6 +428,7 @@ public final class JSDescriptor<T extends ScriptOrFn<T>> implements Serializable
                             requiresArgumentObject,
                             declaredAsFunctionExpression,
                             derivedConstructor, // AutoJs6: class syntax
+                            asyncKind, // AutoJs6: async
                             securityController,
                             securityDomain,
                             functionType);

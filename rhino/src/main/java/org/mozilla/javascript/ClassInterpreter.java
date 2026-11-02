@@ -183,6 +183,24 @@ final class ClassInterpreter {
                     }
                     break;
                 }
+            case ClassOp.AWAIT:
+                gen.visitExpression(child, 0);
+                gen.addIndexOp(Icode.CLASS_AWAIT, Math.max(node.getLineno(), 0));
+                break;
+            case ClassOp.FOR_AWAIT:
+                {
+                    Node localBlock = (Node) node.getProp(Node.LOCAL_BLOCK_PROP);
+                    if (child != null) {
+                        gen.visitExpression(child, 0);
+                    }
+                    gen.addIndexOp(
+                            Icode.CLASS_FOR_AWAIT, localBlock.getExistingIntProp(Node.LOCAL_PROP));
+                    gen.addUint8(op.step);
+                    if (child == null) {
+                        gen.stackChange(1);
+                    }
+                    break;
+                }
             case ClassOp.LOGICAL_NAME:
                 {
                     // The binding stays under the value of the operator: step 0 pushes it with the
@@ -224,6 +242,8 @@ final class ClassInterpreter {
         instructionObjs[base + Icode.CLASS_DESTRUCTURE] = new DoClassDestructure();
         instructionObjs[base + Icode.CLASS_BOUND_NAME] = new DoClassBoundName();
         instructionObjs[base + Icode.CLASS_LOGICAL_BIND] = new DoClassLogicalBind();
+        instructionObjs[base + Icode.CLASS_AWAIT] = new DoClassAwait();
+        instructionObjs[base + Icode.CLASS_FOR_AWAIT] = new DoClassForAwait();
         SpreadCall.register(instructionObjs, base);
     }
 
@@ -263,6 +283,10 @@ final class ClassInterpreter {
                 return "CLASS_BOUND_NAME";
             case Icode.CLASS_LOGICAL_BIND:
                 return "CLASS_LOGICAL_BIND";
+            case Icode.CLASS_AWAIT:
+                return "CLASS_AWAIT";
+            case Icode.CLASS_FOR_AWAIT:
+                return "CLASS_FOR_AWAIT";
             default:
                 return SpreadCall.icodeName(icode);
         }
@@ -397,6 +421,52 @@ final class ClassInterpreter {
             } else {
                 frame.stack[++frame.stackTop] =
                         ArrayDestructuring.destructure(frame.stack[local], step, cx, frame.scope);
+            }
+            return null;
+        }
+
+        @Override
+        void dumpICode(int op, String tname, ICodeDumpContext ctx) {
+            int step = ctx.compilerData.itsICode[ctx.pc++] & 0xFF;
+            ctx.out.println(tname + " local " + ctx.indexReg + " step " + step);
+        }
+    }
+
+    private static final class DoClassAwait extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            frame.stack[frame.stackTop] =
+                    AsyncRuntime.await(value(frame, frame.stackTop), state.indexReg);
+            return null;
+        }
+
+        @Override
+        void dumpICode(int op, String tname, ICodeDumpContext ctx) {
+            ctx.out.println(tname + " line " + ctx.indexReg);
+        }
+    }
+
+    private static final class DoClassForAwait extends InstructionClass {
+        @Override
+        NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
+            int step = frame.compilerData.itsICode[frame.pc++] & 0xFF;
+            int local = frame.localShift + state.indexReg;
+            if (step == ForAwait.OPEN) {
+                Object record =
+                        ForAwait.step(value(frame, frame.stackTop), null, step, cx, frame.scope);
+                frame.stack[local] = record;
+                frame.stack[frame.stackTop] = record;
+            } else if (ForAwait.hasValue(step)) {
+                frame.stack[frame.stackTop] =
+                        ForAwait.step(
+                                value(frame, frame.stackTop),
+                                frame.stack[local],
+                                step,
+                                cx,
+                                frame.scope);
+            } else {
+                frame.stack[++frame.stackTop] =
+                        ForAwait.step(null, frame.stack[local], step, cx, frame.scope);
             }
             return null;
         }

@@ -928,3 +928,42 @@ JDK 21, 构建 dc071fea4 (`jmh-pre-dc071fea4.jar`), 每轮 class 与 function �
 ### 验证
 
 `:rhino:test --tests "org.mozilla.javascript.tests.classsyntax.*"` 26 个类 353 例 0 失败 (`classsyntax-test.log`), `:benchmarks:spotlessCheck` 与 `git diff --check` 通过. 运行时代码没有改动, 按卡片不跑 test262 与全量, `HOOKS.md` 不变, 没有用户可感知的变化, 不写 changelog.
+
+## P9 fork (2026-11-02, 子会话 rhino-p9a)
+
+P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不在这张卡.
+
+### 落地方式 (T7)
+
+- async 函数对编译器就是生成器: `IRFactory.transformFunction` 入口由 `AsyncLowering.prepare` 把函数设为 ES6 生成器并要求 activation (解析期仍不是生成器, `yield` 的判定不受影响). 此前先记下 `fn.isAsyncGenerator`.
+- `await x` 的 IR 是 `Token.YIELD(Token.CLASS[ClassOp.AWAIT](x))`. `ClassOp.AWAIT` 在运行时包成 `AsyncRuntime.Await` (继承 `AsyncTracker.Pending`, 带行号); `AsyncRuntime.start` 取代生成器对象的创建.
+- `JSDescriptor.asyncKind()`: 0 / `ASYNC_FUNCTION` / `ASYNC_GENERATOR`, 按 `AsyncRuntime.KIND_MASK` 取; 位 `OWN_NAME` 表示命名函数表达式 (见下). 两种 async 的 `isES6Generator` 都为 true.
+- 非生成器 async 函数的参数初始化在 GENERATOR 之后 (`AsyncLowering.paramsIntoBody`), 参数错误 reject promise; async 生成器保持同步抛出.
+- 驱动 `AsyncFunctionDriver.run(cx, op, value)`: 调 `resumeGenerator`; `GeneratorClosedException` / StopIteration -> `returned`; JavaScriptException / RhinoException -> `threw` (`AsyncRuntime.thrown` 取抛出值, `wrapException` 不接受 JavaScriptException); `Await` -> PromiseResolve 后 `NativePromise.react`, PromiseResolve 抛错时不挂起, 直接 throw 回函数体; 其他结果 -> `yielded`. 微任务里恢复要在顶层调用内 (`AsyncRuntime.inTopCall`).
+- `NativeAsyncGenerator`: 按 ES2024 的请求队列 (SUSPENDED_START / SUSPENDED_YIELD / EXECUTING / DRAINING_QUEUE / COMPLETED). `yield v` 降为 `YIELD(YIELD(AWAIT(v)))`, `return v` 降为 `RETURN(YIELD(AWAIT(v)))`, `yield*` 不包 await, 委托状态机在 Java 里 (`delegateStep` / `delegateResult` / `delegateCloseForThrow`).
+- `for await`: `OPEN(iterable); while (STEP(await NEXT)) { head = VALUE; body }`, 外包 `BindingLowering.closing`: `try {...} catch { await CLOSE_QUIET; rethrow } finally { CLOSE_CHECK(await CLOSE) }`. LOCAL_BLOCK 存 `ForAwait.Record`. `Await.skipped` (`ForAwait.NOTHING`, 不产生 tick) 与 `Await.quiet` (`ForAwait.Quiet`, 忽略 rejection) 服务 AsyncIteratorClose.
+- 内建对象懒创建: `AsyncRuntime.intrinsic(cx, scope, tag)`, 存在 `top.associateValue`; `AsyncRuntime.hide` 删掉 ClassDescriptor 定义在 scope 上的键.
+- 命名 async 函数表达式的名字绑定不走 SETNAME, 由 `NativeCall` 构造时定义 `READONLY | PERMANENT` 属性 (宽松模式赋值静默, 严格模式 TypeError; 普通 const 总是抛所以不能用).
+- 参数里的直接 eval: `AsyncLowering.evalInParameters` 为真时强制 `BindingLowering.ParamScope` 生成 with 作用域, `AsyncRuntime.checkEvalInParameters` 在 `evalSpecial` 里解析代码, var 与参数同名抛 SyntaxError.
+
+### 早期错误的取舍
+
+"拒绝更多程序" 的早期错误只对 async 函数 / for await 生效, 避免破坏用户旧脚本, 普通函数的同类推广登记 Q54 (带解锁例数). "接受更多程序" 或纯缺陷修复直接通用 (for 头部 cover grammar, 字面量里的 in, Promise 修复, Proxy toString, builtinTag; `of` 带转义拒绝这条无实际风险也通用).
+
+### 跑 test262 时查出的上游缺陷 (不改语义, fork 现在修)
+
+- `BodyCodegen`: 生成器从不 `popExceptionInfo`, 外层 try 到 catch 时 `removeHandler` 落在已结束的内层 try 上, 外层 catch 的异常表项根本没生成: 编译模式下普通生成器的嵌套 try 也接不到内层重抛的异常. 改为总是弹出. 回归: 下面的测试类.
+- `BodyCodegen`: 对象字面量的 `savedHomeObjectLocal` 与 `visitOptimizedCall` NEW 分支的 `thisObjLocal` 不释放, 生成器保存局部变量时遇到 TOP 类型, VerifyError `bad local variable type`.
+- `NativePromise`: `"rejected"` 状态字面量多一个空格; `resolveWith` 的 then getter 抛错要 reject; all / race / any 在取迭代器前先 GetPromiseResolve.
+- `BaseFunction.js_toString`: 可调用 Proxy 走 native 形态; `ScriptRuntime.defaultObjectToString` 的 builtinTag: GeneratorFunction -> Function.
+
+### 给宿主卡的结论 (P9.5 - P9.7)
+
+- await 宿主 promise.js 的 Promise 按 thenable 走; await Java Future: 没有 `then`, 直接得到对象本身.
+- `NativePromise` 的 reaction 排到 resolve 所在 Context 的微任务队列, 宿主从其他线程 resolve 时要注意.
+- 宿主回调经 `JSFunction.call` 的顶层调用不排空微任务, 只有 `JSScript.exec` 在无顶层调用时 `processMicrotasks`, 所以 Loopers 每个宏任务后都要调.
+- `yield*` 的驱动器层 await 不计入 `AsyncTracker`. Java 错误 (StackOverflowError 等) 不转 rejection.
+
+### 进度
+
+- 2026-11-02: 实现在工作区, test262 async 范围从 2854 失败迭代到剩余清单阶段 (下一节记录结果).

@@ -208,13 +208,13 @@ public final class ClassRuntime {
             ScriptableObject home, JSDescriptor<JSFunction> method, Context cx, VarScope scope) {
         JSFunction fn = new JSFunction(cx, scope, method, null, Undefined.instance, home);
         removeLegacyProperties(fn);
-        if (method.isES6Generator()) {
+        if (method.isES6Generator() && method.asyncKind() != AsyncRuntime.ASYNC_FUNCTION) {
             // A generator method gets a fresh prototype for its generator objects, without a
             // constructor property (MethodDefinitionEvaluation of a GeneratorMethod).
             NativeObject generatorProto = new NativeObject();
             generatorProto.setParentScope(scope);
             VarScope top = ScriptableObject.getTopLevelScope(scope);
-            Object parent = ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
+            Object parent = ScriptableObject.getTopScopeValue(top, AsyncRuntime.generatorTag(fn));
             if (parent instanceof Scriptable) {
                 generatorProto.setPrototype((Scriptable) parent);
             }

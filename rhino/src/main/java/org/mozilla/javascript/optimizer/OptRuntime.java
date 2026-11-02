@@ -5,6 +5,7 @@
 package org.mozilla.javascript.optimizer;
 
 import java.util.List;
+import org.mozilla.javascript.AsyncRuntime; // AutoJs6: async
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
@@ -288,6 +289,9 @@ public final class OptRuntime extends ScriptRuntime {
             int maxLocals,
             int maxStack) {
         GeneratorState gs = new GeneratorState(scope, thisObj, maxLocals, maxStack);
+        if (AsyncRuntime.isAsync(funObj)) { // AutoJs6: async
+            return AsyncRuntime.start(cx, funObj, gs); // AutoJs6: async
+        } // AutoJs6: async
         if (cx.getLanguageVersion() >= Context.VERSION_ES6) {
             return new ES6Generator(scope, funObj, gs);
         } else {

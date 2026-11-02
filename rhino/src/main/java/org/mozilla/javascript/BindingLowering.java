@@ -378,8 +378,7 @@ final class BindingLowering {
      * no catch scope, which would put the variables of the whole function into an activation
      * (IRFactory.createTryCatchFinally).
      */
-    private static Node closing(
-            Node statement, Node onThrow, Node onReturn, int lineno, int column) {
+    static Node closing(Node statement, Node onThrow, Node onReturn, int lineno, int column) {
         Node handlerBlock = new Node(Token.LOCAL_BLOCK);
         Jump tryNode = new Jump(Token.TRY, new Node(Token.BLOCK, statement));
         tryNode.setLineColumnNumber(lineno, column);
@@ -662,16 +661,18 @@ final class BindingLowering {
         private final Node body;
         private final Node bodyStart;
         private final Set<String> names;
+        private final boolean evalInParameters;
 
         ParamScope(FunctionNode fn, Node body) {
             this.fn = fn;
             this.body = body;
             bodyStart = body.getFirstChild();
             names = bodyNamesUsedByParameters(fn);
+            evalInParameters = AsyncLowering.evalInParameters(fn);
         }
 
         void apply() {
-            if (!names.isEmpty()) {
+            if (!names.isEmpty() || evalInParameters) {
                 paramScope(fn, body, bodyStart, names);
             }
         }

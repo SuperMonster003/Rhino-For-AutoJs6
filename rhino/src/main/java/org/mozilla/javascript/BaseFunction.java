@@ -501,6 +501,8 @@ public class BaseFunction extends ScriptableObject implements Function {
 
     private static Object js_toString(
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
+        String proxySource = AsyncRuntime.callableProxySource(thisObj); // AutoJs6: async
+        if (proxySource != null) return proxySource; // AutoJs6: async
         BaseFunction realf = realFunction(thisObj, "toString");
         int indent = ScriptRuntime.toInt32(args, 0);
         return realf.decompile(indent, EnumSet.noneOf(DecompilerFlag.class));
@@ -515,6 +517,11 @@ public class BaseFunction extends ScriptableObject implements Function {
             Context cx, JSFunction f, Object nt, VarScope s, Object thisObj, Object[] args) {
         return jsConstructor(cx, f, nt, f.getDeclarationScope(), args, true);
     }
+
+    static Scriptable jsAsync(Context cx, JSFunction f, Object nt, Object[] a) { // AutoJs6: async
+        boolean generator = AsyncRuntime.isGeneratorConstructor(f); // AutoJs6: async
+        return jsConstructor(cx, f, nt, f.getDeclarationScope(), a, generator); // AutoJs6: async
+    } // AutoJs6: async
 
     private static BaseFunction realFunction(Object thisObj, String functionName) {
         if (thisObj == null) {
@@ -734,8 +741,8 @@ public class BaseFunction extends ScriptableObject implements Function {
             // For generator functions, the .prototype property's [[Prototype]]
             // should be %GeneratorPrototype%, not Object.prototype
             VarScope top = ScriptableObject.getTopLevelScope(scope);
-            Object generatorProto =
-                    ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
+            Object tag = AsyncRuntime.generatorTag(this); // AutoJs6: async
+            Object generatorProto = ScriptableObject.getTopScopeValue(top, tag); // AutoJs6: async
             if (generatorProto instanceof Scriptable) {
                 proto = (Scriptable) generatorProto;
             } else {
@@ -793,11 +800,12 @@ public class BaseFunction extends ScriptableObject implements Function {
         int arglen = args.length;
         StringBuilder sourceBuf = new StringBuilder();
 
-        sourceBuf.append("function ");
+        sourceBuf.append(AsyncRuntime.dynamicPrefix(f)); // AutoJs6: async
+        sourceBuf.append("function"); // AutoJs6: async
         if (isGeneratorFunction) {
-            sourceBuf.append("* ");
+            sourceBuf.append("*"); // AutoJs6: async
         }
-        sourceBuf.append("anonymous(");
+        sourceBuf.append(" anonymous("); // AutoJs6: async
 
         // Append arguments as coma separated strings
         for (int i = 0; i < arglen - 1; i++) {
@@ -806,7 +814,7 @@ public class BaseFunction extends ScriptableObject implements Function {
             }
             sourceBuf.append(ScriptRuntime.toString(args[i]));
         }
-        sourceBuf.append(") {");
+        sourceBuf.append("\n) {\n"); // AutoJs6: async
         if (arglen != 0) {
             // append function body
             String funBody = ScriptRuntime.toString(args[arglen - 1]);
@@ -840,6 +848,7 @@ public class BaseFunction extends ScriptableObject implements Function {
                 (JSFunction)
                         cx.compileFunction(global, source, evaluator, reporter, sourceURI, 1, null);
 
+        if (AsyncRuntime.setDynamicPrototype(res, f, nt)) return res; // AutoJs6: async
         if (res.getDescriptor().isES6Generator()) {
             ScriptRuntime.setBuiltinProtoAndParent(
                     (ScriptableObject) res, f, nt, scope, TopLevel.Builtins.GeneratorFunction);

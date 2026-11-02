@@ -821,6 +821,7 @@ public class Parser {
                                     if (fnNode.hasRestParameter()) {
                                         reportError("msg.rest.param.use.strict");
                                     }
+                                    asyncSyntax.checkUseStrict(fnNode); // AutoJs6: async
                                     inUseStrictDirective = true;
                                     fnNode.setInStrictMode(true);
                                 }
@@ -969,6 +970,7 @@ public class Parser {
                             paramNames.add(paramName);
                         }
 
+                        if (wasRest) asyncSyntax.checkRestParameter(fnNode); // AutoJs6: async
                         if (matchToken(Token.ASSIGN, true)) {
                             if (compilerEnv.getLanguageVersion() >= Context.VERSION_ES6) {
                                 fnNode.putDefaultParams(paramName, assignExpr());
@@ -1000,6 +1002,7 @@ public class Parser {
                 }
                 fnNode.putProp(Node.DESTRUCTURING_PARAMS, destructuringNode);
             }
+            asyncSyntax.checkDuplicateParameters(fnNode); // AutoJs6: async
 
             if (mustMatchToken(Token.RP, "msg.no.paren.after.parms", true)) {
                 fnNode.setRp(ts.tokenBeg - fnNode.getPosition());
@@ -1032,6 +1035,7 @@ public class Parser {
                         reportError("msg.bad.id.strict", id);
                     }
                 }
+                asyncSyntax.checkGeneratorName(name, type, isGenerator); // AutoJs6: async
                 if (!matchToken(Token.LP, true)) {
                     if (compilerEnv.isAllowMemberExprAsFunctionName()) {
                         AstNode memberExprHead = name;
@@ -1064,7 +1068,8 @@ public class Parser {
             syntheticType = FunctionNode.FUNCTION_EXPRESSION;
         }
 
-        defineFunctionSymbol(type, syntheticType, name, isGenerator);
+        boolean suspends = isGenerator || asyncSyntax.isPending(); // AutoJs6: async
+        defineFunctionSymbol(type, syntheticType, name, suspends); // AutoJs6: async
 
         FunctionNode fnNode = new FunctionNode(functionSourceStart, name);
         fnNode.setMethodDefinition(isMethodDefiniton);
@@ -1530,6 +1535,8 @@ public class Parser {
                 break;
 
             case Token.LET:
+                pn = asyncSyntax.letAsForAwaitBody(); // AutoJs6: async
+                if (pn != null) break; // AutoJs6: async
                 pn = letStatement();
                 if (pn instanceof VariableDeclaration) break;
                 return pn;
@@ -1935,10 +1942,12 @@ public class Parser {
                 cond = expr(false); // object over which we're iterating
             } else if (compilerEnv.getLanguageVersion() >= Context.VERSION_ES6
                     && matchToken(Token.NAME, true)
-                    && "of".equals(ts.getString())) {
+                    && "of".equals(ts.getString()) // AutoJs6: async
+                    && !ts.wordEscaped) { // AutoJs6: async
                 isForOf = true;
                 inPos = ts.tokenBeg - forPos;
                 markDestructuring(init);
+                if (isForAwait) asyncSyntax.checkForAwaitTarget(init); // AutoJs6: async
                 cond = expr(false); // object over which we're iterating
             } else { // ordinary for-loop
                 // For ordinary for loops, destructuring declarations must have initializers
@@ -2843,6 +2852,7 @@ public class Parser {
         Symbol symbol = definingScope != null ? definingScope.getSymbol(name) : null;
         Symbol varSymbol = currentScope.getVarSymbol(name);
         Symbol.Type symDeclType = symbol != null ? symbol.getDeclType() : null;
+        asyncSyntax.checkRedeclared(declType, symDeclType, definingScope, name); // AutoJs6: async
         if (!isValidES6Redeclaration(
                 declType, symDeclType, symbol, varSymbol, currentScope, definingScope)) {
             addError(
@@ -3065,6 +3075,7 @@ public class Parser {
             Comment jsdocNode = getAndResetJsDoc();
 
             markDestructuring(pn);
+            asyncSyntax.checkAssignmentTarget(pn); // AutoJs6: async
             int opPos = ts.tokenBeg;
             if (isNotValidSimpleAssignmentTarget(pn))
                 reportError("msg.syntax.invalid.assignment.lhs");
@@ -3084,9 +3095,11 @@ public class Parser {
             consumeToken();
             pn = asyncSyntax.arrowFunction(pn, startLine, startColumn); // AutoJs6: async
         } else if (pn.getIntProp(Node.OBJECT_LITERAL_DESTRUCTURING, 0) == 1
-                && !inDestructuringAssignment) {
+                && !inDestructuringAssignment // AutoJs6: async
+                && !asyncSyntax.coverInitializer(tt)) { // AutoJs6: async
             reportError("msg.syntax");
         }
+        asyncSyntax.endAssignment(tt); // AutoJs6: async
         return pn;
     }
 
@@ -3438,6 +3451,7 @@ public class Parser {
         try {
             do {
                 if (peekToken() == Token.RP) {
+                    asyncSyntax.markTrailingComma(result); // AutoJs6: async
                     // Quick fix to handle scenario like f1(a,); but not f1(a,b
                     break;
                 }
@@ -3913,6 +3927,10 @@ public class Parser {
         return ref;
     }
 
+    interface LiteralParser { // AutoJs6: async
+        AstNode parse() throws IOException; // AutoJs6: async
+    } // AutoJs6: async
+
     private AstNode destructuringAssignExpr() throws IOException, ParserException {
         try {
             inDestructuringAssignment = true;
@@ -3945,11 +3963,11 @@ public class Parser {
 
             case Token.LB:
                 consumeToken();
-                return arrayLiteral();
+                return asyncSyntax.literal(this::arrayLiteral); // AutoJs6: async
 
             case Token.LC:
                 consumeToken();
-                return objectLiteral();
+                return asyncSyntax.literal(this::objectLiteral); // AutoJs6: async
 
             case Token.LET:
                 consumeToken();

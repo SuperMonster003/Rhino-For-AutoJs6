@@ -95,6 +95,14 @@ public final class NativeCall extends DeclarationScope {
                 }
             }
         }
+
+        if (function.getDescriptor().bindsOwnName()) { // AutoJs6: async
+            String name = function.getFunctionName(); // AutoJs6: async
+            if (!super.has(name, this)) { // AutoJs6: async
+                int flags = ScriptableObject.READONLY | PERMANENT; // AutoJs6: async
+                defineProperty(name, function, flags); // AutoJs6: async
+            } // AutoJs6: async
+        } // AutoJs6: async
     }
 
     public Scriptable getHomeObject() {

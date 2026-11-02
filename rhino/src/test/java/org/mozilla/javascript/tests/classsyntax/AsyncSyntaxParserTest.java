@@ -167,7 +167,7 @@ class AsyncSyntaxParserTest {
     }
 
     @Test
-    void asyncFunctionsAreNotExecutableYet() {
+    void asyncFunctionsCompile() {
         try (Context cx = Context.enter()) {
             cx.setLanguageVersion(Context.VERSION_ECMASCRIPT);
             for (String source :
@@ -176,11 +176,7 @@ class AsyncSyntaxParserTest {
                         "var f = async () => 1;",
                         "var o = { async m() {} };"
                     }) {
-                EvaluatorException e =
-                        assertThrows(
-                                EvaluatorException.class,
-                                () -> cx.compileString(source, "test.js", 1, null));
-                assertEquals(ScriptRuntime.getMessageById("msg.async.not.supported"), e.details());
+                cx.compileString(source, "test.js", 1, null);
             }
         }
     }

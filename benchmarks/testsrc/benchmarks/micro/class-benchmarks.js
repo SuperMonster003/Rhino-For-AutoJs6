@@ -136,3 +136,23 @@ function functionSuperCall() {
     }
     return s;
 }
+
+var settled = Promise.resolve(1);
+
+function awaitSettled() {
+    return (async function () {
+        for (var i = 0; i < 1000; i++) {
+            await settled;
+        }
+    })();
+}
+
+function thenSettled() {
+    var i = 0;
+    function step() {
+        if (++i < 1000) {
+            return settled.then(step);
+        }
+    }
+    return settled.then(step);
+}

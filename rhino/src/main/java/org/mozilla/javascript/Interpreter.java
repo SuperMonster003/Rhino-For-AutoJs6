@@ -1203,6 +1203,17 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             frame.pc--; // we want to come back here when we resume
             CallFrame generatorFrame = captureFrameForGenerator(frame);
             generatorFrame.frozen = true;
+            if (AsyncRuntime.isAsync(generatorFrame.fnOrScript)) { // AutoJs6: async
+                JSFunction fn = (JSFunction) generatorFrame.fnOrScript; // AutoJs6: async
+                // The body runs in a frame of its own with the same activation. // AutoJs6: async
+                ScriptRuntime.exitActivationFunction(cx); // AutoJs6: async
+                try { // AutoJs6: async
+                    frame.result = AsyncRuntime.start(cx, fn, generatorFrame); // AutoJs6: async
+                } finally { // AutoJs6: async
+                    ScriptRuntime.enterActivationFunction(cx, frame.scope); // AutoJs6: async
+                } // AutoJs6: async
+                return; // AutoJs6: async
+            } // AutoJs6: async
             if (cx.getLanguageVersion() >= Context.VERSION_ES6) {
                 frame.result =
                         new ES6Generator(
@@ -1232,7 +1243,8 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             InterpreterState state,
             GeneratorState generatorState,
             boolean yieldStar) {
-        if (generatorState.operation == NativeGenerator.GENERATOR_CLOSE) {
+        if (generatorState.operation == NativeGenerator.GENERATOR_CLOSE // AutoJs6: async
+                && !frame.fnOrScript.getDescriptor().isES6Generator()) { // AutoJs6: async
             // Error: no yields when generator is closing
             throw ScriptRuntime.typeErrorById("msg.yield.closing");
         }
@@ -2703,6 +2715,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
             // if the function is already an interpreted function, which
             // should be the majority of cases.
             for (; ; ) {
+                if (AsyncRuntime.returnsThisCall(fun, funThisObj)) break; // AutoJs6: async
                 if (BaseFunction.isApplyOrCall(fun)) {
                     // funThisObj becomes fun
                     var target = ScriptRuntime.getCallable(funThisObj);

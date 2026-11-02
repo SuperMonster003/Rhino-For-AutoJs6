@@ -28,7 +28,10 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
         this.lexicalNewTarget = lexicalNewTarget;
         this.homeObject = homeObject;
         ScriptRuntime.setFunctionProtoAndParent(this, cx, scope, descriptor.isES6Generator());
-        if (!descriptor.isShorthand()) {
+        int asyncKind = descriptor.asyncKind(); // AutoJs6: async
+        if (asyncKind != 0) AsyncRuntime.setFunctionPrototype(this, cx, scope); // AutoJs6: async
+        if (asyncKind == AsyncRuntime.ASYNC_FUNCTION) return; // AutoJs6: async
+        if (!descriptor.isShorthand() || asyncKind != 0) { // AutoJs6: async
             setupDefaultPrototype(scope);
         }
     }
@@ -96,6 +99,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
 
     @Override
     protected boolean isGeneratorFunction() {
+        if (descriptor.asyncKind() == AsyncRuntime.ASYNC_FUNCTION) return false; // AutoJs6: async
         return descriptor.isES6Generator();
     }
 
@@ -217,7 +221,13 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
 
     public Object resumeGenerator(
             Context cx, VarScope scope, int operation, Object state, Object value) {
-        return descriptor.getCode().resume(cx, this, state, scope, operation, value);
+        boolean parent = ScriptRuntime.enterFunctionStrictness(cx, isStrict()); // AutoJs6: async
+        try { // AutoJs6: async
+            var code = descriptor.getCode(); // AutoJs6: async
+            return code.resume(cx, this, state, scope, operation, value); // AutoJs6: async
+        } finally { // AutoJs6: async
+            ScriptRuntime.exitFunctionStrictness(cx, parent); // AutoJs6: async
+        } // AutoJs6: async
     }
 
     @Override
