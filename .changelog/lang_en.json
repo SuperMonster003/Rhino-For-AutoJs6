@@ -7,6 +7,15 @@
     "dependency": "Dependency"
   },
   "$data": {
+    "2026-11-03": {
+      "released_date": "2026/11/03",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "Promises work with several threads: a reaction added while another thread settles a `NativePromise` is no longer lost, and an embedder can override `Context.forwardTask` to settle on a thread with an event loop and to resume `await` on the thread of its async function"
+        }
+      ]
+    },
     "2026-11-02": {
       "released_date": "2026/11/02",
       "entries": [

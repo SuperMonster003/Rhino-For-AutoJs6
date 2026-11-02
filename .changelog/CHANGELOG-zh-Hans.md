@@ -17,6 +17,12 @@
 
 [阅读原始 Rhino 官方 README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). 该入口固定到提交 `d878324a6f515c09d8ca49005fdd22b944b4df89`, 保留上游原有语言与相对链接的上下文. 这份原始文档仅作留存, 不参与翻译; 本页及其其他语言版本介绍本分支.
 
+# 2026-11-03
+
+###### 2026/11/03
+
+* `修复` 多线程下的 Promise: 其他线程落定 `NativePromise` 时同时添加的反应不再丢失, 嵌入方可覆盖 `Context.forwardTask`, 把落定交给有事件循环的线程, 并让 `await` 回到 async 函数所在的线程恢复
+
 # 2026-11-02
 
 ###### 2026/11/02

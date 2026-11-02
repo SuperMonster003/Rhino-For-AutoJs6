@@ -64,6 +64,12 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 
 此處按日期記錄本分支的維護變更. Rhino 官方發行歷史繼續保留於上游發行說明中, 不作為本分支的新版本記錄.
 
+### 2026-11-03
+
+###### 2026/11/03
+
+* `修復` 多線程下的 Promise: 其他線程敲定 `NativePromise` 時同時加入的反應不再遺失, 嵌入方可覆寫 `Context.forwardTask`, 把敲定交給有事件循環的線程, 並讓 `await` 回到 async 函數所在的線程恢復
+
 ### 2026-11-02
 
 ###### 2026/11/02
@@ -102,16 +108,6 @@ AutoJs6 從 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` 引用完整 JAR. 宿主
 * `優化` `BigInt.asIntN` / `BigInt.asUintN`, DataView 的 `setBigInt64` / `setBigUint64` 與 BigInt 類型的 TypedArray 傳入 Number 時按規範報 TypeError (此前轉換後繼續), 需寫 `BigInt(x)`
 * `優化` 嚴格模式 (含 `class` 體) 下 `Proxy` 的 `set` trap 傳回 false 時賦值報 TypeError, 寫入 `set: undefined` 的存取器同樣報 TypeError
 * `優化` 陣列展開 `[...a]` 與引數展開對密集普通陣列使用快速路徑, 迭代器未被改寫時直接複製
-
-### 2026-10-24
-
-###### 2026/10/24
-
-* `新增` `Uint8Array` 支援 Base64 與十六進制轉換, 包括靜態方法 `fromBase64` / `fromHex` 及實例方法 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
-* `修復` 函數內循環體中的 `const` 每輪不重新綁定的問題 (循環體內的 `const` 始終保持第一輪的值, `for (const x of a)` 每輪均為 undefined; 解釋與編譯模式均受影響)
-* `修復` `switch` 語句的判別表達式能看到 case 區塊內同名 `let` / `const` 聲明的問題
-* `優化` ES6 語言版本下為 `const` 重新賦值時, 非嚴格模式同樣拋出 TypeError (此前靜默忽略), 與 ECMAScript 規範一致; 語言版本 180 及以下保持原行為
-* `依賴` 同步上游 mozilla/rhino 至提交 `34abaca89` (2026/10/23)
 
 [完整分支維護記錄](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-zh-Hant-HK.md)
 

@@ -64,6 +64,12 @@ AutoJs6 référence le JAR complet à l'emplacement `libs/org-mozilla-rhino-2_0_
 
 Cet historique consigne par date les changements de maintenance de cette variante. L'historique des versions officielles de Rhino reste dans les notes de version amont et n'est pas présenté comme de nouvelles versions de cette variante.
 
+### 2026-11-03
+
+###### 2026/11/03
+
+* `Correction` Promise sur plusieurs threads: une réaction ajoutée pendant qu'un autre thread règle une `NativePromise` n'est plus perdue, et l'application hôte peut redéfinir `Context.forwardTask` pour régler la promesse sur un thread doté d'une boucle d'événements et reprendre `await` sur le thread de la fonction async
+
 ### 2026-11-02
 
 ###### 2026/11/02
@@ -102,16 +108,6 @@ Cet historique consigne par date les changements de maintenance de cette variant
 * `Amélioration` `BigInt.asIntN` / `BigInt.asUintN`, `setBigInt64` / `setBigUint64` de DataView et les TypedArray BigInt lèvent TypeError pour un Number comme le dit la spécification (ils le convertissaient auparavant); écrire `BigInt(x)`
 * `Amélioration` En mode strict, corps de `class` compris, une affectation lève TypeError quand le trap `set` d'un `Proxy` renvoie false, de même que l'écriture dans un accesseur avec `set: undefined`
 * `Amélioration` L'étalement `[...a]` et les arguments étalés prennent un chemin rapide pour les tableaux denses ordinaires, avec copie directe quand les itérateurs n'ont pas ete modifiés
-
-### 2026-10-24
-
-###### 2026/10/24
-
-* `Fonctionnalité` Conversion Base64 et hexadécimale pour `Uint8Array`: méthodes statiques `fromBase64` / `fromHex` et méthodes d'instance `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
-* `Correction` Un `const` dans le corps d'une boucle à l'intérieur d'une fonction qui n'était pas relié à chaque itération (le `const` gardait la valeur de la première itération et `for (const x of a)` donnait undefined à chaque itération; les modes interprété et compilé étaient concernés)
-* `Correction` L'expression discriminante d'une instruction `switch` qui voyait les déclarations `let` / `const` de même nom dans le bloc des case
-* `Amélioration` Une affectation à un `const` avec la version de langage ES6 lève désormais une TypeError aussi en mode non strict (auparavant ignorée silencieusement), conformément à la spécification ECMAScript; les versions de langage 180 et inférieures gardent l'ancien comportement
-* `Dépendance` Synchronisation de mozilla/rhino en amont jusqu'au commit `34abaca89` (2026/10/23)
 
 [Historique complet de maintenance de la variante](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-fr.md)
 

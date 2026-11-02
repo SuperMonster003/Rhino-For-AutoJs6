@@ -64,6 +64,12 @@ AutoJs6 references the complete JAR at `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.ja
 
 This history records maintenance changes to this fork by date. Official Rhino release history remains in the upstream release notes and is not presented as new releases of this fork.
 
+### 2026-11-03
+
+###### 2026/11/03
+
+* `Fix` Promises work with several threads: a reaction added while another thread settles a `NativePromise` is no longer lost, and an embedder can override `Context.forwardTask` to settle on a thread with an event loop and to resume `await` on the thread of its async function
+
 ### 2026-11-02
 
 ###### 2026/11/02
@@ -102,16 +108,6 @@ This history records maintenance changes to this fork by date. Official Rhino re
 * `Improvement` `BigInt.asIntN` / `BigInt.asUintN`, `setBigInt64` / `setBigUint64` of DataView and BigInt TypedArrays throw TypeError for a Number as the specification says (they converted it before); write `BigInt(x)`
 * `Improvement` In strict mode, `class` bodies included, an assignment throws TypeError when the `set` trap of a `Proxy` returns false, and so does writing to an accessor with `set: undefined`
 * `Improvement` Array spread `[...a]` and spread arguments take a fast path for dense plain arrays, copying directly when the iterators have not been changed
-
-### 2026-10-24
-
-###### 2026/10/24
-
-* `Feature` `Uint8Array` Base64 and hexadecimal conversion: static methods `fromBase64` / `fromHex` and instance methods `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
-* `Fix` A `const` inside a loop body of a function not being rebound on each iteration (the `const` kept the first iteration's value, and `for (const x of a)` gave undefined on every iteration; both interpreted and compiled modes were affected)
-* `Fix` The discriminant expression of a `switch` statement seeing `let` / `const` declarations of the same name inside the case block
-* `Improvement` Assigning to a `const` under the ES6 language version now throws TypeError in non-strict mode too (previously ignored silently), as the ECMAScript specification requires; language versions 180 and below keep the old behavior
-* `Dependency` Sync upstream mozilla/rhino to commit `34abaca89` (2026/10/23)
 
 [Full fork maintenance history](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-en.md)
 

@@ -7,6 +7,15 @@
     "dependency": "依賴"
   },
   "$data": {
+    "2026-11-03": {
+      "released_date": "2026/11/03",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "多線程下的 Promise: 其他線程敲定 `NativePromise` 時同時加入的反應不再遺失, 嵌入方可覆寫 `Context.forwardTask`, 把敲定交給有事件循環的線程, 並讓 `await` 回到 async 函數所在的線程恢復"
+        }
+      ]
+    },
     "2026-11-02": {
       "released_date": "2026/11/02",
       "entries": [

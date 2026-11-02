@@ -17,6 +17,12 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 
 [Leer el README oficial original de Rhino](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). Este enlace está fijado al commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, conservando el idioma original y el contexto de los enlaces relativos. El documento original se conserva sin traducir; esta página y sus versiones en otros idiomas describen esta bifurcación.
 
+# 2026-11-03
+
+###### 2026/11/03
+
+* `Corrección` Promise en varios hilos: una reacción añadida mientras otro hilo resuelve una `NativePromise` ya no se pierde, y la aplicación anfitriona puede redefinir `Context.forwardTask` para resolverla en un hilo con bucle de eventos y reanudar `await` en el hilo de la función async
+
 # 2026-11-02
 
 ###### 2026/11/02

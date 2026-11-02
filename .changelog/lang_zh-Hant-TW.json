@@ -7,6 +7,15 @@
     "dependency": "依賴"
   },
   "$data": {
+    "2026-11-03": {
+      "released_date": "2026/11/03",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "多執行緒下的 Promise: 其他執行緒敲定 `NativePromise` 時同時新增的反應不再遺失, 嵌入方可覆寫 `Context.forwardTask`, 把敲定交給有事件迴圈的執行緒, 並讓 `await` 回到 async 函式所在的執行緒恢復"
+        }
+      ]
+    },
     "2026-11-02": {
       "released_date": "2026/11/02",
       "entries": [

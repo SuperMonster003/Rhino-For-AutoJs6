@@ -7,6 +7,15 @@
     "dependency": "Dépendance"
   },
   "$data": {
+    "2026-11-03": {
+      "released_date": "2026/11/03",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "Promise sur plusieurs threads: une réaction ajoutée pendant qu'un autre thread règle une `NativePromise` n'est plus perdue, et l'application hôte peut redéfinir `Context.forwardTask` pour régler la promesse sur un thread doté d'une boucle d'événements et reprendre `await` sur le thread de la fonction async"
+        }
+      ]
+    },
     "2026-11-02": {
       "released_date": "2026/11/02",
       "entries": [

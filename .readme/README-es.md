@@ -64,6 +64,12 @@ AutoJs6 referencia el JAR completo en `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar
 
 Este historial registra por fecha los cambios de mantenimiento de esta bifurcación. El historial de versiones oficiales de Rhino permanece en las notas de versión originales y no se presenta como versiones nuevas de esta bifurcación.
 
+### 2026-11-03
+
+###### 2026/11/03
+
+* `Corrección` Promise en varios hilos: una reacción añadida mientras otro hilo resuelve una `NativePromise` ya no se pierde, y la aplicación anfitriona puede redefinir `Context.forwardTask` para resolverla en un hilo con bucle de eventos y reanudar `await` en el hilo de la función async
+
 ### 2026-11-02
 
 ###### 2026/11/02
@@ -102,16 +108,6 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 * `Mejora` `BigInt.asIntN` / `BigInt.asUintN`, `setBigInt64` / `setBigUint64` de DataView y los TypedArray BigInt lanzan TypeError con un Number como indica la especificación (antes lo convertían); hay que escribir `BigInt(x)`
 * `Mejora` En modo estricto, incluidos los cuerpos de `class`, una asignación lanza TypeError cuando la trap `set` de un `Proxy` devuelve false, y también al escribir en un accesor con `set: undefined`
 * `Mejora` La expansión `[...a]` y los argumentos expandidos usan una ruta rápida para arrays densos normales, copiando directamente si los iteradores no se han modificado
-
-### 2026-10-24
-
-###### 2026/10/24
-
-* `Nuevo` Conversión Base64 y hexadecimal para `Uint8Array`: métodos estáticos `fromBase64` / `fromHex` y métodos de instancia `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
-* `Corrección` Un `const` dentro del cuerpo de un bucle en una función que no se volvía a enlazar en cada iteración (el `const` conservaba el valor de la primera iteración y `for (const x of a)` daba undefined en cada iteración; afectaba a los modos interpretado y compilado)
-* `Corrección` La expresión discriminante de una sentencia `switch` que veía las declaraciones `let` / `const` del mismo nombre dentro del bloque de case
-* `Mejora` Asignar a un `const` con la versión de lenguaje ES6 ahora lanza TypeError también en modo no estricto (antes se ignoraba en silencio), como exige la especificación ECMAScript; las versiones de lenguaje 180 e inferiores mantienen el comportamiento anterior
-* `Dependencia` Sincronización de mozilla/rhino de upstream hasta el commit `34abaca89` (2026/10/23)
 
 [Historial completo de mantenimiento de la bifurcación](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-es.md)
 

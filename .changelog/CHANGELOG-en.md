@@ -17,6 +17,12 @@ This history records maintenance changes to this fork by date. Official Rhino re
 
 [Read the original official Rhino README](https://github.com/mozilla/rhino/blob/d878324a6f515c09d8ca49005fdd22b944b4df89/README.md). This entry is pinned to commit `d878324a6f515c09d8ca49005fdd22b944b4df89`, preserving the upstream language and the context of relative links. The original document is retained without translation; this page and its other language versions describe this fork.
 
+# 2026-11-03
+
+###### 2026/11/03
+
+* `Fix` Promises work with several threads: a reaction added while another thread settles a `NativePromise` is no longer lost, and an embedder can override `Context.forwardTask` to settle on a thread with an event loop and to resume `await` on the thread of its async function
+
 # 2026-11-02
 
 ###### 2026/11/02

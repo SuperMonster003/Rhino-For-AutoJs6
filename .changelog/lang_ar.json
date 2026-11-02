@@ -7,6 +7,15 @@
     "dependency": "التبعيات"
   },
   "$data": {
+    "2026-11-03": {
+      "released_date": "2026/11/03",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "Promise عبر عدة خيوط: لم يعد التفاعل المضاف أثناء قيام خيط آخر بتسوية `NativePromise` يضيع, ويمكن للتطبيق المضيف تجاوز `Context.forwardTask` لتسوية الوعد على خيط به حلقة أحداث واستئناف `await` على خيط الدالة async"
+        }
+      ]
+    },
     "2026-11-02": {
       "released_date": "2026/11/02",
       "entries": [

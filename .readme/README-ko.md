@@ -64,6 +64,12 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 
 이 이력은 포크의 유지 관리 변경 사항을 날짜별로 기록합니다. Rhino 공식 릴리스 이력은 업스트림 릴리스 노트에 유지되며 이 포크의 새 버전으로 기록하지 않습니다.
 
+### 2026-11-03
+
+###### 2026/11/03
+
+* `수정` 여러 스레드에서의 Promise: 다른 스레드가 `NativePromise`를 확정하는 동안 추가한 반응이 더 이상 사라지지 않으며, 임베더는 `Context.forwardTask`를 재정의하여 이벤트 루프가 있는 스레드에서 확정하고 `await`를 async 함수의 스레드에서 재개할 수 있습니다
+
 ### 2026-11-02
 
 ###### 2026/11/02
@@ -102,16 +108,6 @@ AutoJs6는 `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar`의 전체 JAR을 참조�
 * `개선` `BigInt.asIntN` / `BigInt.asUintN`, DataView 의 `setBigInt64` / `setBigUint64`, BigInt 타입 TypedArray 는 Number 를 넘기면 사양대로 TypeError (이전에는 변환 후 계속); `BigInt(x)` 로 작성해야 함
 * `개선` 엄격 모드 (`class` 본문 포함) 에서 `Proxy` 의 `set` 트랩이 false 를 반환하면 대입이 TypeError 이며, `set: undefined` 접근자에 쓰는 것도 동일
 * `개선` 배열 스프레드 `[...a]` 와 스프레드 인수는 밀집 일반 배열에서 반복자가 변경되지 않았으면 바로 복사하는 빠른 경로를 사용
-
-### 2026-10-24
-
-###### 2026/10/24
-
-* `추가` `Uint8Array`의 Base64 및 16진수 변환 지원: 정적 메서드 `fromBase64` / `fromHex`와 인스턴스 메서드 `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
-* `수정` 함수 안의 루프 본문에 있는 `const`가 반복마다 다시 바인딩되지 않는 문제 수정 (루프 본문의 `const`가 첫 반복의 값을 유지하고 `for (const x of a)`는 매번 undefined였음; 인터프리터와 컴파일 모드 모두 해당)
-* `수정` `switch` 문의 판별식에서 case 블록 안의 같은 이름의 `let` / `const` 선언이 보이는 문제 수정
-* `개선` ES6 언어 버전에서 `const`에 다시 할당하면 비엄격 모드에서도 TypeError가 발생하도록 변경 (이전에는 조용히 무시), ECMAScript 명세 준수; 언어 버전 180 이하는 기존 동작 유지
-* `의존성` 업스트림 mozilla/rhino를 커밋 `34abaca89` (2026/10/23)까지 동기화
 
 [전체 포크 유지 관리 이력](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-ko.md)
 

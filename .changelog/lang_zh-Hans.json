@@ -7,6 +7,15 @@
     "dependency": "依赖"
   },
   "$data": {
+    "2026-11-03": {
+      "released_date": "2026/11/03",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "多线程下的 Promise: 其他线程落定 `NativePromise` 时同时添加的反应不再丢失, 嵌入方可覆盖 `Context.forwardTask`, 把落定交给有事件循环的线程, 并让 `await` 回到 async 函数所在的线程恢复"
+        }
+      ]
+    },
     "2026-11-02": {
       "released_date": "2026/11/02",
       "entries": [

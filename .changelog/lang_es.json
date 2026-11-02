@@ -7,6 +7,15 @@
     "dependency": "Dependencia"
   },
   "$data": {
+    "2026-11-03": {
+      "released_date": "2026/11/03",
+      "entries": [
+        {
+          "category": "fix",
+          "text": "Promise en varios hilos: una reacción añadida mientras otro hilo resuelve una `NativePromise` ya no se pierde, y la aplicación anfitriona puede redefinir `Context.forwardTask` para resolverla en un hilo con bucle de eventos y reanudar `await` en el hilo de la función async"
+        }
+      ]
+    },
     "2026-11-02": {
       "released_date": "2026/11/02",
       "entries": [

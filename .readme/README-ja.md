@@ -64,6 +64,12 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 
 ここでは本派生版の保守変更を日付ごとに記録します. Rhino 公式のリリース履歴は上流のリリースノートに保持し, 本派生版の新しいバージョンとして記録しません.
 
+### 2026-11-03
+
+###### 2026/11/03
+
+* `修正` 複数スレッドでの Promise: 別のスレッドが `NativePromise` を確定する間に追加したリアクションが失われなくなり, 組み込み側は `Context.forwardTask` をオーバーライドして, イベントループのあるスレッドで確定し, `await` を async 関数のスレッドで再開できます
+
 ### 2026-11-02
 
 ###### 2026/11/02
@@ -102,16 +108,6 @@ AutoJs6 は `libs/org-mozilla-rhino-2_0_0-SNAPSHOT.jar` の完全な JAR を参�
 * `改善` `BigInt.asIntN` / `BigInt.asUintN`, DataView の `setBigInt64` / `setBigUint64`, BigInt 型の TypedArray は Number を渡すと仕様どおり TypeError になる (以前は変換して続行); `BigInt(x)` と書く必要がある
 * `改善` strict モード (`class` 本体を含む) では, `Proxy` の `set` トラップが false を返すと代入が TypeError になり, `set: undefined` のアクセサへの書き込みも同様
 * `改善` 配列スプレッド `[...a]` とスプレッド引数は, 密な通常配列でイテレータが変更されていなければ直接コピーする高速経路を使う
-
-### 2026-10-24
-
-###### 2026/10/24
-
-* `新機能` `Uint8Array` の Base64 / 16 進数変換に対応: 静的メソッド `fromBase64` / `fromHex` とインスタンスメソッド `toBase64` / `toHex` / `setFromBase64` / `setFromHex`
-* `修正` 関数内のループ本体にある `const` が反復ごとに再束縛されない問題を修正 (ループ本体の `const` が最初の反復の値のままになり, `for (const x of a)` は毎回 undefined になっていた; インタプリタとコンパイルの両モードが影響を受けていた)
-* `修正` `switch` 文の判別式から case ブロック内の同名の `let` / `const` 宣言が見えてしまう問題を修正
-* `改善` ES6 の言語バージョンで `const` に再代入すると, 非 strict モードでも TypeError をスローするよう変更 (以前は黙って無視), ECMAScript 仕様に準拠; 言語バージョン 180 以下は従来の動作を維持
-* `依存関係` 上流の mozilla/rhino をコミット `34abaca89` (2026/10/23) まで同期
 
 [派生版の全保守履歴](https://github.com/SuperMonster003/Rhino-For-AutoJs6/blob/master/.changelog/CHANGELOG-ja.md)
 
