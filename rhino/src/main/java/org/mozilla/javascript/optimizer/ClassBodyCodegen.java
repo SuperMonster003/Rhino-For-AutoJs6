@@ -493,6 +493,31 @@ final class ClassBodyCodegen {
     }
 
     /**
+     * The value of a yield. It comes before the yield point saves the operand stack, because a
+     * yield inside it saves the stack as well, and there is one saved stack for a generator.
+     */
+    static void yieldValue(BodyCodegen bc, Node node) {
+        ClassFileWriter cfw = bc.cfw;
+        Node child = node.getFirstChild();
+        if (child != null) {
+            bc.generateExpression(child, node);
+        } else {
+            Codegen.pushUndefined(cfw);
+        }
+        if (node.getType() == Token.YIELD_STAR) {
+            // We will replace the result with one that signifies we should have a generator
+            cfw.add(ByteCode.NEW, "org/mozilla/javascript/ES6Generator$YieldStarResult");
+            cfw.add(ByteCode.DUP_X1);
+            cfw.add(ByteCode.SWAP);
+            cfw.addInvoke(
+                    ByteCode.INVOKESPECIAL,
+                    "org/mozilla/javascript/ES6Generator$YieldStarResult",
+                    "<init>",
+                    "(Ljava/lang/Object;)V");
+        }
+    }
+
+    /**
      * Whether a yield of the generator being compiled is somewhere in {@code node}. A direct call
      * evaluates its arguments twice in the generated code, which a yield point cannot take.
      */

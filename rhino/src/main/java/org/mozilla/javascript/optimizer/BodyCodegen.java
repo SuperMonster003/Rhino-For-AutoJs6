@@ -7,7 +7,6 @@ import static org.mozilla.classfile.ClassFileWriter.ACC_STATIC;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -1886,68 +1885,16 @@ class BodyCodegen {
                         + ")Lorg/mozilla/javascript/Ref;");
     }
 
-    // Descend down the tree and return the first child that represents a yield
-    // point, or null.
-    private Node findNestedYield(Node node) {
-        Node child = node.getFirstChild();
-        while (child != null) {
-            if ((child.getType() == Token.YIELD) || (child.getType() == Token.YIELD_STAR)) {
-                return child;
-            }
-            Node grandchild = findNestedYield(child);
-            if (grandchild != null) {
-                return grandchild;
-            }
-            child = child.getNext();
-        }
-        return null;
-    }
-
-    private void generateYieldPoint(Node node, boolean exprContext) {
-        if (unnestedYields.containsKey(node)) {
-            // Yield was previously moved up via the "nestedYield" code below.
-            if (exprContext) {
-                String name = unnestedYields.get(node);
-                cfw.addALoad(variableObjectLocal);
-                cfw.addALoad(contextLocal);
-                addDynamicInvoke("NAME:GET:" + name, Signatures.NAME_GET);
-            }
-            return;
-        }
-
-        final Node nestedYield = findNestedYield(node);
-        if (nestedYield != null) {
-            // There is another "yield" nested below this one. Pull it up,
-            // execute it now, and assign its result to a uniquely-named constant.
-            // This is necessary because the recursive code to generate bytecode can't
-            // handle a yield that uses the result of a nested yield.
-            // Otherwise, expressions like "return yield(yield x)" return the wrong result.
-            generateYieldPoint(nestedYield, true);
-
-            final String nn = "__nested__yield__" + unnestedYieldCount;
-            unnestedYieldCount++;
-            cfw.addALoad(variableObjectLocal);
-            cfw.add(ByteCode.SWAP);
-            cfw.addALoad(contextLocal);
-            cfw.addALoad(variableObjectLocal);
-            addDynamicInvoke("NAME:SET:" + nn, Signatures.NAME_SET);
-            cfw.add(ByteCode.POP);
-
-            unnestedYields.put(nestedYield, nn);
-        }
-
-        // Now keep on as normal. When we encounter the nested yield, we will replace it
-        // with a lookup of the constant.
-        generateLocalYieldPoint(node, exprContext);
-    }
-
-    private void generateLocalYieldPoint(Node node, boolean exprContext) {
+    private void generateYieldPoint(Node node, boolean exprContext) { // AutoJs6: class syntax
+        ClassBodyCodegen.yieldValue(this, node); // AutoJs6: class syntax
 
         // save stack state from the top to the bottom
-        final int top = cfw.getStackTop();
+        final int top = cfw.getStackTop() - 1; // AutoJs6: class syntax
         maxStack = maxStack > top ? maxStack : top;
         final int spill = top == 0 ? 0 : cfw.getStackSpills().begin(top); // AutoJs6: class syntax
         if (top != 0) {
+            short value = getNewWordLocal(); // AutoJs6: class syntax
+            cfw.addAStore(value); // AutoJs6: class syntax
             generateGetGeneratorStackState();
             for (int i = 0; i < top; i++) {
                 cfw.add(ByteCode.DUP_X1);
@@ -1959,23 +1906,8 @@ class BodyCodegen {
             }
             // pop the array object
             cfw.add(ByteCode.POP);
-        }
-
-        // generate the yield argument
-        Node child = node.getFirstChild();
-        if (child != null) generateExpression(child, node);
-        else Codegen.pushUndefined(cfw);
-
-        if (node.getType() == Token.YIELD_STAR) {
-            // We will replace the result with one that signifies we should have a generator
-            cfw.add(ByteCode.NEW, "org/mozilla/javascript/ES6Generator$YieldStarResult");
-            cfw.add(ByteCode.DUP_X1);
-            cfw.add(ByteCode.SWAP);
-            cfw.addInvoke(
-                    ByteCode.INVOKESPECIAL,
-                    "org/mozilla/javascript/ES6Generator$YieldStarResult",
-                    "<init>",
-                    "(Ljava/lang/Object;)V");
+            cfw.addALoad(value); // AutoJs6: class syntax
+            releaseWordLocal(value); // AutoJs6: class syntax
         }
 
         // change the resumption state
@@ -2122,6 +2054,7 @@ class BodyCodegen {
                 "(Lorg/mozilla/javascript/VarScope;" + ")Lorg/mozilla/javascript/VarScope;");
         cfw.add(ByteCode.DUP);
         cfw.addAStore(variableObjectLocal);
+        incReferenceWordLocal(variableObjectLocal); // AutoJs6: class syntax
         int i = 0;
         while (child != null) {
             String id = (String) properties[i];
@@ -2151,8 +2084,6 @@ class BodyCodegen {
             i++;
         }
         cfw.add(ByteCode.POP);
-
-        incReferenceWordLocal(variableObjectLocal);
     }
 
     private void visitFunction(OptFunctionNode ofn, int functionType) {
@@ -5178,7 +5109,4 @@ class BodyCodegen {
         public List<Integer> jsrPoints = new ArrayList<>();
         public int tableLabel = 0;
     }
-
-    private int unnestedYieldCount = 0;
-    private IdentityHashMap<Node, String> unnestedYields = new IdentityHashMap<>();
 }

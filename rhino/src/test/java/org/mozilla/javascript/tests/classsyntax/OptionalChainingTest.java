@@ -345,9 +345,9 @@ class OptionalChainingTest {
         assertWithAllModes_ES6(
                 "a,b|o,arg|undefined|1,x",
                 """
-                function* g(o) { var r = o?.[yield 1].y; yield r; }
-                function* h(o) { var r = o?.m(yield 'k'); yield r; }
-                function* i(f) { var r = f?.(yield 'k'); yield r; }
+                function* g(o) { yield o?.[yield 1].y; }
+                function* h(o) { yield o?.m(yield 'k'); }
+                function* i(f) { yield f?.(yield 'k'); }
                 var a = g({ k: { y: 'a' } }); a.next(); var r1 = a.next('k').value;
                 var u = g(undefined); var r2 = u.next().value;
                 var b = h({ id: 'o', m(v) { return [this.id, v].join(); } });
