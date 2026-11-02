@@ -980,6 +980,52 @@ P9.0 - P9.4 与 Q53 / Q5 / Q6 / Q7 的 fork 侧. 宿主部分 (P9.5 - P9.7) 不�
 
 ## Q55 / Q56 (2026-11-02, 子会话 rhino-q55)
 
-进行中. 第一笔 4e2c469ca 回填 Q54 / Q55 / Q56. 证据目录 `build/upstream-sync/class-q55-20261102/`.
+提交: 4e2c469ca (回填 Q54 / Q55 / Q56), 98b17b641 (Q55), f68dd19af (Q56 / Q57), 247b73463 (10 语 changelog), 452809052 (properties), c04ebdea9 (两个上游测试的断言). 验收数字见 ROADMAP 附录 A "基线 Q55 / Q56" 与附录 C Q55 / Q56. 证据 `build/upstream-sync/class-q55-20261102/`.
 
-- Q55 设计: `OptionalChain` (新文件) 在 IRFactory 把整条链改写为 `CLASS[OPTIONAL_CHAIN](head, rest, short)`: head 是 `?.` 之前的值, 存进一个 local, rest 是后面整段 (读 local), short 是短路值 (undefined, delete 时 true). `?.()` 的 head 存 LookupResult, rest 的 callee 是 `CLASS[OPTIONAL_CALLEE]`. Parser 用 AST 的 int 属性 `Node.OPTIONAL_CHAINING` 标出真正的 `?.`, QUESTION_DOT 类型仍表示 "在链里" (赋值目标判断要用).
+### Q55 的改写方式
+
+- `OptionalChain` (新文件) 在 IRFactory 把整条链改写为 `CLASS[OPTIONAL_CHAIN](head, rest, short)`: head 是 `?.` 之前的值, 存进一个 local, rest 是后面整段 (读 local), short 是短路值 (undefined, delete 时 true). `?.()` 的 head 存 LookupResult, rest 的 callee 是 `CLASS[OPTIONAL_CALLEE]`. Parser 用 AST 的 int 属性 `Node.OPTIONAL_CHAINING` 标出真正的 `?.`, QUESTION_DOT 类型仍表示 "在链里" (赋值目标判断要用).
+- 最外层成员先到 `IRFactory.transform`, `lower` 再按普通成员转换它. 每个成员经 `target` 取目标: 目标还是链的成员就接着转换, 然后把自己的类型改回 GETPROP / GETELEM / DOT; 自己是真正的 `?.` 就记一个 Point, 把 local 的读取交给成员. 成员对目标做的事 (super, 私有名, 展开实参) 不变, 所以 `a?.b.#c`, `super.m?.()`, `f?.(...args)` 不用单独处理. 上游留下的 `*_OPTIONAL` icode 与 `*Optional` 运行时方法不再被 IR 用到, 为减少合并冲突保留.
+- `lower` 从内到外把 Point 包在 rest 外面, 所以 `a?.b?.c` 是两层, 内层的 local 只在外层没有短路时才写.
+- `delete a?.b.c`: 先剥括号, `lower` 里把最外层成员包成 DELPROP, 短路值是 true. 括号打断链: `(a?.b).c` 里 `a?.b` 是完整的一条链, `.c` 是普通成员, undefined 时 TypeError.
+- `(a?.b)()` 这样的 callee 是括号里的一条链: `generateCallFunAndThis` 与 `generateLookupResult` 的 default 分支交给 `ClassInterpreter.callee` / `ClassBodyCodegen.callee`, 链的结果留成 LookupResult, this 保留, short 也要补成 LookupResult.
+- `?.()` 的 head 用 `generateCallFunAndThis` 的查找结果, 所以 `a.b?.()` 的 this 是 a, `missing?.()` 仍是 ReferenceError (查找时报), `eval?.()` 不是 direct eval. 非可调用到 `getCallable` 才报错, 在实参之后, 与普通调用相同.
+- E4X: `..` 与 `.()` 不属于规范的可选链, 是链的终点. `propertyAccess` 的 `if (isOptionalChain && tt != Token.DOTDOT)` 避免 `..` 丢掉后代标志; 上游在 `?.@x` 上类型转换崩溃, `XmlMemberGet` 分支修掉了.
+
+### 三个后端
+
+- 解释: `ClassInterpreter.optionalChain` 生成 head, `CLASS_OPTIONAL` (或 `CLASS_OPTIONAL_CALLEE`, 只有 reg-index 前缀, 没有操作数字节) 存 local, `IF_NULL_UNDEF` 判断, rest, GOTO, short, `LOCAL_CLEAR`. `CLASS_OPTIONAL_CALLEE` 把 LookupResult 里的 NOT_FOUND 转成 undefined (`ClassRuntime.optionalCallee`).
+- 编译: `ClassBodyCodegen.optionalChain` 同样的结构. local 用 `BodyCodegen.newChainLocal` 在 head 求值之后才分配, 因为 head 里可能 yield, `generateSaveLocals` 只保存占用中的 local; `releaseChainLocal` 在 rest 之后释放.
+- V2: `interpreterv2/instruction/ClassOptional` (`slot`, `callee`) 一个指令类, `ClassInstructionsTest` 按指令类覆盖 (上游没有 IR 到 V2 的编译器).
+
+### Q56 / Q57
+
+- `Parser.function` 只差一行: `&& !suspends`, async 与生成器声明不登记 Annex B 候选. `defineFunctionSymbol` 本来就给它们块级的 LET 绑定, 所以不用改 IR. 普通函数不动.
+- 普通生成器声明同样被提升 (Q57), 按推荐一并改块级, 已先行, 解锁 `language/statements/switch/scope-lex-generator.js` 1 例.
+
+### 没解锁的用例
+
+- `language/expressions/optional-chaining` 0 / 38, 登记的 6 个文件全部解锁. ROADMAP 里提到的 `member-expression.js` 本来就不在 properties 登记里. 另外解锁 `assignmenttargettype/parenthesized-optionalexpression.js`: `(a?.b) = 1` 在 IR 阶段报 SyntaxError.
+- `language/statements/switch` 剩 14 个都是登记过的 `cptn-*` (完成值, 与作用域无关). `assignmenttargettype` 剩 20 个与可选链无关.
+- 写用例时发现的三个问题都不在本卡修, 登记为待决: Q58 编译模式嵌套 yield / await 被提前求值 (上游), Q59 `switch` 里没走到的 case 中的函数声明没初始化 (上游), Q60 调试器取行号表抛异常 (fork).
+
+### 给宿主卡 (P9.5 - P9.7) 的注意点
+
+- jar 从本卡最终提交重建; Q60 若选 A 先修, jar 要等那张卡.
+- 脚本行为变化, 进宿主 changelog 的行为变化:
+  - `a?.b()` 在 b 不存在时 TypeError (原来得 undefined).
+  - `a?.b.c` 在 `a.b` 为 undefined 时 TypeError (原来得 undefined); `undefined?.b.c` 得 undefined (原来 TypeError).
+  - `missing?.()` ReferenceError, `undefined.b?.()` TypeError.
+  - `a?.b[c] = 1` 与 `(a?.b) = 1` 是 SyntaxError, `` a?.b`x` `` 与 `new a?.b()` 是 SyntaxError.
+  - `eval?.()` 是间接 eval.
+  - 块内的 async 函数, async 生成器, 生成器声明在块外读不到.
+- 宿主 `app/src/main/assets` 下的 `.js` 没有 `?.` 用法 (只读 rg 结果 0), 模块不受影响. 用户脚本里 `x?.y.z` 依赖旧行为的只有 "中途为 undefined 不报错" 这一类.
+- 钩子改动不影响 `DebugFrame` 与 `Dim`; 调试器的问题是 Q60.
+
+### 跑验收时的几点
+
+- 重生成 17 分 26 秒, 这次 `BUILD SUCCESSFUL`: `Symbol.asyncDispose` 已按目录汇总登记, 不再报 FAILED.
+- 第一次全量 29 失败, 多出的 2 项都是上游断言写的旧行为: `delete eval; eval?.()` 得 undefined (规范先 GetValue, 是 ReferenceError, 与 V8 相同), `x?.y` 的 icode 文本. 限定集里没有这两个类, 只有全量才看得到. 改断言 (c04ebdea9) 后在最终提交上重跑全量, 27 项与基线同名.
+- 微基准: 钩子只在编译期多一个判断, 普通调用生成的代码不变, 但改动碰到 `transformFunctionCall`, `generateCallFunAndThis`, `generateLookupResult`, 按卡片要求交替 5 轮复测, 数字在附录 A. `x?.y` 本身比原来多一次 local 存取与清除, 基准没有覆盖这一项.
+- 用例里 `log.join` 把 undefined 变成空串, 断言写 `String(x)` 再 push; `o?.[u?.a].b` 确实该 TypeError (下标是 undefined, 属性读取得 undefined 再取 `.b`).
+- `yield o?.m(yield 'k')` 踩到 Q58, 用例写成 `var r = ...; yield r`.
