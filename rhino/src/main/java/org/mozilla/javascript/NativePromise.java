@@ -55,7 +55,7 @@ public class NativePromise extends ScriptableObject {
 
     private State state = State.PENDING;
     private Object result = null;
-    private boolean handled = false;
+    private volatile boolean handled = false; // AutoJs6: async
     // True once settlement has begun, including while a thenable is being adopted
     private boolean settling = false;
 
@@ -507,10 +507,10 @@ public class NativePromise extends ScriptableObject {
         Reaction fulfillReaction = new Reaction(capability, ReactionType.FULFILL, onFulfilled);
         Reaction rejectReaction = new Reaction(capability, ReactionType.REJECT, onRejected);
 
-        if (state == State.PENDING) {
-            fulfillReactions.add(fulfillReaction);
-            rejectReactions.add(rejectReaction);
-        } else if (state == State.FULFILLED) {
+        if (addIfPending(fulfillReaction, rejectReaction)) { // AutoJs6: async
+            return capability.promise; // AutoJs6: async
+        } // AutoJs6: async
+        if (state == State.FULFILLED) { // AutoJs6: async
             cx.enqueueMicrotask(() -> fulfillReaction.invoke(cx, scope, result));
         } else {
             assert (state == State.REJECTED);
@@ -522,15 +522,27 @@ public class NativePromise extends ScriptableObject {
 
     // AutoJs6: async. PerformPromiseThen without a result capability, for Java reactions.
     void react(Context cx, VarScope scope, ReactionCall ok, ReactionCall no) { // AutoJs6: async
-        if (state == State.PENDING) { // AutoJs6: async
-            fulfillReactions.add(ok); // AutoJs6: async
-            rejectReactions.add(no); // AutoJs6: async
-        } else if (state == State.FULFILLED) { // AutoJs6: async
+        var homeOk = AsyncThreads.atHome(cx, this, ok); // AutoJs6: async
+        var homeNo = AsyncThreads.atHome(cx, this, no); // AutoJs6: async
+        if (addIfPending(homeOk, homeNo)) { // AutoJs6: async
+            return; // AutoJs6: async
+        } // AutoJs6: async
+        if (state == State.FULFILLED) { // AutoJs6: async
             cx.enqueueMicrotask(() -> ok.invoke(cx, scope, result)); // AutoJs6: async
         } else { // AutoJs6: async
             markHandled(cx); // AutoJs6: async
             cx.enqueueMicrotask(() -> no.invoke(cx, scope, result)); // AutoJs6: async
         } // AutoJs6: async
+    } // AutoJs6: async
+
+    // AutoJs6: async. A promise may settle on another script thread while this one adds reactions.
+    private synchronized boolean addIfPending(ReactionCall ok, ReactionCall no) { // AutoJs6: async
+        if (state != State.PENDING) { // AutoJs6: async
+            return false; // AutoJs6: async
+        } // AutoJs6: async
+        fulfillReactions.add(ok); // AutoJs6: async
+        rejectReactions.add(no); // AutoJs6: async
+        return true; // AutoJs6: async
     } // AutoJs6: async
 
     private void markHandled(Context cx) {
@@ -670,8 +682,11 @@ public class NativePromise extends ScriptableObject {
     }
 
     // Abstract operation to fulfill a promise
-    private Object fulfillPromise(Context cx, VarScope scope, Object value) {
-        assert (state == State.PENDING);
+    private synchronized Object fulfillPromise( // AutoJs6: async
+            Context cx, VarScope scope, Object value) { // AutoJs6: async
+        if (state != State.PENDING) { // AutoJs6: async
+            return Undefined.instance; // AutoJs6: async
+        } // AutoJs6: async
         result = value;
         ArrayList<ReactionCall> reactions = fulfillReactions;
         fulfillReactions = new ArrayList<>();
@@ -686,8 +701,11 @@ public class NativePromise extends ScriptableObject {
     }
 
     // Abstract operation to reject a promise.
-    private Object rejectPromise(Context cx, VarScope scope, Object reason) {
-        assert (state == State.PENDING);
+    private synchronized Object rejectPromise( // AutoJs6: async
+            Context cx, VarScope scope, Object reason) { // AutoJs6: async
+        if (state != State.PENDING) { // AutoJs6: async
+            return Undefined.instance; // AutoJs6: async
+        } // AutoJs6: async
         settling = true;
         result = reason;
         ArrayList<ReactionCall> reactions = rejectReactions;
@@ -781,6 +799,13 @@ public class NativePromise extends ScriptableObject {
         }
 
         private Object resolve(Context cx, VarScope s, Object to, Object[] args) {
+            if (AsyncThreads.hop(cx, promise, c -> settleWith(c, s, args))) { // AutoJs6: async
+                return Undefined.instance; // AutoJs6: async
+            } // AutoJs6: async
+            return settleWith(cx, s, args); // AutoJs6: async
+        } // AutoJs6: async
+
+        private Object settleWith(Context cx, VarScope s, Object[] args) { // AutoJs6: async
             if (alreadyResolved || promise.state != State.PENDING) {
                 return Undefined.instance;
             }
@@ -789,6 +814,13 @@ public class NativePromise extends ScriptableObject {
         }
 
         private Object reject(Context cx, VarScope s, Object to, Object[] args) {
+            if (AsyncThreads.hop(cx, promise, c -> rejectWith(c, s, args))) { // AutoJs6: async
+                return Undefined.instance; // AutoJs6: async
+            } // AutoJs6: async
+            return rejectWith(cx, s, args); // AutoJs6: async
+        } // AutoJs6: async
+
+        private Object rejectWith(Context cx, VarScope s, Object[] args) { // AutoJs6: async
             if (alreadyResolved || promise.state != State.PENDING) {
                 return Undefined.instance;
             }

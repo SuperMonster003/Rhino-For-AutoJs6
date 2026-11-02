@@ -36,7 +36,10 @@ public class UnhandledRejectionTracker {
         Iterator<NativePromise> it = unhandled.values().iterator();
         while (it.hasNext()) {
             try {
-                handler.accept(it.next().getResult());
+                NativePromise promise = it.next(); // AutoJs6: async
+                if (!promise.isHandled()) { // AutoJs6: async
+                    handler.accept(promise.getResult()); // AutoJs6: async
+                } // AutoJs6: async
             } finally {
                 // Always remove even if handler throws
                 it.remove();

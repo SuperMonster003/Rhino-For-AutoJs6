@@ -2612,6 +2612,11 @@ public class Context implements Closeable {
         microtasks.add(task);
     }
 
+    // AutoJs6: async. See AsyncThreads. True when the embedder runs the task on another thread.
+    public boolean forwardTask(Context home, Scriptable owner, Runnable task) { // AutoJs6: async
+        return false; // AutoJs6: async
+    } // AutoJs6: async
+
     /**
      * Run all the microtasks for the current context to completion. This is called by the various
      * "evaluate" functions. Frameworks that call Function objects directly should call this
