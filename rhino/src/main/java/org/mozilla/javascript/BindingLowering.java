@@ -471,11 +471,14 @@ final class BindingLowering {
 
     /**
      * Whether the statement after a label is a function declaration at the top level of a script or
-     * function: it belongs to the top level declarations, not to a block (appendix C Q63).
+     * function: it belongs to the top level declarations, not to a block (appendix C Q63). Strict
+     * code stays on the path of a block function, where a labelled function in the position of a
+     * single statement is an error.
      */
     boolean labelsTopLevelFunction() throws IOException {
         return parser.peekToken() == Token.FUNCTION
                 && parser.currentScope == parser.currentScriptOrFn
+                && !parser.inUseStrictDirective
                 && parser.compilerEnv.getLanguageVersion() >= Context.VERSION_ES6;
     }
 

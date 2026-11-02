@@ -298,6 +298,28 @@ class BlockFunctionsTest {
     }
 
     @Test
+    void strictCodeStillRejectsALabelledFunctionAsASingleStatement() {
+        assertBody(
+                "SyntaxError",
+                """
+                try {
+                    eval("'use strict'; if (false) l: function f() {}");
+                } catch (e) {
+                    return e.name;
+                }
+                """);
+        assertBody(
+                "SyntaxError",
+                """
+                try {
+                    eval("'use strict'; if (true) ; else a: b: function f() {}");
+                } catch (e) {
+                    return e.name;
+                }
+                """);
+    }
+
+    @Test
     void generatorsOnlyHaveTheBlockBinding() {
         assertWithAllModes_ES6(
                 "function,undefined",
