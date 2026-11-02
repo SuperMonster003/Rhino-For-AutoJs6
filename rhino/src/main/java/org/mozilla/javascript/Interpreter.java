@@ -4495,9 +4495,21 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
         NativeContinuation c = new NativeContinuation();
         ScriptRuntime.setObjectProtoAndParent(c, ScriptRuntime.getTopCallScope(cx));
 
+        // AutoJs6: async: checked before freezing, the frames of a failure go on running (Q67).
+        if (requireContinuationsTopFrame) { // AutoJs6: async
+            CallFrame top = frame; // AutoJs6: async
+            while (top.parentFrame != null) top = top.parentFrame; // AutoJs6: async
+            if (!top.isContinuationsTopFrame) { // AutoJs6: async
+                throw new IllegalStateException( // AutoJs6: async
+                        "Cannot capture continuation " // AutoJs6: async
+                                + "from JavaScript code not called directly by " // AutoJs6: async
+                                + "executeScriptWithContinuations or " // AutoJs6: async
+                                + "callFunctionWithContinuations"); // AutoJs6: async
+            } // AutoJs6: async
+        } // AutoJs6: async
+
         // Make sure that all frames are frozen
         CallFrame x = frame;
-        CallFrame outermost = frame;
         while (x != null && !x.frozen) {
             x.frozen = true;
             // Allow to GC unused stack space
@@ -4515,20 +4527,7 @@ public final class Interpreter extends AInterpreter<CallFrame, InterpreterData<?
                 // object so it shall not be cleared: see comments in
                 // setCallResult
             }
-            outermost = x;
             x = x.parentFrame;
-        }
-
-        if (requireContinuationsTopFrame) {
-            while (outermost.parentFrame != null) outermost = outermost.parentFrame;
-
-            if (!outermost.isContinuationsTopFrame) {
-                throw new IllegalStateException(
-                        "Cannot capture continuation "
-                                + "from JavaScript code not called directly by "
-                                + "executeScriptWithContinuations or "
-                                + "callFunctionWithContinuations");
-            }
         }
 
         c.initImplementation(frame);

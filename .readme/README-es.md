@@ -70,6 +70,7 @@ Este historial registra por fecha los cambios de mantenimiento de esta bifurcaci
 
 * `Corrección` Promise en varios hilos: una reacción añadida mientras otro hilo resuelve una `NativePromise` ya no se pierde, y la aplicación anfitriona puede redefinir `Context.forwardTask` para resolverla en un hilo con bucle de eventos y reanudar `await` en el hilo de la función async
 * `Corrección` Los errores en las Promises conservan su forma: cuando un ejecutor o una reacción falla con un error del motor, el rechazo lleva el mismo objeto de error que recibe `catch`, con su mensaje, posición y pila. Los rechazos no gestionados se notifican en el orden en que ocurrieron
+* `Corrección` Un fallo al capturar una continuación ya no altera la función en ejecución: tras capturar este error, un generador o una función async se reanudaba en el lugar equivocado
 
 ### 2026-11-02
 

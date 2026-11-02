@@ -17,6 +17,10 @@
         {
           "category": "fix",
           "text": "Los errores en las Promises conservan su forma: cuando un ejecutor o una reacción falla con un error del motor, el rechazo lleva el mismo objeto de error que recibe `catch`, con su mensaje, posición y pila. Los rechazos no gestionados se notifican en el orden en que ocurrieron"
+        },
+        {
+          "category": "fix",
+          "text": "Un fallo al capturar una continuación ya no altera la función en ejecución: tras capturar este error, un generador o una función async se reanudaba en el lugar equivocado"
         }
       ]
     },

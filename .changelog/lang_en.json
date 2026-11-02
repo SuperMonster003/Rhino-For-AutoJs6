@@ -17,6 +17,10 @@
         {
           "category": "fix",
           "text": "Errors in Promises keep their form: when an executor or a reaction fails with an engine error, the rejection carries the same error object that `catch` gets, with its message, position and stack. Unhandled rejections are reported in the order they happened"
+        },
+        {
+          "category": "fix",
+          "text": "A continuation that cannot be captured no longer disturbs the running function: after that error was caught, a generator or an async function resumed from the wrong place"
         }
       ]
     },

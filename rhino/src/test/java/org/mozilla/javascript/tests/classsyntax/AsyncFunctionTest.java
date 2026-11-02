@@ -16,6 +16,9 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.AsyncTracker;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.LambdaFunction;
+import org.mozilla.javascript.ScriptRuntime;
+import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.testutils.Utils;
@@ -357,6 +360,53 @@ class AsyncFunctionTest {
                             log);
                     return null;
                 });
+    }
+
+    @Test
+    void aContinuationThatCannotBeCapturedLeavesTheFunctionRunning() {
+        // Appendix C Q67: the frames stayed frozen, and the function resumed behind the failed
+        // call.
+        Utils.runWithMode(
+                cx -> {
+                    cx.setLanguageVersion(Context.VERSION_ES6);
+                    TopLevel scope = cx.initStandardObjects();
+                    Scriptable global = scope.getGlobalThis();
+                    global.put(
+                            "capture",
+                            global,
+                            new LambdaFunction(
+                                    scope,
+                                    "capture",
+                                    0,
+                                    (c, s, t, a) -> {
+                                        try {
+                                            throw c.captureContinuation();
+                                        } catch (IllegalStateException e) {
+                                            throw ScriptRuntime.typeError(e.getMessage());
+                                        }
+                                    }));
+                    cx.evaluateString(
+                            scope,
+                            """
+                            var log = [];
+                            async function f() {
+                              try { capture(); log.push('no'); } catch (e) { log.push(e.name); }
+                              await null;
+                              log.push('after');
+                            }
+                            f();
+                            """,
+                            "test.js",
+                            1,
+                            null);
+                    cx.processMicrotasks();
+                    assertEquals(
+                            "TypeError|after",
+                            ScriptRuntime.toString(
+                                    cx.evaluateString(scope, "log.join('|')", "log", 1, null)));
+                    return null;
+                },
+                Context.EvaluationMethod.Interpreter);
     }
 
     @Test

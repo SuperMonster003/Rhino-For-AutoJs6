@@ -23,6 +23,7 @@ Cet historique consigne par date les changements de maintenance de cette variant
 
 * `Correction` Promise sur plusieurs threads: une réaction ajoutée pendant qu'un autre thread règle une `NativePromise` n'est plus perdue, et l'application hôte peut redéfinir `Context.forwardTask` pour régler la promesse sur un thread doté d'une boucle d'événements et reprendre `await` sur le thread de la fonction async
 * `Correction` Les erreurs dans les Promises gardent leur forme: quand un exécuteur ou une réaction échoue sur une erreur du moteur, le rejet porte le même objet d'erreur que celui reçu par `catch`, avec son message, sa position et sa pile. Les rejets non traités sont signalés dans l'ordre où ils sont survenus
+* `Correction` L'échec de la capture d'une continuation ne perturbe plus la fonction en cours: après avoir intercepté cette erreur, un générateur ou une fonction async reprenait au mauvais endroit
 
 # 2026-11-02
 

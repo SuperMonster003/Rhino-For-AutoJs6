@@ -23,6 +23,7 @@ This history records maintenance changes to this fork by date. Official Rhino re
 
 * `Fix` Promises work with several threads: a reaction added while another thread settles a `NativePromise` is no longer lost, and an embedder can override `Context.forwardTask` to settle on a thread with an event loop and to resume `await` on the thread of its async function
 * `Fix` Errors in Promises keep their form: when an executor or a reaction fails with an engine error, the rejection carries the same error object that `catch` gets, with its message, position and stack. Unhandled rejections are reported in the order they happened
+* `Fix` A continuation that cannot be captured no longer disturbs the running function: after that error was caught, a generator or an async function resumed from the wrong place
 
 # 2026-11-02
 

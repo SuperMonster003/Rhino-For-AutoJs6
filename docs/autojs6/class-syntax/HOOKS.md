@@ -44,6 +44,7 @@
 | Q63 | 完成 (2026-11-02, 子会话 rhino-q61) | 脚本与函数顶层的标签函数提前初始化 (附录 C Q63, 上游缺陷, 通用修复): `BindingLowering.labelsTopLevelFunction`, 按 `FUNCTION_STATEMENT` 解析; 钩子 4 行, 合计 1005 |
 | Q64 | 完成 (2026-11-03, 子会话 rhino-p9b) | 多脚本线程下的 Promise (附录 C Q64 / Q65, 已先行; fork 原本只按单线程设计): 新文件 `AsyncThreads`, `Context.forwardTask` 默认 false; 其他线程落定可转交事件循环线程, await 回到 async 函数所在线程, `NativePromise` 的状态转换加锁; 钩子 +46 行, 合计 1051 |
 | Q66 | 完成 (2026-11-03, 子会话 rhino-p9b) | `NativePromise` 的错误对象与 catch 子句相同 (附录 C Q66, 已先行, 上游缺陷): `getErrorObject` 改用 `AsyncRuntime.thrown`, 上游把异常全文当 message 新建错误, 丢 stack; `UnhandledRejectionTracker` 按发生顺序保存; 钩子净增 2 行, 合计 1053 |
+| Q67 | 完成 (2026-11-03, 子会话 rhino-p9b) | 捕获续体失败不再留下冻结的帧 (附录 C Q67, 已先行, 上游缺陷): `Interpreter.captureContinuation` 先查顶层帧再冻结; 钩子 12 行, 合计 1065 |
 
 ## 2. 开关与门控
 
@@ -319,6 +320,7 @@
 | `rhino/src/main/java/org/mozilla/javascript/UnhandledRejectionTracker.java` | async | 1 | `unhandled` 从 static 改为实例字段 (上游缺陷: 所有 Context 共用一张表; Q6) | P9 |
 | `rhino/src/main/java/org/mozilla/javascript/NativePromise.java` | async | 1 | `getErrorObject` 改用 `AsyncRuntime.thrown`, 与 catch 子句得到的错误对象相同 (Q66, 上游缺陷) | Q66 |
 | `rhino/src/main/java/org/mozilla/javascript/UnhandledRejectionTracker.java` | async | 1 | `unhandled` 按发生顺序保存 (Q66) | Q66 |
+| `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | async | 12 | `captureContinuation` 先查顶层帧再冻结 (Q67, 上游缺陷; 上游的检查原样搬到冻结之前) | Q67 |
 | `rhino/src/main/java/org/mozilla/javascript/NativePromise.java` | async | 38 | 多脚本线程 (Q64): `resolve` / `reject` 先经 `AsyncThreads.hop`, 落定本身拆到 `settleWith` / `rejectWith`; `addIfPending` 与 `fulfillPromise` / `rejectPromise` 同步, 落定时重查 PENDING (取代两条 assert), `handled` 改 volatile; `react` 的反应包 `AsyncThreads.atHome` (Q65) | Q64 |
 | `rhino/src/main/java/org/mozilla/javascript/UnhandledRejectionTracker.java` | async | 4 | `process` 跳过已被其他线程处理的 promise (Q64) | Q64 |
 | `rhino/src/main/java/org/mozilla/javascript/Context.java` | async | 4 | `forwardTask` (默认 false; 宿主覆盖, 见 `AsyncThreads`) | Q64 |
