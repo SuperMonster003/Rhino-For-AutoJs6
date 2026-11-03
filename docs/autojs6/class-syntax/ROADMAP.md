@@ -347,7 +347,7 @@
 - [x] P9.6 宿主设备用例 `RhinoAsyncDeviceTest`: await 计时器 / 宿主 API Promise 的时序, 与 continuation.await 的互操作 (D15), 线程模块中的 async 函数, 脚本结束与退出码, 未捕获 rejection 的控制台输出; 三台设备同 P7.2.
   - 完成 (2026-11-03, 子会话 rhino-p9b, 宿主 bbeec3643): `RhinoAsyncDeviceTest` 26 例, 其中 13 例的脚本在 `assets/rhino/async-cases.js`, 同一份文件进 inrt 产物. 覆盖 await 计时器与宿主 API Promise 的时序, 可选链 / switch / 块内函数的行为变化, D15 两方向, async 内捕获协程错误, `threads` 线程与 Java 线程落定, ui 模式, Q6 的 error (脚本控制台 + logcat GlobalConsole, 含 stack), Q7 的 warn (数量与 `<脚本>.js:<行>`, 线程结束后保留的 await 只提示一次), `exit()` 与 `forceStop` 不提示, 宿主请求保活, 调试模式 (Q60: for-of, `class B extends A`, `for await`, 逐行步进到每个标记行). `device_rhino_check.py` 的 DEFAULT_CLASSES 与 `--inrt` 已加入. 结果见附录 B.
 - [x] P9.7 (fork changelog 已由 P9 fork 卡完成: 5e200bd4e, `2026-11-02` 一组 7 条) jar 重建与宿主换入 (同 P7.1), 宿主 changelog zh-Hans (feature: async/await; improvement: Promise 统一; 行为变化提示), fork 10 语 changelog, 文档站 "async/await 与 continuation" 章节, 插件 README 补 async.
-  - 完成 (2026-11-03, 子会话 rhino-p9b): jar 基于 fork 6ad0d396b, JDK 25 shadowJar, sha256 `9308d108238951bbe19f7ff218ae6364e0b674e5c7047a92d6c95986810f3ed6`, 3529162 字节, 对宿主原 jar (`a5049a70`) 条目 1477 -> 1550, 新增 73, 删除 0, 改动 394; slim 排除项 331 不变. 宿主 a1f24cc27 (jar, 表面基线, 两个随 jar 变化的夹具). 顺序调整: 卡片写 "隔离克隆先验后换入, 再做 P9.5"; 实施时 Q64 - Q67 都是 P9.5 发现的, 为了全程只换一次, jar 在 P9.5 与 P9.6 都在克隆里通过后才换入, 三笔同时进共享工作区. 换入后 `--no-daemon` 验证: 单测 0 失败, assemble 三项通过; 收尾复查的修复之后在共享工作区再验证一次: 6075 例 0 失败 27 跳过, assemble 三项通过.
+  - 完成 (2026-11-03, 子会话 rhino-p9b): jar 基于 fork 6ad0d396b, JDK 25 shadowJar, sha256 `9308d108238951bbe19f7ff218ae6364e0b674e5c7047a92d6c95986810f3ed6`, 3529162 字节, 对宿主原 jar (`a5049a70`) 条目 1477 -> 1550, 新增 73, 删除 0, 改动 394; slim 排除项 331 不变. 宿主 a1f24cc27 (jar, 表面基线, 两个随 jar 变化的夹具). 顺序调整: 卡片写 "隔离克隆先验后换入, 再做 P9.5"; 实施时 Q64 - Q67 都是 P9.5 发现的, 为了全程只换一次, jar 在 P9.5 与 P9.6 都在克隆里通过后才换入, 三笔同时进共享工作区. 换入后 `--no-daemon` 验证: 单测 0 失败, assemble 三项通过; 收尾复查的修复之后在共享工作区再验证一次: 6075 例 0 失败 27 跳过, assemble 三项通过. 第二次 jar (2026-11-03, 子会话 rhino-q64, 附录 C Q64 的加锁优化): 基于 fork e492f5889 (运行时代码同 34f5b3d5d), JDK 25 shadowJar, sha256 `4295ee0e5ca2111bb5c524c347904b87a30150b945dd17aaedecba1e625072b3`, 3529198 字节, 对 9308d108 条目 1550 不变, 新增 0, 删除 0, 改动 8 (`NativePromise` 及其内部类与 `AsyncThreads`); slim 排除项 331 不变. 隔离克隆先验 (单测 6075 例 0 失败 27 跳过, assemble 三项) 后换入, 宿主 c622d1ad2 只有 jar, 表面基线与夹具不变; 共享工作区复验单测 6076 例 0 失败 27 跳过 (多的 1 例是其他会话的新用例), assemble 三项通过; 设备复跑见附录 B.
   - 文案: 宿主 zh-Hans changelog 补丁在共享笔记 `aj6-p9-changelog.md`, 由维护者合入并同步 9 语; 文档站 `api/asyncAwait.md` b840ba4 + fa8b5a2, 离线文档 0dfefaa, 说法都在 Rhino shell 与 API 35 模拟器上核对过; TypeScript Engine 52cc6b7, Ace Editor 05faeb0 (README 10 语各一句). 全部只本地提交.
 - [x] P9.8 取消 (2026-11-02, D6 改定, 不向上游提交 PR). 原文: 上游 PR 补一批 (async/await 通用部分), 方式同 P8.2.
 - 证据: 提交 hash, 通过数, 设备结果, 文档位置.
@@ -406,6 +406,17 @@ XQ-AT72 有锁屏: 屏幕关闭时 `viewSubclassInUiMode` 等不到绘制 (`badg
 `device_promise_check.py` 在 XQ-AT72 上出现过一次 17 / 18: `T1-callback-thread` 缺 `java:main`. 这是场景脚本的数据竞争, 不是产品问题: 两个反应同时在两个线程上 `push` 同一个数组. 探针 `t1-probe.js` 400 轮里数组 7 轮少元素, 各自的计数器 0 轮丢失, java 反应全部在主线程 (`t1-probe-result.txt`). 宿主 7aa27d5b2 改成各用一个变量, 之后 XQ-AT72 连续 3 遍 18 / 18.
 
 XQ-AT72 测前备份宿主 5935 (md5 b958b465), 测后装回并核对一致, 测试包已卸载. 全程没有需要人工确认的对话框. 两台 AVD 用 `appops` / `pm grant` 授存储权限后才跑 `device_promise_check.py` (没有权限时 0 行输出). inrt 用例在 22120RN86C 上替换并卸载了设备上原有的 `org.autojs.autojs6.inrt` (脚本的既有行为), 没有备份, 该包来历未知, 写进了汇报.
+
+第二次 jar 复跑 (2026-11-03, 子会话 rhino-q64, 共享工作区宿主 c622d1ad2 的构建, 宿主包 md5 d4cc655b, jar `4295ee0e`, 证据 `build/upstream-sync/class-q64-20261103/device-*.log`):
+
+| 设备 | `RhinoAsyncDeviceTest` | `RhinoClassSyntaxDeviceTest` | inrt 同组用例 | 默认 Rhino 集 | `device_promise_check.py` | 首次构造暖机后中位数 |
+|---|---:|---:|---:|---:|---:|---:|
+| 临时 AVD `rhino_q64_api24` (API 24, google_apis x86) | 26 / 26 | 15 / 15 | 27 / 27 | 71 通过 1 跳过 | 样例通过, 18 / 18, 未处理报告 1 条 | 49.89 ms (legacy dx) |
+| 临时 AVD `rhino_q64_api35` (API 35, google_apis x86_64) | 26 / 26 | 15 / 15 | 27 / 27 | 70 通过 2 跳过 | 样例通过, 18 / 18, 未处理报告 1 条 | 38.55 ms |
+| XQ-AT72 QV710AF65F (API 31, 真机) | 26 / 26 | 15 / 15 | 26 / 27 (锁屏, 同上) | 70 通过 2 跳过 | 样例通过, 18 / 18, 未处理报告 1 条 | 99.41 ms |
+| 22120RN86C bek749scrwv4wo8h (API 33, 真机, 只跑 inrt) | - | - | 27 / 27 | - | - | - |
+
+与 P9.6 的最终结果相同. XQ-AT72 唤醒后跑, app 的 `viewSubclassInUiMode` 通过; inrt 的同名用例在锁屏下不绘制, 与 P9.6 相同, 换未锁屏的 22120RN86C 跑全组 27 / 27. 跳过项同 P9.6. 三台并行运行. XQ-AT72 测前备份宿主 5935 (md5 b958b465), 测后装回并核对一致, 测试包已卸载; 22120RN86C 只装卸 inrt, 设备上原有的宿主与测试包未动. 全程没有需要人工确认的对话框.
 
 ## 附录 C 待决事项
 

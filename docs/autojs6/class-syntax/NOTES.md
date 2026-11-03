@@ -1180,6 +1180,9 @@ promise.js / `PromiseConstructor` 定制点的去向:
 - 第 1 笔 ea29f5c64: 附录 C Q64 - Q67 回填.
 - 104a623db: 基准加 `awaitPending` (`await` 一个 async 函数的返回值, 反应在落定之前挂上). `awaitSettled` 等的是已落定的 promise, 而多数真实的 await 不是, 只测它会漏掉加锁最多的路径.
 - 34f5b3d5d: 优化 (下面 "入库的改法"), 竞争用例, HOOKS 合计 1074. 全量 JDK 21 五模块 175109 例 27 失败 21 跳过, 27 项与 rhino-p9b 逐条同名 (`full-failures.txt`, `now.names` 对 `base.names`), 全部模块 `spotlessCheck` 通过. 微基准过 10% 硬门槛, 数字见附录 A "基线 Q64 优化" 与下面 "微基准".
+- jar (第二次): JDK 25 shadowJar, 基于 e492f5889 (运行时代码同 34f5b3d5d), sha256 `4295ee0e5ca2111bb5c524c347904b87a30150b945dd17aaedecba1e625072b3`, 3529198 字节. 对 9308d108 条目 1550 -> 1550, 新增 0, 删除 0, 改动 8, 全是 `NativePromise` 及其内部类与 `AsyncThreads` (内部类只是源码行号挪了) (`jar-diff.txt`); slim 排除项 331 -> 331, 没有新增排除 (`slim-check.txt`). 隔离克隆 E:/.cache/aj6-q64 (宿主 7aa27d5b2) 先验: 单测 6075 例 0 失败 27 跳过, 表面基线与夹具不变, assemble 三项成功. 换入共享工作区: 宿主 c622d1ad2 (只有 jar, 在另一个会话的 3a3559cce / ee4e390b5 之后).
+- 设备复跑 (共享工作区 c622d1ad2 的构建): 两台临时 AVD 与 XQ-AT72 的结果与 P9.6 相同, XQ-AT72 的 inrt `viewSubclassInUiMode` 照旧因锁屏不绘制, 在 22120RN86C 上补跑 27 / 27, 表在附录 B. 共享工作区复验单测 6076 例 0 失败 27 跳过, assemble 三项通过.
+- 宿主克隆的 Kotlin 用 in-process (`-Pkotlin.compiler.execution.strategy=in-process`, Gradle 堆 14g): 当时另一个会话的 Kotlin 守护进程在跑, 不与它共用 (记忆: 共用会 GC 抖动), 结束后也没有要清理的 Kotlin 守护进程. 单测 8 分 21 秒, assemble 三项 6 分 26 秒.
 - 判断: `awaitSettled` 路径上 Q64 新增的只有 `react` 里的 `synchronized addIfPending` 与两个 `atHome` lambda; 分配不变说明 lambda 被 C2 消掉了, 一进一出两次 CAS 正好约 10 ns. 这条路径上 promise 已落定, 用不到锁.
 
 ### 入库的改法
@@ -1222,3 +1225,12 @@ promise.js / `PromiseConstructor` 定制点的去向:
 
 - `onFulfill` / `onReject` / `onResolution` (上游给 Java 嵌入者的公开方法) 挂反应时仍不加锁. fork 与宿主都不调用它们 (只有上游 `NativePromiseTest`), 多线程嵌入者要用时应改走 `addIfPending`.
 - 宿主 `AutoJsContext.forwardTask` 每次 resolve 都查 `ScriptEventLoop.of(owner)`, 微基准量不到 (默认 `forwardTask` 被 C2 内联成 false), 要量只能在设备上 (`device_promise_check.py --bench`).
+
+### 给宿主的注意点
+
+- 行为不变, 宿主 changelog, 文档站与插件 README 都不用改; 共享笔记 `aj6-p9-changelog.md` 第 3 行补了宿主提交 c622d1ad2.
+- `AutoJsContext.forwardTask` 的签名没变. 已落定的 promise 上 `then` / `await` 不再经过 `atHome`, 反应直接排进当前 Context, 与 Q64 之前的单线程路径相同; 待定的 promise 仍按 Q65 回到 async 函数所在线程.
+
+### 证据与清理
+
+证据目录只留文本: 微基准原始输出 (`jmh/`) 与 jmh jar 的 sha256 (`jmh-jars.sha256`), 全量日志与失败清单, 门禁输出, 竞争探针, jar 的 sha256 / 条目差异 / slim 核对, 宿主克隆与共享工作区的构建日志, 设备日志, `AGENTS.md` 副本与 sha256. jar 都能由提交重建, 不保留. 清理结果写在最终汇报与看板.
