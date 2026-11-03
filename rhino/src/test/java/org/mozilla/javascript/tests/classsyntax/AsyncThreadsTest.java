@@ -278,14 +278,7 @@ class AsyncThreadsTest {
                 Loop second = new Loop(host, "second")) {
             host.main = first;
             TopLevel scope = first.run(cx -> cx.initStandardObjects());
-            Callable count =
-                    new LambdaFunction(
-                            scope,
-                            1,
-                            (c, s, t, a) -> {
-                                reactions.incrementAndGet();
-                                return Undefined.instance;
-                            });
+            Callable count = counting(scope, reactions);
             CyclicBarrier barrier = new CyclicBarrier(2);
             NativePromise[] promise = new NativePromise[1];
             for (int i = 0; i < rounds; i++) {
@@ -322,6 +315,73 @@ class AsyncThreadsTest {
             }
             assertEquals(rounds, reactions.get());
         }
+    }
+
+    @Test
+    void anAwaitWhileAnotherThreadSettlesIsNotLost() throws Exception {
+        Host host = new Host();
+        int rounds = 20000;
+        AtomicInteger resumed = new AtomicInteger();
+        try (Loop first = new Loop(host, "first");
+                Loop second = new Loop(host, "second")) {
+            host.main = first;
+            TopLevel scope = first.run(cx -> cx.initStandardObjects());
+            Callable count = counting(scope, resumed);
+            Callable waiter =
+                    first.run(
+                            cx ->
+                                    (Callable)
+                                            cx.evaluateString(
+                                                    scope,
+                                                    "(async function (p, count) { count(await p); })",
+                                                    "t.js",
+                                                    1,
+                                                    null));
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            for (int i = 0; i < rounds; i++) {
+                Scriptable pair =
+                        first.run(
+                                cx ->
+                                        (Scriptable)
+                                                cx.evaluateString(
+                                                        scope,
+                                                        "Promise.withResolvers()",
+                                                        "t.js",
+                                                        1,
+                                                        null));
+                Object[] args = {pair.get("promise", pair), count};
+                Callable resolve = (Callable) pair.get("resolve", pair);
+                first.post(
+                        () -> {
+                            await(barrier);
+                            Context cx = Context.getCurrentContext();
+                            waiter.call(cx, scope, Undefined.SCRIPTABLE_UNDEFINED, args);
+                        });
+                second.post(
+                        () -> {
+                            await(barrier);
+                            Context cx = Context.getCurrentContext();
+                            resolve.call(cx, scope, Undefined.instance, new Object[] {1});
+                        });
+                first.run(cx -> null);
+                second.run(cx -> null);
+                first.run(cx -> null);
+            }
+            assertEquals(rounds, resumed.get());
+        }
+    }
+
+    /** Counts the calls that see the result: a settled promise is read without a lock. */
+    private static Callable counting(TopLevel scope, AtomicInteger calls) {
+        return new LambdaFunction(
+                scope,
+                1,
+                (c, s, t, a) -> {
+                    if (Integer.valueOf(1).equals(a[0])) {
+                        calls.incrementAndGet();
+                    }
+                    return Undefined.instance;
+                });
     }
 
     private static void await(CyclicBarrier barrier) {

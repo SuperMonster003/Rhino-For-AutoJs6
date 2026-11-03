@@ -53,7 +53,7 @@ public class NativePromise extends ScriptableObject {
                         .build();
     }
 
-    private State state = State.PENDING;
+    private volatile State state = State.PENDING; // AutoJs6: async
     private Object result = null;
     private volatile boolean handled = false; // AutoJs6: async
     // True once settlement has begun, including while a thenable is being adopted
@@ -522,10 +522,12 @@ public class NativePromise extends ScriptableObject {
 
     // AutoJs6: async. PerformPromiseThen without a result capability, for Java reactions.
     void react(Context cx, VarScope scope, ReactionCall ok, ReactionCall no) { // AutoJs6: async
-        var homeOk = AsyncThreads.atHome(cx, this, ok); // AutoJs6: async
-        var homeNo = AsyncThreads.atHome(cx, this, no); // AutoJs6: async
-        if (addIfPending(homeOk, homeNo)) { // AutoJs6: async
-            return; // AutoJs6: async
+        if (state == State.PENDING) { // AutoJs6: async
+            var homeOk = AsyncThreads.atHome(cx, this, ok); // AutoJs6: async
+            var homeNo = AsyncThreads.atHome(cx, this, no); // AutoJs6: async
+            if (addIfPending(homeOk, homeNo)) { // AutoJs6: async
+                return; // AutoJs6: async
+            } // AutoJs6: async
         } // AutoJs6: async
         if (state == State.FULFILLED) { // AutoJs6: async
             cx.enqueueMicrotask(() -> ok.invoke(cx, scope, result)); // AutoJs6: async
@@ -536,13 +538,19 @@ public class NativePromise extends ScriptableObject {
     } // AutoJs6: async
 
     // AutoJs6: async. A promise may settle on another script thread while this one adds reactions.
-    private synchronized boolean addIfPending(ReactionCall ok, ReactionCall no) { // AutoJs6: async
+    // AutoJs6: async. What is settled stays settled, so it needs no lock (appendix C Q64).
+    private boolean addIfPending(ReactionCall ok, ReactionCall no) { // AutoJs6: async
         if (state != State.PENDING) { // AutoJs6: async
             return false; // AutoJs6: async
         } // AutoJs6: async
-        fulfillReactions.add(ok); // AutoJs6: async
-        rejectReactions.add(no); // AutoJs6: async
-        return true; // AutoJs6: async
+        synchronized (this) { // AutoJs6: async
+            if (state != State.PENDING) { // AutoJs6: async
+                return false; // AutoJs6: async
+            } // AutoJs6: async
+            fulfillReactions.add(ok); // AutoJs6: async
+            rejectReactions.add(no); // AutoJs6: async
+            return true; // AutoJs6: async
+        } // AutoJs6: async
     } // AutoJs6: async
 
     private void markHandled(Context cx) {

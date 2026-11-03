@@ -38,10 +38,13 @@ final class AsyncThreads {
     static NativePromise.ReactionCall atHome(
             Context home, NativePromise promise, NativePromise.ReactionCall reaction) {
         return (cx, scope, value) -> {
-            Runnable task = () -> reaction.invoke(Context.getCurrentContext(), scope, value);
-            if (cx == home || !cx.forwardTask(home, promise, task)) {
-                reaction.invoke(cx, scope, value);
+            if (cx != home) {
+                Runnable task = () -> reaction.invoke(Context.getCurrentContext(), scope, value);
+                if (cx.forwardTask(home, promise, task)) {
+                    return;
+                }
             }
+            reaction.invoke(cx, scope, value);
         };
     }
 }

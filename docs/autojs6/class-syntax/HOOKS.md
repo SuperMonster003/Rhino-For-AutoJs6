@@ -45,6 +45,7 @@
 | Q64 | 完成 (2026-11-03, 子会话 rhino-p9b) | 多脚本线程下的 Promise (附录 C Q64 / Q65, 已先行; fork 原本只按单线程设计): 新文件 `AsyncThreads`, `Context.forwardTask` 默认 false; 其他线程落定可转交事件循环线程, await 回到 async 函数所在线程, `NativePromise` 的状态转换加锁; 钩子 +46 行, 合计 1051 |
 | Q66 | 完成 (2026-11-03, 子会话 rhino-p9b) | `NativePromise` 的错误对象与 catch 子句相同 (附录 C Q66, 已先行, 上游缺陷): `getErrorObject` 改用 `AsyncRuntime.thrown`, 上游把异常全文当 message 新建错误, 丢 stack; `UnhandledRejectionTracker` 按发生顺序保存; 钩子净增 2 行, 合计 1053 |
 | Q67 | 完成 (2026-11-03, 子会话 rhino-p9b) | 捕获续体失败不再留下冻结的帧 (附录 C Q67, 已先行, 上游缺陷): `Interpreter.captureContinuation` 先查顶层帧再冻结; 钩子 12 行, 合计 1065 |
+| Q64 优化 | 完成 (2026-11-03, 子会话 rhino-q64) | 已落定的 promise 不进锁 (附录 C Q64, 语义不变): `state` 改 volatile, `addIfPending` 双重检查, `react` 先看 PENDING 才包 `atHome`; `AsyncThreads.atHome` 只在跨 Context 时才分配任务; 钩子净增 9 行, 合计 1074 |
 
 ## 2. 开关与门控
 
@@ -322,6 +323,7 @@
 | `rhino/src/main/java/org/mozilla/javascript/UnhandledRejectionTracker.java` | async | 1 | `unhandled` 按发生顺序保存 (Q66) | Q66 |
 | `rhino/src/main/java/org/mozilla/javascript/Interpreter.java` | async | 12 | `captureContinuation` 先查顶层帧再冻结 (Q67, 上游缺陷; 上游的检查原样搬到冻结之前) | Q67 |
 | `rhino/src/main/java/org/mozilla/javascript/NativePromise.java` | async | 38 | 多脚本线程 (Q64): `resolve` / `reject` 先经 `AsyncThreads.hop`, 落定本身拆到 `settleWith` / `rejectWith`; `addIfPending` 与 `fulfillPromise` / `rejectPromise` 同步, 落定时重查 PENDING (取代两条 assert), `handled` 改 volatile; `react` 的反应包 `AsyncThreads.atHome` (Q65) | Q64 |
+| `rhino/src/main/java/org/mozilla/javascript/NativePromise.java` | async | 9 | 已落定的 promise 不进锁: `state` 改 volatile, `addIfPending` 先查再锁, 锁内重查; `react` 先看 PENDING 才包 `atHome` | Q64 优化 |
 | `rhino/src/main/java/org/mozilla/javascript/UnhandledRejectionTracker.java` | async | 4 | `process` 跳过已被其他线程处理的 promise (Q64) | Q64 |
 | `rhino/src/main/java/org/mozilla/javascript/Context.java` | async | 4 | `forwardTask` (默认 false; 宿主覆盖, 见 `AsyncThreads`) | Q64 |
 | `rhino/src/main/java/org/mozilla/javascript/ast/FunctionNode.java` | async | 7 | `isAsyncGenerator` 字段与读写方法 | P9 |
@@ -479,7 +481,7 @@
 
 | `org.mozilla.javascript.tests.classsyntax.AsyncFunctionTest` | rhino | async 函数 / 方法 / 箭头函数的时序, thenable, Java Future, 参数错误, 名字绑定, 构造器, 错误位置, `AsyncTracker` (Q7), 每 Context 的 `UnhandledRejectionTracker` (Q6), 本阶段修的上游缺陷 | P9 |
 | `org.mozilla.javascript.tests.classsyntax.AsyncGeneratorTest` | rhino | 请求队列, yield / return / throw, `yield*` 委托, 方法, 同步生成器 finally 里 yield | P9 |
-| `org.mozilla.javascript.tests.classsyntax.AsyncThreadsTest` | rhino | 多脚本线程 (Q64 / Q65): 事件循环外落定转交, await / for await 回到所在线程, then 留在落定线程, 跨线程 then 与 resolve 竞争不丢反应 (去掉锁时失败), 其他线程处理过的 rejection 不再报告 | Q64 |
+| `org.mozilla.javascript.tests.classsyntax.AsyncThreadsTest` | rhino | 多脚本线程 (Q64 / Q65): 事件循环外落定转交, await / for await 回到所在线程, then 留在落定线程, 跨线程 then 与 resolve, await 与 resolve 竞争不丢反应且读到结果 (去掉锁时失败), 其他线程处理过的 rejection 不再报告 | Q64 |
 | `org.mozilla.javascript.tests.classsyntax.ForAwaitTest` | rhino | 异步与同步可迭代, 关闭 (break / return / 异常), 解构头部, 标签, `async` 标识符 | P9 |
 | `org.mozilla.javascript.tests.classsyntax.OptionalChainingTest` | rhino | 可选链整条短路 (Q55): 后续成员, 下标, 实参不求值, 只有 `?.` 测试; this, 括号, delete, 早期错误, `?.()` 的查找, eval, with, super, 私有名, 展开, yield / await, number 变量, continuation | Q55 |
 | `org.mozilla.javascript.tests.classsyntax.NestedYieldTest` | rhino | yield / await 的操作数里再有 yield / await (Q58): 数组 / 对象字面量, 实参, 条件与逻辑运算短路, 模板, `yield*`, 可选链, 解构与临时作用域的初值, throw / return, async 函数与 async 生成器; 两模式 | Q58 |
