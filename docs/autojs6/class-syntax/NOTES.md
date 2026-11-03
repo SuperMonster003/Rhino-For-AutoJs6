@@ -1170,3 +1170,55 @@ promise.js / `PromiseConstructor` 定制点的去向:
 ### 清理
 
 最终汇报与看板写明. 证据目录保留门禁, 设备与 jar 对比的输出 (含两个 jar), 没有 hprof 与完整 logcat.
+
+## Q64 优化 (2026-11-03, 子会话 rhino-q64)
+
+把 Q64 多出的开销压回附录 C Q8 = B 的 10% 硬门槛以内, 语义不变, 之后第二次换 jar. 证据目录 `build/upstream-sync/class-q64-20261103/` (git 忽略).
+
+### 进度
+
+- 第 1 笔 ea29f5c64: 附录 C Q64 - Q67 回填.
+- 104a623db: 基准加 `awaitPending` (`await` 一个 async 函数的返回值, 反应在落定之前挂上). `awaitSettled` 等的是已落定的 promise, 而多数真实的 await 不是, 只测它会漏掉加锁最多的路径.
+- 34f5b3d5d: 优化 (下面 "入库的改法"), 竞争用例, HOOKS 合计 1074. 全量 JDK 21 五模块 175109 例 27 失败 21 跳过, 27 项与 rhino-p9b 逐条同名 (`full-failures.txt`, `now.names` 对 `base.names`), 全部模块 `spotlessCheck` 通过. 微基准过 10% 硬门槛, 数字见附录 A "基线 Q64 优化" 与下面 "微基准".
+- 判断: `awaitSettled` 路径上 Q64 新增的只有 `react` 里的 `synchronized addIfPending` 与两个 `atHome` lambda; 分配不变说明 lambda 被 C2 消掉了, 一进一出两次 CAS 正好约 10 ns. 这条路径上 promise 已落定, 用不到锁.
+
+### 入库的改法
+
+一处就够, 没有试第二种: `state` 改 volatile, 已落定的 promise 不进锁. `addIfPending` 先查再锁, 锁内重查; `react` 先看 PENDING, 已落定时连 `atHome` 也不包; `atHome` 里的 `Runnable` 只在跨 Context 时才分配 (C2 本来就消掉了, 这条对 Android 上的 ART 有用). `then` 不用改, 走 `addIfPending` 的快路径.
+
+为什么语义不变: `result` 写在 `state` 之前, 而 `state` 是 volatile, 读到非 PENDING 就一定读得到 `result`, 所以快路径可以不进锁. 落定之后状态不再变, 看到 PENDING 的线程走原来的锁内重查, 与原来相同. 线程去向 (`atHome` 与 `hop`) 没有动.
+
+`fulfillPromise` / `rejectPromise` 与挂反应的路径仍然加锁: 待定的 promise 要靠它不丢反应, 这正是 Q64 要的语义.
+
+### 竞争探针
+
+`AsyncThreadsTest` 的 `aReactionAddedWhileAnotherThreadSettlesIsNotLost` 改成也核对反应拿到的值, 新增 `anAwaitWhileAnotherThreadSettlesIsNotLost` 走 `react` 这条路. 探针脚本改克隆里的文件, 改完校验确实写进去了.
+
+- 20 万轮 (两个用例各一遍, 默认是 2 万轮) 7 例全过, 154.8 s, `q64-race-200000.log`.
+- 负控: 克隆里去掉 `addIfPending` 的 `synchronized`, 默认 2 万轮两个用例都失败, then 19911 / 20000, await 19913 / 20000 (`q64-without-lock.log`), 所以这两个用例确实抓得到丢反应.
+
+坑: PowerShell 工具里的 `Set-Content` 没有 `-NoNewline`, 第一遍探针的改动都没写进去, 7 例 18 s 全过的结果作废. 判断依据是耗时, 改完要校验.
+
+### 微基准
+
+三个 jmh jar 都在 `104a623db` 的基准上构建 (`jmh-base.jar` 是 caa3e3b54 加该提交的基准, `jmh-head.jar` 是 104a623db, `jmh-optA.jar` 是它加本节的改法, 运行时代码与 34f5b3d5d 相同), sha256 在 `jmh-jars.sha256`. JDK 21, `jmh_alternate.py` 交替 5 轮, us/op (每次调用 1000 次操作), 原始输出在 `jmh/`:
+
+| 项 | caa3e3b54 | Q64 之后 (head) | 优化后 | 负载中位数 |
+|---|---|---|---|---|
+| `awaitSettled` 编译 | 87.07 | 100.49 (+15.4%) | 87.98 (+1.0%, 比值 +0.3%) | 12.5 |
+| `awaitSettled` 解释 | 202.42 | 212.92 (+5.2%) | 203.15 (+0.4%, 比值 +0.6%) | 15.5 |
+| `awaitPending` 编译 | 1721.69 | 1767.53 (+2.7%) | 1750.50 (+1.7%) | 17 |
+| `awaitPending` 解释 | 2323.56 | 2382.08 (+2.5%) | 2374.80 (+2.2%) | 22.5 |
+| `thenSettled` 编译 | 993.55 ± 102.7 | 1009.65 (+1.6%) | 1010.97 (+1.8%, 误差 ± 23.8) | 22.5 |
+| `thenSettled` 解释 (第二遍) | 1178.94 ± 136.5 | 1176.33 (-0.2%) | 1201.11 (+1.9%, 误差 ± 32.2) | 21.5 |
+
+- 每次 await: Q64 之前到之后多 13.4 ns (编译) / 10.5 ns (解释), 优化收回 12.5 / 9.8 ns, 剩 0.9 / 0.7 ns, 在误差内.
+- 分配: `awaitSettled` 127.4 / 320.4 B, `thenSettled` 3020.6 / 3308.9 B, 三个 jar 相同. `awaitPending` 编译 1431.4 -> 1527.4 -> 1479.4 B, 解释 2560.4 -> 2656.4 -> 2608.4 B: 剩下的 48 B 是待定 promise 上的两个 `atHome` 包装, 这是 Q65 "回到所在线程" 本身的代价, 优化收回了另一半 (`atHome` 里预先分配的 `Runnable`).
+- class 方法调用对照 (`jmh-optA.jar`, class 对 function + prototype): 编译 27.06 对 27.17 (-0.4%), 解释 286.33 对 290.12 (-1.3%).
+- `thenSettled` 解释模式第一遍的负载中位数 32.5 (另一个会话的 Gradle 9.7.1 守护进程在跑), 超过 25, 不采用, 只留 `jmh/then-Interpreter-1/`; 第二遍有效.
+- `thenSettled` 两遍解释都比 head 高 2% 左右, 在误差内. 可能的来源是落定时 `state` 的 volatile 写. `AtomicReferenceFieldUpdater.lazySet` 可以省掉 StoreLoad 屏障, 但它按字段名反射, 宿主的 R8 与 slim jar 有风险, 收益在误差内, 不试.
+
+### 没有改的
+
+- `onFulfill` / `onReject` / `onResolution` (上游给 Java 嵌入者的公开方法) 挂反应时仍不加锁. fork 与宿主都不调用它们 (只有上游 `NativePromiseTest`), 多线程嵌入者要用时应改走 `addIfPending`.
+- 宿主 `AutoJsContext.forwardTask` 每次 resolve 都查 `ScriptEventLoop.of(owner)`, 微基准量不到 (默认 `forwardTask` 被 C2 内联成 false), 要量只能在设备上 (`device_promise_check.py --bench`).
