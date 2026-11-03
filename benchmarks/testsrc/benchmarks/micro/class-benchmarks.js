@@ -147,6 +147,18 @@ function awaitSettled() {
     })();
 }
 
+async function settledStep() {
+    await settled;
+}
+
+function awaitPending() {
+    return (async function () {
+        for (var i = 0; i < 1000; i++) {
+            await settledStep();
+        }
+    })();
+}
+
 function thenSettled() {
     var i = 0;
     function step() {

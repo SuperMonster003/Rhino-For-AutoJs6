@@ -34,6 +34,7 @@ public class ClassBenchmark {
         Function classSuperCall;
         Function functionSuperCall;
         Function awaitSettled;
+        Function awaitPending;
         Function thenSettled;
 
         @Param({"Interpreter", "Compiler"})
@@ -60,6 +61,7 @@ public class ClassBenchmark {
             classSuperCall = function("classSuperCall");
             functionSuperCall = function("functionSuperCall");
             awaitSettled = function("awaitSettled");
+            awaitPending = function("awaitPending");
             thenSettled = function("thenSettled");
         }
 
@@ -139,6 +141,12 @@ public class ClassBenchmark {
     @Benchmark
     public Object awaitSettled(ClassState state) {
         return state.runMicrotasks(state.awaitSettled);
+    }
+
+    /** Appendix C Q64: an await of what an async function returns, which settles afterwards. */
+    @Benchmark
+    public Object awaitPending(ClassState state) {
+        return state.runMicrotasks(state.awaitPending);
     }
 
     @Benchmark
